@@ -2,11 +2,12 @@ package upload
 
 import (
 	"bufio"
-	"lexore/rockpload/app/config"
-	"lexore/rockpload/app/tools/logger"
 	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
 const (

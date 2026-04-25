@@ -2,14 +2,15 @@ package app
 
 import (
 	_ "embed"
-	"lexore/rockpload/app/config"
-	"lexore/rockpload/app/rocket_network"
-	"lexore/rockpload/app/tools/logger"
-	"lexore/rockpload/app/ui"
-	"lexore/rockpload/app/upload"
 	"log/slog"
 	"os"
 	"os/exec"
+
+	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/rocket_network"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/ui"
+	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -149,9 +150,12 @@ func (a *App) setupAppUpdate() {
 		return
 	}
 
+	a.updateInfo = updater.UpdateInfo
+
 	if needUpdate {
-		d := ui.NewDialog(a.app)
-		d.NewUpdate(a.updateInfo.Version, func() {
+		// TODO Make auto update withtout ask setting
+		popup := ui.NewPopup("New Update!", a.window, a.appConfig)
+		updatePopup := ui.NewUpdatePopup(popup, a.updateInfo.Version, func() {
 			err := updater.ApplyUpdate()
 			if err != nil {
 				logger.Rlogger.Error("Update failed", slog.Any("err", err))
@@ -160,6 +164,8 @@ func (a *App) setupAppUpdate() {
 
 			a.restart()
 		})
+
+		updatePopup.Show()
 	}
 }
 

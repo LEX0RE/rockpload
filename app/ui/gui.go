@@ -6,13 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"lexore/rockpload/app/config"
-	"lexore/rockpload/app/tools/logger"
-	"lexore/rockpload/app/upload"
+	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -23,45 +24,42 @@ type GUI struct {
 
 	LoginBox 	*fyne.Container
 	PlayerBox 	*fyne.Container
-	OptionBox 	*fyne.Container
-
-	UploadDialog  dialog.Dialog
-	UploadBar     *widget.ProgressBar
 
 	TokenEntry 	*widget.Entry
-	ConnectBtn 	*widget.Button
-	LoginBtn   	*widget.Button
 	PlayerName 	*widget.Label
 	MatchHistoryData []string
 	MatchHistoryList *widget.List
-	optionAccordion *widget.AccordionItem
 }
 
 func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, uploader *upload.Uploader) (g *GUI, err error) {
 	logger.FuncDebug()
 	g = &GUI{window: window, appConfig: appConfig,uploader: uploader}
 
+	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Welcome to Rockpload! (" + version + ")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
+
+	optionPopup := NewPopup("Option", g.window, appConfig)
+	settingPopup := NewSettingPopup(optionPopup)
+
+	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
+		settingPopup.Show()
+	})
+	settingsBtn.Importance = widget.LowImportance
+	rightAlignedBtn := container.NewHBox(layout.NewSpacer(), settingsBtn)
+
+	header := container.NewStack(centeredLabel, rightAlignedBtn)
+
 	infoBox := container.NewVBox(
-		container.NewCenter(widget.NewLabel("Welcome to Rockpload! (" + version + ")")),
+		header,
 		widget.NewLabel("This program will fetch your Rocket League match history and upload replays to the Rocky server."),
 		widget.NewSeparator(),
 	)
 
 	g.createLoginUI()
 	g.createPlayerUI()
-	g.createOptionsUI()
 
 	contentBox := container.NewBorder(g.LoginBox,nil,nil,nil,g.PlayerBox)
 
-	g.window.SetContent(
-		container.NewBorder(
-			infoBox,
-			nil,
-			nil,
-			nil,
-			container.NewBorder(g.OptionBox,nil,nil,nil,contentBox),
-		),
-	)
+	g.window.SetContent(container.NewBorder(infoBox,nil,nil,nil,contentBox))
 
 	g.UpdateState()
 
@@ -102,33 +100,39 @@ func (g *GUI) UpdateState() {
 
 func (g *GUI) createLoginUI() {
 	logger.FuncDebug()
-	g.ConnectBtn = widget.NewButton("Connect", func() {
+	ConnectBtn := widget.NewButton("Connect", func() {
 		err := g.uploader.Player.Auth.AuthenticateWithCode(g.TokenEntry.Text)
 		if err != nil {
 			logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
 		}
 	})
 
-	g.ConnectBtn.Disable()
+	ConnectBtn.Disable()
 
 	g.TokenEntry = widget.NewPasswordEntry()
-	g.TokenEntry.SetPlaceHolder("Paste your OAuth token here")
+	g.TokenEntry.SetPlaceHolder("Paste your OAuth token here if needed")
 
 	g.TokenEntry.OnChanged = func(s string) {
 		if strings.TrimSpace(s) != "" {
-			g.ConnectBtn.Enable()
+			ConnectBtn.Enable()
 		} else {
-			g.ConnectBtn.Disable()
+			ConnectBtn.Disable()
 		}
 	}
 
-	g.LoginBtn = widget.NewButton("Retrieve OAuth Token", func() {
-		g.uploader.Player.Auth.OpenAuthURL()
+	LoginBtn := widget.NewButton("Authenticate", func() {
+		g.uploader.Player.Auth.OpenAuth()
 	})
 
+	ResetBrowserBtn := widget.NewButton("Reset Browser", func() {
+		g.uploader.Player.Auth.ClearBrowserProfile()
+	})
+
+	actionButtonBorder := container.NewBorder(nil,nil,LoginBtn,nil,ResetBrowserBtn)
+
 	g.LoginBox = container.NewVBox(
-		container.NewBorder(nil,nil,g.LoginBtn,nil,g.TokenEntry),
-		g.ConnectBtn,
+		container.NewBorder(nil,nil,actionButtonBorder,nil,g.TokenEntry),
+		ConnectBtn,
 	)
 }
 
@@ -175,48 +179,4 @@ func (g *GUI) createPlayerUI() {
 		nil,
 		widget.NewAccordion(matchHistoryAccordion),
 	)
-}
-
-func (g *GUI) createOptionsUI() {
-	logger.FuncDebug()
-	autoStartCheck := widget.NewCheck("Start with system", func(value bool) {
-		g.appConfig.SetAppConfig(config.AutoStart, value)
-	})
-	autoStartCheck.SetChecked(g.appConfig.GetAppConfig(config.AutoStart))
-
-	autoUploadCheck := widget.NewCheck("Auto Upload Replays", func(value bool) {
-		g.appConfig.SetAppConfig(config.AutoUpload, value)
-	})
-	autoUploadCheck.SetChecked(g.appConfig.GetAppConfig(config.AutoUpload))
-
-	startInTrayCheck := widget.NewCheck("Start in Tray", func(value bool) {
-		g.appConfig.SetAppConfig(config.StartInTray, value)
-	})
-	startInTrayCheck.SetChecked(g.appConfig.GetAppConfig(config.StartInTray))
-	if (!g.appConfig.GetAppConfig(config.ExitInTray)) {
-		startInTrayCheck.Hide()
-	}
-
-	exitInTrayCheck := widget.NewCheck("Exit in System Tray", func(value bool) {
-		g.appConfig.SetAppConfig(config.ExitInTray, value)
-		if (value) {
-			startInTrayCheck.Show()
-			if (g.optionAccordion != nil) {
-				g.optionAccordion.Detail.Refresh()
-				g.OptionBox.Refresh()
-			}
-		} else {
-			startInTrayCheck.Hide()
-			if (g.optionAccordion != nil) {
-				g.optionAccordion.Detail.Refresh()
-				g.OptionBox.Refresh()
-			}
-		}
-	})
-	exitInTrayCheck.SetChecked(g.appConfig.GetAppConfig(config.ExitInTray))
-
-	g.optionAccordion = widget.NewAccordionItem("Option", container.NewVBox(autoStartCheck, autoUploadCheck, exitInTrayCheck, startInTrayCheck))
-	g.optionAccordion.Open = false
-
-	g.OptionBox = container.NewBorder(nil,nil,nil,nil,widget.NewAccordion(g.optionAccordion))
 }

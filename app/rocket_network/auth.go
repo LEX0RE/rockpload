@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"lexore/rockpload/app/config"
-	"lexore/rockpload/app/tools"
-	"lexore/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/tools"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"github.com/dank/rlapi"
 )
@@ -38,9 +38,21 @@ func NewAuth() (ra *Auth, err error) {
 	return ra, nil
 }
 
-func (ra *Auth) OpenAuthURL() {
+func (ra *Auth) OpenAuth() {
 	logger.FuncDebug()
-	tools.OpenBrowser(ra.EGS.GetAuthURL())
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered from panic:", r)
+		}
+	}()
+
+	err := ra.openAutoAuth()
+	if err != nil {
+		logger.Rlogger.Error("Failed to retrieve token from auto browser (will try manually):", slog.Any("err", err))
+		ra.openAuthURL()
+	}
+
 }
 
 func (ra *Auth) AuthenticateWithCode(authCode string) (err error) {
@@ -58,6 +70,14 @@ func (ra *Auth) AuthenticateWithCode(authCode string) (err error) {
 	return nil
 }
 
+func (ra *Auth) ClearBrowserProfile() {
+	logger.FuncDebug()
+	err := os.RemoveAll(config.BrowserSession)
+	if err != nil {
+		logger.Rlogger.Error("Failed to clear browser profile", slog.Any("err", err))
+	}
+}
+
 func (ra *Auth) ClearToken() {
 	logger.FuncDebug()
 	ra.Auth = nil
@@ -66,6 +86,32 @@ func (ra *Auth) ClearToken() {
 	if err != nil && !os.IsNotExist(err) {
 		logger.Rlogger.Error("Failed to clear token file", slog.Any("err", err))
 	}
+}
+
+// User interaction, but any browser
+func (ra *Auth) openAuthURL() {
+	logger.FuncDebug()
+
+	tools.OpenBrowser(ra.EGS.GetAuthURL())
+}
+
+// No user interaction, but chrome
+func (ra *Auth) openAutoAuth() (err error) {
+	logger.FuncDebug()
+
+	tokenEntry, err := tools.OpenAutoChromiumBrowser(ra.EGS.GetAuthURL())
+	if err != nil {
+		logger.Rlogger.Error("Failed to retrieve token:", slog.Any("err", err))
+		return err
+	}
+
+	err = ra.AuthenticateWithCode(tokenEntry)
+	if err != nil {
+		logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
+		return err
+	}
+
+	return nil
 }
 
 func (ra *Auth) retrieveToken() (err error) {

@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"lexore/rockpload/app/tools/logger"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
 type RockyWebsite struct {

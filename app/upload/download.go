@@ -3,9 +3,10 @@ package upload
 import (
 	"fmt"
 	"io"
-	"lexore/rockpload/app/tools/logger"
 	"net/http"
 	"os"
+
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
 func downloadFile(url string) (string, error) {

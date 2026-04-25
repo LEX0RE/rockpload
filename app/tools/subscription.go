@@ -3,7 +3,7 @@ package tools
 import (
 	"sync"
 
-	"lexore/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
 )
