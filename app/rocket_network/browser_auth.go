@@ -21,6 +21,8 @@ import (
 )
 
 const launcherClientID = "34a02cf8f4414e29b15921876da36f9a"
+const epicLoginURL = "https://www.epicgames.com/id/login"
+const epicLogoutURL = "https://www.epicgames.com/id/logout"
 
 // AuthenticateWithBrowser opens the user's default browser and captures
 // Epic's localhost callback automatically without requiring copy/paste.
@@ -52,7 +54,13 @@ func (ra *Auth) AuthenticateWithInstalledBrowser(timeout time.Duration) error {
 	}
 }
 
-func (ra *Auth) AuthenticateWithLauncherClient(timeout time.Duration) error {
+func (ra *Auth) AuthenticateWithLauncherClient(timeout time.Duration, forceAccountPicker bool) error {
+	if forceAccountPicker {
+		ra.ClearToken()
+		tools.OpenBrowser(epicLogoutURL)
+		time.Sleep(2 * time.Second)
+	}
+
 	if err := ra.AuthenticateWithBrowserCookies(); err == nil {
 		return nil
 	}
@@ -61,7 +69,7 @@ func (ra *Auth) AuthenticateWithLauncherClient(timeout time.Duration) error {
 	// endpoint, not through a normal browser redirect. Opening login here is
 	// only to establish/refresh the user's Epic browser session; the app polls
 	// installed browser cookies and requests the launcher code itself.
-	tools.OpenBrowser("https://www.epicgames.com/id/login")
+	tools.OpenBrowser(epicLoginURL)
 
 	deadline := time.After(timeout)
 	ticker := time.NewTicker(2 * time.Second)

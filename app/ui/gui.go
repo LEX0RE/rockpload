@@ -37,6 +37,7 @@ type GUI struct {
 	LoginBtn         *widget.Button
 	LoginStatus      *widget.Label
 	PlayerName       *widget.Label
+	SwitchAccountBtn *widget.Button
 	MatchHistoryData []string
 	MatchHistoryList *widget.List
 	optionAccordion  *widget.AccordionItem
@@ -79,6 +80,7 @@ func (g *GUI) UpdateState() {
 	if g.uploader.Player.Auth.Auth != nil {
 		g.LoginBox.Hide()
 		g.PlayerBox.Show()
+		g.SwitchAccountBtn.Show()
 
 		if g.uploader.Player.Auth.Auth.DisplayName != "" {
 			g.PlayerName.SetText("Connected Account: " + g.uploader.Player.Auth.Auth.DisplayName)
@@ -89,6 +91,7 @@ func (g *GUI) UpdateState() {
 	} else {
 		g.LoginBox.Show()
 		g.PlayerBox.Hide()
+		g.SwitchAccountBtn.Hide()
 	}
 
 	if g.uploader.Player.MatchHistory != nil {
@@ -136,7 +139,7 @@ func (g *GUI) createLoginUI() {
 
 	g.LoginBtn = widget.NewButton("Sign in with Epic", func() {
 		g.LoginStatus.SetText("Opening Epic sign-in window...")
-		go g.tryAutomaticBrowserSignIn()
+		go g.tryAutomaticBrowserSignIn(false)
 	})
 
 	g.LoginBox = container.NewVBox(
@@ -146,18 +149,22 @@ func (g *GUI) createLoginUI() {
 	)
 }
 
-func (g *GUI) tryAutomaticBrowserSignIn() {
+func (g *GUI) tryAutomaticBrowserSignIn(forceAccountPicker bool) {
 	logger.FuncDebug()
 
 	fyne.Do(func() {
-		g.LoginStatus.SetText("Opening Epic sign-in window...")
+		if forceAccountPicker {
+			g.LoginStatus.SetText("Opening Epic logout before account switch...")
+		} else {
+			g.LoginStatus.SetText("Opening Epic sign-in window...")
+		}
 	})
 
 	var err error
 	if config.EpicAuthMode() == "custom" {
 		err = g.uploader.Player.Auth.AuthenticateWithConfiguredOAuth(3 * time.Minute)
 	} else {
-		err = g.uploader.Player.Auth.AuthenticateWithLauncherClient(3 * time.Minute)
+		err = g.uploader.Player.Auth.AuthenticateWithLauncherClient(3*time.Minute, forceAccountPicker)
 	}
 	if err != nil {
 		logger.Rlogger.Error("Automatic browser authentication failed:", slog.Any("err", err))
@@ -266,15 +273,24 @@ func (g *GUI) createPlayerUI() {
 		g.UpdateState()
 	})
 
+	g.SwitchAccountBtn = widget.NewButton("Switch Epic Account", func() {
+		g.uploader.Player.Auth.ClearToken()
+		g.UpdateState()
+		g.LoginStatus.SetText("Opening Epic account switch...")
+		go g.tryAutomaticBrowserSignIn(true)
+	})
+	g.SwitchAccountBtn.Hide()
+
 	matchHistoryAccordion := widget.NewAccordionItem("Match History", g.MatchHistoryList)
 	matchHistoryAccordion.Open = false
+	actionBar := container.NewHBox(disconnectBtn, g.SwitchAccountBtn, uploadBtn)
 
 	g.PlayerBox = container.NewBorder(
 		container.NewBorder(
 			nil,
 			nil,
 			g.PlayerName,
-			container.NewBorder(nil, nil, disconnectBtn, nil, uploadBtn),
+			actionBar,
 			nil,
 		),
 		nil,
