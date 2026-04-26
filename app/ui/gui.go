@@ -2,6 +2,8 @@ package ui
 
 import (
 	"log/slog"
+	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -16,33 +18,36 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+var authCodePattern = regexp.MustCompile(`(?i)\b[a-z0-9]{32}\b`)
+
 type GUI struct {
-	window 		fyne.Window
-	uploader 	*upload.Uploader
-	appConfig 	*config.AppConfig
+	window    fyne.Window
+	uploader  *upload.Uploader
+	appConfig *config.AppConfig
 
-	LoginBox 	*fyne.Container
-	PlayerBox 	*fyne.Container
-	OptionBox 	*fyne.Container
+	LoginBox  *fyne.Container
+	PlayerBox *fyne.Container
+	OptionBox *fyne.Container
 
-	UploadDialog  dialog.Dialog
-	UploadBar     *widget.ProgressBar
+	UploadDialog dialog.Dialog
+	UploadBar    *widget.ProgressBar
 
-	TokenEntry 	*widget.Entry
-	ConnectBtn 	*widget.Button
-	LoginBtn   	*widget.Button
-	PlayerName 	*widget.Label
+	TokenEntry       *widget.Entry
+	ConnectBtn       *widget.Button
+	LoginBtn         *widget.Button
+	LoginStatus      *widget.Label
+	PlayerName       *widget.Label
 	MatchHistoryData []string
 	MatchHistoryList *widget.List
-	optionAccordion *widget.AccordionItem
+	optionAccordion  *widget.AccordionItem
 }
 
 func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, uploader *upload.Uploader) (g *GUI, err error) {
 	logger.FuncDebug()
-	g = &GUI{window: window, appConfig: appConfig,uploader: uploader}
+	g = &GUI{window: window, appConfig: appConfig, uploader: uploader}
 
 	infoBox := container.NewVBox(
-		container.NewCenter(widget.NewLabel("Welcome to Rockpload! (" + version + ")")),
+		container.NewCenter(widget.NewLabel("Welcome to Rockpload! ("+version+")")),
 		widget.NewLabel("This program will fetch your Rocket League match history and upload replays to the Rocky server."),
 		widget.NewSeparator(),
 	)
@@ -51,7 +56,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 	g.createPlayerUI()
 	g.createOptionsUI()
 
-	contentBox := container.NewBorder(g.LoginBox,nil,nil,nil,g.PlayerBox)
+	contentBox := container.NewBorder(g.LoginBox, nil, nil, nil, g.PlayerBox)
 
 	g.window.SetContent(
 		container.NewBorder(
@@ -59,7 +64,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 			nil,
 			nil,
 			nil,
-			container.NewBorder(g.OptionBox,nil,nil,nil,contentBox),
+			container.NewBorder(g.OptionBox, nil, nil, nil, contentBox),
 		),
 	)
 
@@ -75,7 +80,7 @@ func (g *GUI) UpdateState() {
 		g.LoginBox.Hide()
 		g.PlayerBox.Show()
 
-		if (g.uploader.Player.Auth.Auth.DisplayName != "") {
+		if g.uploader.Player.Auth.Auth.DisplayName != "" {
 			g.PlayerName.SetText("Connected Account: " + g.uploader.Player.Auth.Auth.DisplayName)
 			g.PlayerName.Show()
 		} else {
@@ -86,12 +91,12 @@ func (g *GUI) UpdateState() {
 		g.PlayerBox.Hide()
 	}
 
-	if (g.uploader.Player.MatchHistory != nil) {
+	if g.uploader.Player.MatchHistory != nil {
 		g.MatchHistoryData = []string{}
 		for _, match := range g.uploader.Player.MatchHistory {
 			matchDate := time.Unix(match.Match.RecordStartTimestamp, 0).Format("2006-01-02 15:04:05")
 			matchScore := strconv.Itoa(match.Match.Team0Score) + " - " + strconv.Itoa(match.Match.Team1Score)
-			g.MatchHistoryData = append(g.MatchHistoryData, matchDate + " : " +matchScore + " (" + match.Match.MatchGUID + ")")
+			g.MatchHistoryData = append(g.MatchHistoryData, matchDate+" : "+matchScore+" ("+match.Match.MatchGUID+")")
 		}
 		g.MatchHistoryList.Refresh()
 	} else {
@@ -106,13 +111,18 @@ func (g *GUI) createLoginUI() {
 		err := g.uploader.Player.Auth.AuthenticateWithCode(g.TokenEntry.Text)
 		if err != nil {
 			logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
+			g.LoginStatus.SetText("Authentication failed. Paste a fresh code and try again.")
+			return
 		}
+
+		g.LoginStatus.SetText("Authenticated.")
+		g.UpdateState()
 	})
 
 	g.ConnectBtn.Disable()
 
 	g.TokenEntry = widget.NewPasswordEntry()
-	g.TokenEntry.SetPlaceHolder("Paste your OAuth token here")
+	g.TokenEntry.SetPlaceHolder("Paste auth code if automatic sign-in fails")
 
 	g.TokenEntry.OnChanged = func(s string) {
 		if strings.TrimSpace(s) != "" {
@@ -122,14 +132,111 @@ func (g *GUI) createLoginUI() {
 		}
 	}
 
-	g.LoginBtn = widget.NewButton("Retrieve OAuth Token", func() {
-		g.uploader.Player.Auth.OpenAuthURL()
+	g.LoginStatus = widget.NewLabel("")
+
+	g.LoginBtn = widget.NewButton("Sign in with Epic", func() {
+		g.LoginStatus.SetText("Opening Epic sign-in window...")
+		go g.tryAutomaticBrowserSignIn()
 	})
 
 	g.LoginBox = container.NewVBox(
-		container.NewBorder(nil,nil,g.LoginBtn,nil,g.TokenEntry),
+		container.NewBorder(nil, nil, g.LoginBtn, nil, g.TokenEntry),
+		g.LoginStatus,
 		g.ConnectBtn,
 	)
+}
+
+func (g *GUI) tryAutomaticBrowserSignIn() {
+	logger.FuncDebug()
+
+	fyne.Do(func() {
+		g.LoginStatus.SetText("Opening Epic sign-in window...")
+	})
+
+	var err error
+	if config.EpicAuthMode() == "custom" {
+		err = g.uploader.Player.Auth.AuthenticateWithConfiguredOAuth(3 * time.Minute)
+	} else {
+		err = g.uploader.Player.Auth.AuthenticateWithLauncherClient(3 * time.Minute)
+	}
+	if err != nil {
+		logger.Rlogger.Error("Automatic browser authentication failed:", slog.Any("err", err))
+		fyne.Do(func() {
+			g.LoginStatus.SetText("Automatic browser sign-in failed: " + err.Error())
+		})
+		return
+	}
+
+	fyne.Do(func() {
+		g.LoginStatus.SetText("Authenticated.")
+		g.UpdateState()
+	})
+}
+
+func (g *GUI) watchClipboardForAuthCode(timeout time.Duration) bool {
+	logger.FuncDebug()
+
+	baseline := strings.TrimSpace(g.window.Clipboard().Content())
+	attempted := map[string]struct{}{}
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		current := strings.TrimSpace(g.window.Clipboard().Content())
+		if current == "" || current == baseline {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		authCode := extractAuthCode(current)
+		if authCode == "" {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		if _, exists := attempted[authCode]; exists {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		attempted[authCode] = struct{}{}
+
+		fyne.Do(func() {
+			g.TokenEntry.SetText(authCode)
+			g.LoginStatus.SetText("Auth code detected. Connecting...")
+		})
+
+		err := g.uploader.Player.Auth.AuthenticateWithCode(authCode)
+		if err == nil {
+			fyne.Do(func() {
+				g.LoginStatus.SetText("Authenticated.")
+			})
+			return true
+		}
+
+		logger.Rlogger.Error("Automatic authentication failed:", slog.Any("err", err))
+		fyne.Do(func() {
+			g.LoginStatus.SetText("Auth code detected but rejected. Copy a fresh code and try again.")
+		})
+
+		time.Sleep(1 * time.Second)
+	}
+
+	return false
+}
+
+func extractAuthCode(raw string) string {
+	trimmed := strings.Trim(strings.TrimSpace(raw), "\"")
+
+	if parsedURL, err := url.Parse(trimmed); err == nil {
+		if code := strings.TrimSpace(parsedURL.Query().Get("code")); code != "" {
+			return code
+		}
+	}
+
+	if match := authCodePattern.FindString(trimmed); match != "" {
+		return strings.TrimSpace(match)
+	}
+
+	return ""
 }
 
 func (g *GUI) createPlayerUI() {
@@ -167,7 +274,7 @@ func (g *GUI) createPlayerUI() {
 			nil,
 			nil,
 			g.PlayerName,
-			container.NewBorder(nil,nil,disconnectBtn,nil,uploadBtn),
+			container.NewBorder(nil, nil, disconnectBtn, nil, uploadBtn),
 			nil,
 		),
 		nil,
@@ -193,21 +300,21 @@ func (g *GUI) createOptionsUI() {
 		g.appConfig.SetAppConfig(config.StartInTray, value)
 	})
 	startInTrayCheck.SetChecked(g.appConfig.GetAppConfig(config.StartInTray))
-	if (!g.appConfig.GetAppConfig(config.ExitInTray)) {
+	if !g.appConfig.GetAppConfig(config.ExitInTray) {
 		startInTrayCheck.Hide()
 	}
 
 	exitInTrayCheck := widget.NewCheck("Exit in System Tray", func(value bool) {
 		g.appConfig.SetAppConfig(config.ExitInTray, value)
-		if (value) {
+		if value {
 			startInTrayCheck.Show()
-			if (g.optionAccordion != nil) {
+			if g.optionAccordion != nil {
 				g.optionAccordion.Detail.Refresh()
 				g.OptionBox.Refresh()
 			}
 		} else {
 			startInTrayCheck.Hide()
-			if (g.optionAccordion != nil) {
+			if g.optionAccordion != nil {
 				g.optionAccordion.Detail.Refresh()
 				g.OptionBox.Refresh()
 			}
@@ -218,5 +325,5 @@ func (g *GUI) createOptionsUI() {
 	g.optionAccordion = widget.NewAccordionItem("Option", container.NewVBox(autoStartCheck, autoUploadCheck, exitInTrayCheck, startInTrayCheck))
 	g.optionAccordion.Open = false
 
-	g.OptionBox = container.NewBorder(nil,nil,nil,nil,widget.NewAccordion(g.optionAccordion))
+	g.OptionBox = container.NewBorder(nil, nil, nil, nil, widget.NewAccordion(g.optionAccordion))
 }

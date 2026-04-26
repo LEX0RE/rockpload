@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	EventUserAuthenticated    = "user_authenticated"
+	EventUserAuthenticated = "user_authenticated"
 )
 
 type Auth struct {
-	EGS *rlapi.EGS
+	EGS  *rlapi.EGS
 	Auth *rlapi.TokenResponse
-	Sub *tools.Subscription
+	Sub  *tools.Subscription
 }
 
 func NewAuth() (ra *Auth, err error) {
@@ -45,6 +45,10 @@ func (ra *Auth) OpenAuthURL() {
 
 func (ra *Auth) AuthenticateWithCode(authCode string) (err error) {
 	logger.FuncDebug()
+	if config.EpicAuthMode() == "custom" {
+		return ra.AuthenticateWithConfiguredCode(authCode)
+	}
+
 	auth, err := ra.EGS.AuthenticateWithCode(strings.TrimSpace(strings.ReplaceAll(authCode, "\"", "")))
 	if err != nil {
 		logger.Rlogger.Error("Failed to authenticate with code:", slog.Any("err", err))
@@ -81,6 +85,10 @@ func (ra *Auth) retrieveToken() (err error) {
 
 	if refreshTokenData, err := os.ReadFile(config.RLToken); err == nil && len(strings.TrimSpace(string(refreshTokenData))) > 0 {
 		refreshToken := strings.TrimSpace(string(refreshTokenData))
+		if config.EpicAuthMode() == "custom" {
+			return ra.AuthenticateWithConfiguredRefreshToken(refreshToken)
+		}
+
 		auth, err := ra.EGS.AuthenticateWithRefreshToken(refreshToken)
 
 		if err != nil {
