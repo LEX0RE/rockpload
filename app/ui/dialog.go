@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"lexore/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
@@ -19,7 +19,6 @@ func NewDialog(a fyne.App) *Dialog {
 
 	return &Dialog{window: window}
 }
-
 
 func (d *Dialog) DuplicateApp() {
 	logger.FuncDebug()
@@ -63,25 +62,4 @@ func (d *Dialog) NewUploadProgress(progress float64) {
 		value := float64(max(0, min(progress, 1)))
 		uploadBar.SetValue(value)
 	})
-}
-
-func (d *Dialog) NewUpdate(newVersion string, onAccept func()) {
-	logger.FuncDebug()
-
-
-	versionInfo := ""
-	if newVersion != "" {
-		versionInfo = " (" + newVersion + ")"
-	}
-	
-	dialog.ShowConfirm(
-		"Update available",
-		"A new version is available" + versionInfo + ". Do you want to update now?",
-		func(ok bool) {
-			if ok {
-				onAccept()
-			}
-		},
-		d.window,
-	)
 }

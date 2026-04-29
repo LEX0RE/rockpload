@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"lexore/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
 type Ticker struct {

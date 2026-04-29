@@ -3,7 +3,6 @@
 RELEASE_PATH="releases"
 ARCH="amd64"
 PACKAGE_NAME="rockpload"
-SERVER_PATH="../server/$PACKAGE_NAME"
 
 rm -rf $RELEASE_PATH
 mkdir -p $RELEASE_PATH
@@ -39,9 +38,3 @@ CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOAR
 #############
 # BUILD MAC # (CURRENTLY NOT SUPPORTED)
 #############
-
-################################
-# COPYING EXECUTABLE TO SERVER #
-################################
-
-rsync -av --delete $RELEASE_PATH/ $SERVER_PATH/
