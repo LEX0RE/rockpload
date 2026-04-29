@@ -1,3 +1,6 @@
+.env
+
+# Go build artifacts
 # If you prefer the allow list template instead of the deny list, see community template:
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
@@ -7,6 +10,16 @@
 *.dll
 *.so
 *.dylib
+dist/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # Test binary, built with `go test -c`
 *.test
