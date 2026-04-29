@@ -35,7 +35,15 @@ func NewAppConfig(prefs fyne.Preferences, onAppConfigChange OnAppConfigChange) *
 
 func (a *AppConfig) GetAppConfig(configName AppConfigType) bool {
 	logger.FuncDebug()
-	return a.prefs.BoolWithFallback(AppConfigMap[configName], false)
+	
+	switch configName {
+		case AutoUpload, ExitInTray:
+			return a.prefs.BoolWithFallback(AppConfigMap[configName], true)
+		case AutoStart, StartInTray:
+			return a.prefs.BoolWithFallback(AppConfigMap[configName], false)
+		default:
+			return a.prefs.BoolWithFallback(AppConfigMap[configName], false)
+	}
 }
 
 func (a *AppConfig) SetAppConfig(configName AppConfigType, value bool) {

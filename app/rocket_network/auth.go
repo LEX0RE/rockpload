@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	EventUserAuthenticated = "user_authenticated"
+	EventUserAuthenticated    = "user_authenticated"
 )
 
 type Auth struct {
-	EGS  *rlapi.EGS
+	EGS *rlapi.EGS
 	Auth *rlapi.TokenResponse
-	Sub  *tools.Subscription
+	Sub *tools.Subscription
 }
 
 func NewAuth() (ra *Auth, err error) {
@@ -38,17 +38,25 @@ func NewAuth() (ra *Auth, err error) {
 	return ra, nil
 }
 
-func (ra *Auth) OpenAuthURL() {
+func (ra *Auth) OpenAuth() {
 	logger.FuncDebug()
-	tools.OpenBrowser(ra.EGS.GetAuthURL())
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered from panic:", r)
+		}
+	}()
+
+	err := ra.openAutoAuth()
+	if err != nil {
+		logger.Rlogger.Error("Failed to retrieve token from auto browser (will try manually):", slog.Any("err", err))
+		ra.openAuthURL()
+	}
+
 }
 
 func (ra *Auth) AuthenticateWithCode(authCode string) (err error) {
 	logger.FuncDebug()
-	if config.EpicAuthMode() == "custom" {
-		return ra.AuthenticateWithConfiguredCode(authCode)
-	}
-
 	auth, err := ra.EGS.AuthenticateWithCode(strings.TrimSpace(strings.ReplaceAll(authCode, "\"", "")))
 	if err != nil {
 		logger.Rlogger.Error("Failed to authenticate with code:", slog.Any("err", err))
@@ -62,6 +70,14 @@ func (ra *Auth) AuthenticateWithCode(authCode string) (err error) {
 	return nil
 }
 
+func (ra *Auth) ClearBrowserProfile() {
+	logger.FuncDebug()
+	err := os.RemoveAll(config.BrowserSession)
+	if err != nil {
+		logger.Rlogger.Error("Failed to clear browser profile", slog.Any("err", err))
+	}
+}
+
 func (ra *Auth) ClearToken() {
 	logger.FuncDebug()
 	ra.Auth = nil
@@ -70,6 +86,32 @@ func (ra *Auth) ClearToken() {
 	if err != nil && !os.IsNotExist(err) {
 		logger.Rlogger.Error("Failed to clear token file", slog.Any("err", err))
 	}
+}
+
+// User interaction, but any browser
+func (ra *Auth) openAuthURL() {
+	logger.FuncDebug()
+
+	tools.OpenBrowser(ra.EGS.GetAuthURL())
+}
+
+// No user interaction, but chrome
+func (ra *Auth) openAutoAuth() (err error) {
+	logger.FuncDebug()
+
+	tokenEntry, err := tools.OpenAutoChromiumBrowser(ra.EGS.GetAuthURL())
+	if err != nil {
+		logger.Rlogger.Error("Failed to retrieve token:", slog.Any("err", err))
+		return err
+	}
+
+	err = ra.AuthenticateWithCode(tokenEntry)
+	if err != nil {
+		logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
+		return err
+	}
+
+	return nil
 }
 
 func (ra *Auth) retrieveToken() (err error) {
@@ -85,10 +127,6 @@ func (ra *Auth) retrieveToken() (err error) {
 
 	if refreshTokenData, err := os.ReadFile(config.RLToken); err == nil && len(strings.TrimSpace(string(refreshTokenData))) > 0 {
 		refreshToken := strings.TrimSpace(string(refreshTokenData))
-		if config.EpicAuthMode() == "custom" {
-			return ra.AuthenticateWithConfiguredRefreshToken(refreshToken)
-		}
-
 		auth, err := ra.EGS.AuthenticateWithRefreshToken(refreshToken)
 
 		if err != nil {

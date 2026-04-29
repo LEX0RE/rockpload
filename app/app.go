@@ -149,9 +149,12 @@ func (a *App) setupAppUpdate() {
 		return
 	}
 
+	a.updateInfo = updater.UpdateInfo
+
 	if needUpdate {
-		d := ui.NewDialog(a.app)
-		d.NewUpdate(a.updateInfo.Version, func() {
+		// TODO Make auto update
+		popup := ui.NewPopup("New Update!", a.window, a.appConfig)
+		updatePopup := ui.NewUpdatePopup(popup, a.updateInfo.Version, func() {
 			err := updater.ApplyUpdate()
 			if err != nil {
 				logger.Rlogger.Error("Update failed", slog.Any("err", err))
@@ -160,6 +163,8 @@ func (a *App) setupAppUpdate() {
 
 			a.restart()
 		})
+
+		updatePopup.Show()
 	}
 }
 

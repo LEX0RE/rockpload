@@ -52,7 +52,8 @@ func (u *Updater) CheckForUpdate(currentVersion string) (bool, error) {
     logger.Rlogger.Debug("Current version", slog.Any("current", currentVersion), slog.Any("latest", info.Version))
     
     if info.Version == "" {
-        return false, fmt.Errorf("no update available")
+        logger.Rlogger.Info("No update available")
+        return false, nil
     }
 
     if info.Version != currentVersion {
