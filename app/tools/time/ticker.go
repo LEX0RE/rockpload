@@ -9,15 +9,15 @@ import (
 )
 
 type Ticker struct {
-    channel chan struct{}
-    duration time.Duration
-    onTick func()
-    onStart func()
-    onStop func()
+	channel   chan struct{}
+	duration  time.Duration
+	onTick    func()
+	onStart   func()
+	onStop    func()
 	jitterMin time.Duration
 	jitterMax time.Duration
-	stopMu sync.Mutex
-	startMu sync.Mutex
+	stopMu    sync.Mutex
+	startMu   sync.Mutex
 }
 
 func NewTicker(duration time.Duration, onTick func(), onStart func(), onStop func(), jMin time.Duration, jMax time.Duration) *Ticker {
@@ -28,10 +28,10 @@ func NewTicker(duration time.Duration, onTick func(), onStart func(), onStop fun
 	}
 
 	return &Ticker{
-		duration: duration,
-		onTick: onTick,
-		onStart: onStart,
-		onStop: onStop,
+		duration:  duration,
+		onTick:    onTick,
+		onStart:   onStart,
+		onStop:    onStop,
 		jitterMin: jMin,
 		jitterMax: jMax,
 	}
@@ -57,7 +57,7 @@ func (t *Ticker) Start() {
 	t.startMu.Lock()
 	defer t.startMu.Unlock()
 
-	if (t.channel != nil) {
+	if t.channel != nil {
 		return
 	}
 
@@ -68,7 +68,7 @@ func (t *Ticker) Start() {
 func (t *Ticker) Set(value bool) {
 	logger.FuncDebug()
 
-	if (value) {
+	if value {
 		t.Start()
 	} else {
 		t.Stop()
@@ -81,27 +81,27 @@ func (t *Ticker) run() {
 	ticker := time.NewTimer(t.fuzzyDuration())
 	defer ticker.Stop()
 
-	if (t.onStart != nil) {
+	if t.onStart != nil {
 		t.onStart()
 	}
 
-    for {
-        select {
-        case <-ticker.C:
-			if (t.onTick != nil) {
+	for {
+		select {
+		case <-ticker.C:
+			if t.onTick != nil {
 				t.onTick()
 			}
 
 			delay := t.fuzzyDuration()
 			ticker.Reset(delay)
 
-        case <-t.channel:
-			if (t.onStop != nil) {
+		case <-t.channel:
+			if t.onStop != nil {
 				t.onStop()
 			}
-            return
-        }
-    }
+			return
+		}
+	}
 }
 
 func (t *Ticker) fuzzyDuration() time.Duration {

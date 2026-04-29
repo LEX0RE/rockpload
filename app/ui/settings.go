@@ -12,19 +12,19 @@ import (
 
 type SettingPopup struct {
 	*Popup
-	OptionBox 			*fyne.Container
+	OptionBox *fyne.Container
 
-	autoStartCheck 		*widget.Check
-	autoUploadCheck 	*widget.Check
-	startInTrayCheck 	*widget.Check
-	exitInTrayCheck 	*widget.Check
+	autoStartCheck   *widget.Check
+	autoUploadCheck  *widget.Check
+	startInTrayCheck *widget.Check
+	exitInTrayCheck  *widget.Check
 }
 
 func NewSettingPopup(p *Popup) *SettingPopup {
 	logger.FuncDebug()
 
 	sp := &SettingPopup{Popup: p}
-		
+
 	sp.autoStartCheck = widget.NewCheck("Start with system", func(value bool) {})
 	sp.autoStartCheck.SetChecked(sp.appConfig.GetAppConfig(config.AutoStart))
 
@@ -33,19 +33,19 @@ func NewSettingPopup(p *Popup) *SettingPopup {
 
 	sp.startInTrayCheck = widget.NewCheck("Start in Tray", func(value bool) {})
 	sp.startInTrayCheck.SetChecked(sp.appConfig.GetAppConfig(config.StartInTray))
-	if (!p.appConfig.GetAppConfig(config.ExitInTray)) {
+	if !p.appConfig.GetAppConfig(config.ExitInTray) {
 		sp.startInTrayCheck.Hide()
 	}
 
 	sp.exitInTrayCheck = widget.NewCheck("Exit in System Tray", func(value bool) {
-		if (value) {
+		if value {
 			sp.startInTrayCheck.Show()
-			if (sp.OptionBox != nil) {
+			if sp.OptionBox != nil {
 				sp.OptionBox.Refresh()
 			}
 		} else {
 			sp.startInTrayCheck.Hide()
-			if (sp.OptionBox != nil) {
+			if sp.OptionBox != nil {
 				sp.OptionBox.Refresh()
 			}
 		}
@@ -54,7 +54,7 @@ func NewSettingPopup(p *Popup) *SettingPopup {
 
 	sp.OptionBox = container.NewVBox(sp.autoStartCheck, sp.autoUploadCheck, sp.exitInTrayCheck, sp.startInTrayCheck)
 
-    saveBtn := widget.NewButton("Save", func() {
+	saveBtn := widget.NewButton("Save", func() {
 		currentAutoSave := sp.appConfig.GetAppConfig(config.AutoStart)
 		if sp.autoStartCheck.Checked != currentAutoSave {
 			sp.appConfig.SetAppConfig(config.AutoStart, sp.autoStartCheck.Checked)
@@ -74,16 +74,16 @@ func NewSettingPopup(p *Popup) *SettingPopup {
 		if sp.startInTrayCheck.Checked != currentStartInTray {
 			sp.appConfig.SetAppConfig(config.StartInTray, sp.startInTrayCheck.Checked)
 		}
-		
-        sp.popup.Hide()
-    })
-    saveBtn.Importance = widget.HighImportance
+
+		sp.popup.Hide()
+	})
+	saveBtn.Importance = widget.HighImportance
 
 	content := container.NewVBox(
-        sp.OptionBox, 
-        layout.NewSpacer(),
-        saveBtn,
-    )
+		sp.OptionBox,
+		layout.NewSpacer(),
+		saveBtn,
+	)
 
 	sp.SetContent(content)
 

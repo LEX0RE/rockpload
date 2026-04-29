@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	EventUserAuthenticated    = "user_authenticated"
+	EventUserAuthenticated = "user_authenticated"
 )
 
 type Auth struct {
-	EGS *rlapi.EGS
+	EGS  *rlapi.EGS
 	Auth *rlapi.TokenResponse
-	Sub *tools.Subscription
+	Sub  *tools.Subscription
 }
 
 func NewAuth() (ra *Auth, err error) {

@@ -23,7 +23,7 @@ func NewUpdatePopup(p *Popup, newVersion string, onAccept func()) *UpdatePopup {
 	}
 
 	up := &UpdatePopup{Popup: p}
-	
+
 	description := widget.NewLabel("A new update " + versionInfo + " is ready to be install")
 	description.Wrapping = fyne.TextWrapWord
 

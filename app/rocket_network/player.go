@@ -10,10 +10,10 @@ import (
 )
 
 type Player struct {
-	Auth 		 	*Auth
-	PlayerID     	*rlapi.PlayerID
-	MatchHistory 	[]rlapi.MatchEntry
-	mu 				sync.Mutex
+	Auth         *Auth
+	PlayerID     *rlapi.PlayerID
+	MatchHistory []rlapi.MatchEntry
+	mu           sync.Mutex
 }
 
 func NewPlayer(auth *Auth) *Player {
@@ -24,7 +24,7 @@ func NewPlayer(auth *Auth) *Player {
 func (p *Player) GetInfo() (err error) {
 	logger.FuncDebug()
 
-	if (!p.mu.TryLock()) {
+	if !p.mu.TryLock() {
 		logger.Rlogger.Debug("Duplicate GetInfo at the same time, skipping")
 		return
 	}

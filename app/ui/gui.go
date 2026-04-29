@@ -18,24 +18,24 @@ import (
 )
 
 type GUI struct {
-	window 		fyne.Window
-	uploader 	*upload.Uploader
-	appConfig 	*config.AppConfig
+	window    fyne.Window
+	uploader  *upload.Uploader
+	appConfig *config.AppConfig
 
-	LoginBox 	*fyne.Container
-	PlayerBox 	*fyne.Container
+	LoginBox  *fyne.Container
+	PlayerBox *fyne.Container
 
-	TokenEntry 	*widget.Entry
-	PlayerName 	*widget.Label
+	TokenEntry       *widget.Entry
+	PlayerName       *widget.Label
 	MatchHistoryData []string
 	MatchHistoryList *widget.List
 }
 
 func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, uploader *upload.Uploader) (g *GUI, err error) {
 	logger.FuncDebug()
-	g = &GUI{window: window, appConfig: appConfig,uploader: uploader}
+	g = &GUI{window: window, appConfig: appConfig, uploader: uploader}
 
-	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Welcome to Rockpload! (" + version + ")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
+	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Welcome to Rockpload! ("+version+")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
 
 	optionPopup := NewPopup("Option", g.window, appConfig)
 	settingPopup := NewSettingPopup(optionPopup)
@@ -57,9 +57,9 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 	g.createLoginUI()
 	g.createPlayerUI()
 
-	contentBox := container.NewBorder(g.LoginBox,nil,nil,nil,g.PlayerBox)
+	contentBox := container.NewBorder(g.LoginBox, nil, nil, nil, g.PlayerBox)
 
-	g.window.SetContent(container.NewBorder(infoBox,nil,nil,nil,contentBox))
+	g.window.SetContent(container.NewBorder(infoBox, nil, nil, nil, contentBox))
 
 	g.UpdateState()
 
@@ -73,7 +73,7 @@ func (g *GUI) UpdateState() {
 		g.LoginBox.Hide()
 		g.PlayerBox.Show()
 
-		if (g.uploader.Player.Auth.Auth.DisplayName != "") {
+		if g.uploader.Player.Auth.Auth.DisplayName != "" {
 			g.PlayerName.SetText("Connected Account: " + g.uploader.Player.Auth.Auth.DisplayName)
 			g.PlayerName.Show()
 		} else {
@@ -84,12 +84,12 @@ func (g *GUI) UpdateState() {
 		g.PlayerBox.Hide()
 	}
 
-	if (g.uploader.Player.MatchHistory != nil) {
+	if g.uploader.Player.MatchHistory != nil {
 		g.MatchHistoryData = []string{}
 		for _, match := range g.uploader.Player.MatchHistory {
 			matchDate := time.Unix(match.Match.RecordStartTimestamp, 0).Format("2006-01-02 15:04:05")
 			matchScore := strconv.Itoa(match.Match.Team0Score) + " - " + strconv.Itoa(match.Match.Team1Score)
-			g.MatchHistoryData = append(g.MatchHistoryData, matchDate + " : " +matchScore + " (" + match.Match.MatchGUID + ")")
+			g.MatchHistoryData = append(g.MatchHistoryData, matchDate+" : "+matchScore+" ("+match.Match.MatchGUID+")")
 		}
 		g.MatchHistoryList.Refresh()
 	} else {
@@ -128,10 +128,10 @@ func (g *GUI) createLoginUI() {
 		g.uploader.Player.Auth.ClearBrowserProfile()
 	})
 
-	actionButtonBorder := container.NewBorder(nil,nil,LoginBtn,nil,ResetBrowserBtn)
+	actionButtonBorder := container.NewBorder(nil, nil, LoginBtn, nil, ResetBrowserBtn)
 
 	g.LoginBox = container.NewVBox(
-		container.NewBorder(nil,nil,actionButtonBorder,nil,g.TokenEntry),
+		container.NewBorder(nil, nil, actionButtonBorder, nil, g.TokenEntry),
 		ConnectBtn,
 	)
 }
@@ -171,7 +171,7 @@ func (g *GUI) createPlayerUI() {
 			nil,
 			nil,
 			g.PlayerName,
-			container.NewBorder(nil,nil,disconnectBtn,nil,uploadBtn),
+			container.NewBorder(nil, nil, disconnectBtn, nil, uploadBtn),
 			nil,
 		),
 		nil,
