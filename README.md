@@ -1,11 +1,13 @@
 # Rockpload
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.26.1-00ADD8?logo=go)](https://go.dev/)
+[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/LEX0RE/rockpload/CI)](https://github.com/LEX0RE/rockpload/actions)
+
 <p align="center">
    <img src="app/assets/logo.png" alt="Rockpload logo" width="360" />
 </p>
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.26.1-00ADD8?logo=go)](https://go.dev/)
 
 A desktop companion app for [Rocky](https://lexore.ca/rocky) that watches your Rocket League replay folder and automatically uploads new replays to the Rocky stats tracker.
 
