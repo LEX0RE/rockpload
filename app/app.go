@@ -152,7 +152,7 @@ func (a *App) setupAppUpdate() {
 	a.updateInfo = updater.UpdateInfo
 
 	if needUpdate {
-		// TODO Make auto update
+		// TODO Make auto update withtout ask setting
 		popup := ui.NewPopup("New Update!", a.window, a.appConfig)
 		updatePopup := ui.NewUpdatePopup(popup, a.updateInfo.Version, func() {
 			err := updater.ApplyUpdate()
