@@ -2,13 +2,14 @@ package upload
 
 import (
 	"fmt"
-	"lexore/rockpload/app/rocket_network"
-	"lexore/rockpload/app/tools/logger"
-	rtime "lexore/rockpload/app/tools/time"
 	"log/slog"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/LEX0RE/rockpload/app/rocket_network"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
+	rtime "github.com/LEX0RE/rockpload/app/tools/time"
 
 	"fyne.io/fyne/v2"
 )

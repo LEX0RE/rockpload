@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"runtime"
 
-	"lexore/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"github.com/inconshreveable/go-update"
 )

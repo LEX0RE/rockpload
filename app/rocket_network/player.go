@@ -1,9 +1,10 @@
 package rocket_network
 
 import (
-	"lexore/rockpload/app/tools/logger"
 	"log/slog"
 	"sync"
+
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"github.com/dank/rlapi"
 )

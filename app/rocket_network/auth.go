@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"lexore/rockpload/app/config"
-	"lexore/rockpload/app/tools"
-	"lexore/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/tools"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"github.com/dank/rlapi"
 )

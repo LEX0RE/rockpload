@@ -1,10 +1,11 @@
 package main
 
 import (
-	"lexore/rockpload/app"
-	"lexore/rockpload/app/tools/logger"
 	"os"
 	"runtime"
+
+	"github.com/LEX0RE/rockpload/app"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
 // TODO Upload when we detect Rocket League is closed

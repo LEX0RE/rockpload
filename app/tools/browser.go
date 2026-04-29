@@ -1,11 +1,12 @@
 package tools
 
 import (
-	"lexore/rockpload/app/config"
-	"lexore/rockpload/app/tools/logger"
 	"log/slog"
 	"os/exec"
 	"runtime"
+
+	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"context"
 	"encoding/json"

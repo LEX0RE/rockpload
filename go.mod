@@ -1,4 +1,4 @@
-module lexore/rockpload
+module github.com/LEX0RE/rockpload
 
 go 1.26.1
 

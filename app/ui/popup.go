@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"lexore/rockpload/app/config"
-	"lexore/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"

@@ -2,14 +2,15 @@ package app
 
 import (
 	_ "embed"
-	"lexore/rockpload/app/config"
-	"lexore/rockpload/app/rocket_network"
-	"lexore/rockpload/app/tools/logger"
-	"lexore/rockpload/app/ui"
-	"lexore/rockpload/app/upload"
 	"log/slog"
 	"os"
 	"os/exec"
+
+	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/rocket_network"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/ui"
+	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
