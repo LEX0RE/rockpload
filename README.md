@@ -1,5 +1,9 @@
 # Rockpload
 
+<p align="center">
+   <img src="app/assets/logo.png" alt="Rockpload logo" width="360" />
+</p>
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.26.1-00ADD8?logo=go)](https://go.dev/)
 
