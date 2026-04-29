@@ -8,7 +8,7 @@
 </p>
 
 
-A desktop companion app for [Rocky](https://lexore.ca/rocky) that watches your Rocket League replay folder and automatically uploads new replays to the Rocky stats tracker.
+A desktop companion app for [Rocky](https://lexore.ca/rocky) that watches your Rocket League replay history and automatically uploads new replays to the Rocky stats tracker.
 
 ## Features
 
@@ -43,29 +43,6 @@ Download the latest release from the [GitHub Releases](https://github.com/LEX0RE
 
 The build script will produce binaries for Linux and Windows in the current directory.
 
-## Configuration
-
-1. Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Configure authentication mode in `.env`:
-
-   **Launcher Mode (Default):**
-   ```bash
-   EPIC_AUTH_MODE=launcher
-   ```
-   Uses Epic Games Launcher's built-in Rocket League authentication. This is the recommended mode for most users.
-
-   **Custom OAuth Mode:**
-   ```bash
-   EPIC_AUTH_MODE=custom
-   EPIC_CLIENT_ID=your_client_id
-   EPIC_CLIENT_SECRET=your_client_secret
-   ```
-   Requires your own Epic Games OAuth application credentials. Note: Standard Epic OAuth clients cannot create the Rocket League exchange code required by this app.
-
 ## Usage
 
 Run the application:
@@ -76,7 +53,7 @@ rockpload.exe  # Windows
 
 The app will:
 1. Authenticate with Epic Games
-2. Monitor your Rocket League replay folder
+2. Monitor your Rocket League replay history
 3. Automatically upload new replays to https://lexore.ca/rocky/api
 4. Run in the system tray
 
