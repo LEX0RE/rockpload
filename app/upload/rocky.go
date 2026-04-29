@@ -22,7 +22,6 @@ func NewRockyWebsite() *RockyWebsite {
 	return &RockyWebsite{apiURL: "https://lexore.ca/rocky/api"}
 }
 
-
 func (w *RockyWebsite) UploadReplay(filePath string) error {
 	logger.FuncDebug()
 
@@ -50,7 +49,7 @@ func (w *RockyWebsite) UploadReplay(filePath string) error {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", w.apiURL + "/upload", &body)
+	req, err := http.NewRequest("POST", w.apiURL+"/upload", &body)
 	if err != nil {
 		return err
 	}

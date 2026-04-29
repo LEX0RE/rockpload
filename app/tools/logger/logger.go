@@ -35,7 +35,7 @@ func SetLogger() {
 }
 
 func (h *AppFilterHandler) Enabled(ctx context.Context, level slog.Level) bool {
-    return h.Handler.Enabled(ctx, level)
+	return h.Handler.Enabled(ctx, level)
 }
 
 func (h *AppFilterHandler) Handle(ctx context.Context, r slog.Record) error {
@@ -59,7 +59,7 @@ func (h *AppFilterHandler) Handle(ctx context.Context, r slog.Record) error {
 
 func FuncDebug() {
 
-	if (os.Getenv("FUNC_DEBUG") != "true") {
+	if os.Getenv("FUNC_DEBUG") != "true" {
 		return
 	}
 
