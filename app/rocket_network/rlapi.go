@@ -11,13 +11,13 @@ import (
 	"github.com/dank/rlapi"
 )
 
-func GetRPC(ra *Auth)  (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
+func GetRPC(ra *Auth) (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
 	logger.FuncDebug()
 	if ra.Auth == nil {
 		logger.Rlogger.Error("No valid authentication token found. Please retrieve a new token.")
 		return nil, nil, fmt.Errorf("no valid authentication token")
 	}
-	
+
 	var authToken *rlapi.EOSTokenResponse
 
 	code, err := ra.EGS.GetExchangeCode(ra.Auth.AccessToken)
@@ -45,7 +45,7 @@ func GetRPC(ra *Auth)  (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
 
 func GetReplays(rpc *rlapi.PsyNetRPC) (matchHistory []rlapi.MatchEntry, err error) {
 	logger.FuncDebug()
-	apiCtx, apiCancel := context.WithTimeout(context.Background(), 15 * time.Second)
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer apiCancel()
 
 	matchHistory, err = rpc.GetMatchHistory(apiCtx)
@@ -72,5 +72,3 @@ func GetShops(rpc *rlapi.PsyNetRPC) (shops *rlapi.GetStandardShopsResponse, err 
 
 	return shops, nil
 }
-
-

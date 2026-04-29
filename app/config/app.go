@@ -10,22 +10,22 @@ type AppConfigType int
 type OnAppConfigChange map[AppConfigType]func(bool)
 
 const (
-    AutoStart AppConfigType = iota
-    AutoUpload
+	AutoStart AppConfigType = iota
+	AutoUpload
 	ExitInTray
-    StartInTray
+	StartInTray
 )
 
 var AppConfigMap = map[AppConfigType]string{
-    AutoStart:      "rockpload_autoStart",
-    AutoUpload: 	"rockpload_autoUpload",
-    ExitInTray:     "rockpload_exitInTray",
-    StartInTray:  	"rockpload_startInTray",
+	AutoStart:   "rockpload_autoStart",
+	AutoUpload:  "rockpload_autoUpload",
+	ExitInTray:  "rockpload_exitInTray",
+	StartInTray: "rockpload_startInTray",
 }
 
 type AppConfig struct {
-	prefs 				fyne.Preferences
-	onAppConfigChange 	OnAppConfigChange
+	prefs             fyne.Preferences
+	onAppConfigChange OnAppConfigChange
 }
 
 func NewAppConfig(prefs fyne.Preferences, onAppConfigChange OnAppConfigChange) *AppConfig {
@@ -35,14 +35,14 @@ func NewAppConfig(prefs fyne.Preferences, onAppConfigChange OnAppConfigChange) *
 
 func (a *AppConfig) GetAppConfig(configName AppConfigType) bool {
 	logger.FuncDebug()
-	
+
 	switch configName {
-		case AutoUpload, ExitInTray:
-			return a.prefs.BoolWithFallback(AppConfigMap[configName], true)
-		case AutoStart, StartInTray:
-			return a.prefs.BoolWithFallback(AppConfigMap[configName], false)
-		default:
-			return a.prefs.BoolWithFallback(AppConfigMap[configName], false)
+	case AutoUpload, ExitInTray:
+		return a.prefs.BoolWithFallback(AppConfigMap[configName], true)
+	case AutoStart, StartInTray:
+		return a.prefs.BoolWithFallback(AppConfigMap[configName], false)
+	default:
+		return a.prefs.BoolWithFallback(AppConfigMap[configName], false)
 	}
 }
 

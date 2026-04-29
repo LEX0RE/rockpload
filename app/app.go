@@ -23,30 +23,30 @@ import (
 var logoBytes []byte
 
 type App struct {
-	app 		fyne.App
-	window 		fyne.Window
+	app    fyne.App
+	window fyne.Window
 
-	appConfig 	*config.AppConfig
-	gui 		*ui.GUI
+	appConfig *config.AppConfig
+	gui       *ui.GUI
 
 	duplicateLock *flock.Flock
-	version string
-	updateInfo *UpdateInfo
+	version       string
+	updateInfo    *UpdateInfo
 
-	player *rocket_network.Player
+	player   *rocket_network.Player
 	uploader *upload.Uploader
 }
 
 func NewApp(version string) *App {
 	logger.FuncDebug()
-	
+
 	a := &App{version: version}
 
 	a.app = app.NewWithID("com.lexore.rockpload")
 
 	prefs := a.app.Preferences()
 	onAppConfigChange := map[config.AppConfigType]func(bool){
-		config.AutoStart: a.SetAutoStart,
+		config.AutoStart:  a.SetAutoStart,
 		config.AutoUpload: a.SetAutoUpload,
 	}
 	a.appConfig = config.NewAppConfig(prefs, onAppConfigChange)
@@ -67,7 +67,7 @@ func NewApp(version string) *App {
 	}
 
 	a.window.SetCloseIntercept(func() {
-		if (a.appConfig.GetAppConfig(config.ExitInTray)) {
+		if a.appConfig.GetAppConfig(config.ExitInTray) {
 			a.window.Hide()
 		} else {
 			a.app.Quit()
@@ -95,7 +95,7 @@ func (a *App) Run() {
 	a.setupAppUpdate()
 	a.initPlayer()
 
-	if (a.appConfig.GetAppConfig(config.ExitInTray) && a.appConfig.GetAppConfig(config.StartInTray)) {
+	if a.appConfig.GetAppConfig(config.ExitInTray) && a.appConfig.GetAppConfig(config.StartInTray) {
 		a.app.Run()
 	} else {
 		a.window.ShowAndRun()
@@ -113,7 +113,7 @@ func (a *App) initPlayer() {
 
 	dialog := ui.NewDialog(a.app)
 
-	onUpdateState := func () {
+	onUpdateState := func() {
 		fyne.Do(a.gui.UpdateState)
 	}
 
@@ -191,7 +191,7 @@ func (a *App) SetAutoStart(value bool) {
 	asapp := &autostart.App{
 		Name:        "lexore-rockpload",
 		DisplayName: "Rockpload",
-	 	Exec:        []string{execPath},
+		Exec:        []string{execPath},
 	}
 
 	if value {
@@ -208,7 +208,7 @@ func (a *App) SetAutoStart(value bool) {
 func (a *App) SetAutoUpload(value bool) {
 	logger.FuncDebug()
 
-	if (a.uploader != nil) {
+	if a.uploader != nil {
 		a.uploader.Toggle(value)
 	}
 }
@@ -218,15 +218,15 @@ func (a *App) restart() {
 
 	a.Close()
 
-    cmd := exec.Command(os.Args[0], os.Args[1:]...)
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    cmd.Stdin = os.Stdin
+	cmd := exec.Command(os.Args[0], os.Args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
 
-    err := cmd.Start()
-    if err != nil {
-        logger.Rlogger.Error("restart failed", slog.Any("err", err))
-    }
+	err := cmd.Start()
+	if err != nil {
+		logger.Rlogger.Error("restart failed", slog.Any("err", err))
+	}
 
-    os.Exit(0)
+	os.Exit(0)
 }

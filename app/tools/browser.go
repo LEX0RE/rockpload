@@ -43,7 +43,7 @@ func OpenAutoChromiumBrowser(url string) (authCode string, err error) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", false), // TODO Check when profile folder exist and make it headless so user dont see navigator
 		chromedp.Flag("user-data-dir", config.BrowserSession),
-		chromedp.Flag("profile-directory", "profile_" + "main_account"), // TODO Add a way to change it so we can have multiple account
+		chromedp.Flag("profile-directory", "profile_"+"main_account"), // TODO Add a way to change it so we can have multiple account
 		chromedp.Flag("disable-restore-session-state", true),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("excludeSwitches", "enable-automation"),
@@ -64,12 +64,12 @@ func OpenAutoChromiumBrowser(url string) (authCode string, err error) {
 
 	err = chromedp.Run(ctx,
 		chromedp.Navigate(url),
-		
+
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			for {
 				var text string
 				err := chromedp.Evaluate(`document.body.innerText`, &text).Do(ctx)
-				
+
 				if err == nil && strings.Contains(text, `"authorizationCode"`) {
 					pageContent = text
 
@@ -92,6 +92,6 @@ func OpenAutoChromiumBrowser(url string) (authCode string, err error) {
 		logger.Rlogger.Error("Unable to parse the JSON response", slog.Any("pageContent", pageContent), slog.Any("err", err))
 		return "", err
 	}
-	
+
 	return authResp.AuthorizationCode, nil
 }

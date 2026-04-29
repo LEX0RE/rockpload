@@ -10,9 +10,9 @@ const (
 )
 
 var (
-	RLToken = filepath.Join(GetCachePath(), ".rltoken")
-	AppLock = filepath.Join(GetCachePath(), "rockpload.lock")
-	UploadedCache = filepath.Join(GetCachePath(), ".uploaded")
+	RLToken        = filepath.Join(GetCachePath(), ".rltoken")
+	AppLock        = filepath.Join(GetCachePath(), "rockpload.lock")
+	UploadedCache  = filepath.Join(GetCachePath(), ".uploaded")
 	BrowserSession = filepath.Join(GetCachePath(), ".browser_session")
 )
 

@@ -25,7 +25,7 @@ func LoadUploadedCache() *UploadCache {
 	cache := &UploadCache{
 		items: []string{},
 		index: make(map[string]bool),
-		max: maxCacheSize,
+		max:   maxCacheSize,
 	}
 
 	file, err := os.Open(config.UploadedCache)
@@ -69,13 +69,12 @@ func (c *UploadCache) Add(id string) {
 func (c *UploadCache) ensureCapacity() {
 	logger.FuncDebug()
 
-	for (len(c.items) > c.max) {
+	for len(c.items) > c.max {
 		old := c.items[0]
 		c.items = c.items[1:]
 		delete(c.index, old)
 	}
 }
-
 
 func (c *UploadCache) Save() error {
 	logger.FuncDebug()

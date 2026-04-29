@@ -12,37 +12,37 @@ import (
 )
 
 type Popup struct {
-	popup  	*widget.PopUp
-	content 	*fyne.Container
-	appConfig 	*config.AppConfig
+	popup     *widget.PopUp
+	content   *fyne.Container
+	appConfig *config.AppConfig
 }
 
 func NewPopup(title string, parentWindow fyne.Window, appConfig *config.AppConfig) *Popup {
 	logger.FuncDebug()
 
 	p := &Popup{
-		content: container.NewStack(),
+		content:   container.NewStack(),
 		appConfig: appConfig,
 	}
 
-    closeBtn := widget.NewButtonWithIcon("", theme.WindowCloseIcon(), func() {
-        p.popup.Hide()
-    })
-    closeBtn.Importance = widget.LowImportance
+	closeBtn := widget.NewButtonWithIcon("", theme.WindowCloseIcon(), func() {
+		p.popup.Hide()
+	})
+	closeBtn.Importance = widget.LowImportance
 
-    header := container.NewHBox(
-        widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-        layout.NewSpacer(),
-        closeBtn,
-    )
+	header := container.NewHBox(
+		widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		layout.NewSpacer(),
+		closeBtn,
+	)
 
-    content := container.NewVBox(
-        header,
-        widget.NewSeparator(),
-        p.content,
-    )
+	content := container.NewVBox(
+		header,
+		widget.NewSeparator(),
+		p.content,
+	)
 
-    p.popup = widget.NewModalPopUp(content, parentWindow.Canvas())
+	p.popup = widget.NewModalPopUp(content, parentWindow.Canvas())
 
 	return p
 }

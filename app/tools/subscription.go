@@ -12,7 +12,7 @@ type Observer func(event string)
 
 type Subscription struct {
 	observers []Observer
-	lock     sync.Mutex
+	lock      sync.Mutex
 }
 
 func NewSubscription() *Subscription {

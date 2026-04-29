@@ -15,24 +15,24 @@ import (
 )
 
 const (
-	uploadSleep = time.Second
-	autoUploadTickerTime = time.Minute * 45
+	uploadSleep             = time.Second
+	autoUploadTickerTime    = time.Minute * 45
 	autoUploadJitterMinTime = 0
 	autoUploadJitterMaxTime = time.Minute * 15
 )
 
 type Uploader struct {
-	lockInUpload     		sync.Mutex
-	lockInAutoUpload     	sync.Mutex
-	lockInRunRLAPI     		sync.Mutex
+	lockInUpload     sync.Mutex
+	lockInAutoUpload sync.Mutex
+	lockInRunRLAPI   sync.Mutex
 
-	Player           		*rocket_network.Player
-	websites 				[]Website
+	Player   *rocket_network.Player
+	websites []Website
 
-	updateGUI        		func()
-	updateUploadProgress 	func(float64)
+	updateGUI            func()
+	updateUploadProgress func(float64)
 
-	autoTicker 				*rtime.Ticker
+	autoTicker *rtime.Ticker
 }
 
 func NewUploader(player *rocket_network.Player, updateGUI func(), updateUploadProgress func(float64)) *Uploader {
@@ -41,10 +41,10 @@ func NewUploader(player *rocket_network.Player, updateGUI func(), updateUploadPr
 	rockyWebsite := NewRockyWebsite()
 
 	u := &Uploader{
-		Player: player,
-		updateGUI: updateGUI,
+		Player:               player,
+		updateGUI:            updateGUI,
 		updateUploadProgress: updateUploadProgress,
-		websites: []Website{rockyWebsite},
+		websites:             []Website{rockyWebsite},
 	}
 
 	u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
@@ -65,13 +65,12 @@ func (u *Uploader) Start() {
 	logger.FuncDebug()
 
 	fyne.Do(func() {
-		if (!u.lockInAutoUpload.TryLock()) {
+		if !u.lockInAutoUpload.TryLock() {
 			logger.Rlogger.Debug("Duplicate auto upload at the same time, skipping")
 			return
 		}
 		defer u.lockInAutoUpload.Unlock()
 
-	
 		defer func() {
 			if r := recover(); r != nil {
 				fmt.Println("Recovered from panic:", r)
@@ -87,11 +86,10 @@ func (u *Uploader) Stop() {
 	u.autoTicker.Stop()
 }
 
-
 func (u *Uploader) Run() {
 	logger.FuncDebug()
 
-	if (!u.lockInRunRLAPI.TryLock()) {
+	if !u.lockInRunRLAPI.TryLock() {
 		logger.Rlogger.Debug("Duplicate Run at the same time, skipping")
 		return
 	}
@@ -112,7 +110,7 @@ func (u *Uploader) Run() {
 func (u *Uploader) upload(p *rocket_network.Player) {
 	logger.FuncDebug()
 
-	if (!u.lockInUpload.TryLock()) {
+	if !u.lockInUpload.TryLock() {
 		logger.Rlogger.Debug("Duplicate upload request at the same time, skipping")
 		return
 	}
@@ -151,7 +149,7 @@ func (u *Uploader) upload(p *rocket_network.Player) {
 	}
 
 	logger.Rlogger.Debug("Upload complete")
-	
+
 	u.updateUploadProgress(float64(-1))
 
 	uploadCache.Save()
