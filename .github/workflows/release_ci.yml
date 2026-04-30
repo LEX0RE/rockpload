@@ -1,4 +1,4 @@
-name: Create Release
+name: RELEASE_CI
 
 on:
   push:
