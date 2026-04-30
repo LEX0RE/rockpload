@@ -45,6 +45,8 @@ jobs:
         run: |
           chmod +x ./build.sh
           ./build.sh
+        env:
+          GITHUB_REF_NAME: "dev"
 
       - name: Check generated files
         run: |

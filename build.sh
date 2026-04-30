@@ -8,19 +8,20 @@ rm -rf $RELEASE_PATH
 mkdir -p $RELEASE_PATH
 
 VERSION=${GITHUB_REF_NAME:-"1.1.0"}
-echo "Building version $VERSION"
+VERSION_CLEAN=$(echo $VERSION | sed 's/\//-/g')
+echo "Building version $VERSION_CLEAN"
 
 ###############
 # BUILD LINUX #
 ###############
 
 OS="linux"
-OUTPUT="${PACKAGE_NAME}_${VERSION}-${OS}"
+OUTPUT="${PACKAGE_NAME}_${VERSION_CLEAN}-${OS}"
 FILE="$RELEASE_PATH/$OUTPUT"
 
 echo "Building $OUTPUT..."
 
-CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -o "$FILE" -ldflags "-X main.Version=$VERSION"
+CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -o "$FILE" -ldflags "-X main.Version=$VERSION_CLEAN"
 
 #################
 # BUILD WINDOWS #
@@ -28,12 +29,12 @@ CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -o "$FILE" -ldflags "-X main.Versio
 
 OS="windows"
 EXT=".exe"
-OUTPUT="${PACKAGE_NAME}_${VERSION}-${OS}${EXT}"
+OUTPUT="${PACKAGE_NAME}_${VERSION_CLEAN}-${OS}${EXT}"
 FILE="$RELEASE_PATH/$OUTPUT"
 
 echo "Building $OUTPUT..."
 
-CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -o "$FILE" -ldflags "-X main.Version=$VERSION -H windowsgui"
+CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -o "$FILE" -ldflags "-X main.Version=$VERSION_CLEAN -H windowsgui"
 
 #############
 # BUILD MAC # (CURRENTLY NOT SUPPORTED)
