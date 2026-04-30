@@ -51,7 +51,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 
 	infoBox := container.NewVBox(
 		header,
-		widget.NewLabel("This program will fetch your Rocket League match history and upload replays to the Rocky server."),
+		widget.NewLabel("This program will fetch your Rocket League match history and upload replays to any website you want."),
 		widget.NewSeparator(),
 	)
 
