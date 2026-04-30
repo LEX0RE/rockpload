@@ -7,7 +7,7 @@ PACKAGE_NAME="rockpload"
 rm -rf $RELEASE_PATH
 mkdir -p $RELEASE_PATH
 
-VERSION=${GITHUB_REF_NAME:-"1.1.0"}
+VERSION=${ROCKPLOAD_VERSION:-"1.1.0"}
 VERSION_CLEAN=$(echo $VERSION | sed 's/\//-/g')
 echo "Building version $VERSION_CLEAN"
 

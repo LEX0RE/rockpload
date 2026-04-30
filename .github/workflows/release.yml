@@ -33,7 +33,7 @@ jobs:
           chmod +x ./build.sh
           ./build.sh
         env:
-          GITHUB_REF_NAME: ${{ github.ref_name }}
+          ROCKPLOAD_VERSION: ${{ github.ref_name }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

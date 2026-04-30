@@ -46,7 +46,7 @@ jobs:
           chmod +x ./build.sh
           ./build.sh
         env:
-          GITHUB_REF_NAME: "dev"
+          ROCKPLOAD_VERSION: "dev"
 
       - name: Check generated files
         run: |
