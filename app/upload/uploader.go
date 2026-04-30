@@ -7,9 +7,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	rtime "github.com/LEX0RE/rockpload/app/tools/time"
+	"github.com/dank/rlapi"
 
 	"fyne.io/fyne/v2"
 )
@@ -26,30 +28,50 @@ type Uploader struct {
 	lockInAutoUpload sync.Mutex
 	lockInRunRLAPI   sync.Mutex
 
-	Player   *rocket_network.Player
-	websites []Website
+	Player    *rocket_network.Player
+	appConfig *config.AppConfig
+	websites  []*Website
 
 	updateGUI            func()
 	updateUploadProgress func(float64)
 
-	autoTicker *rtime.Ticker
+	autoTicker    *rtime.Ticker
+	HistorySended []string
 }
 
-func NewUploader(player *rocket_network.Player, updateGUI func(), updateUploadProgress func(float64)) *Uploader {
+func NewUploader(player *rocket_network.Player, appConfig *config.AppConfig, updateGUI func(), updateUploadProgress func(float64)) *Uploader {
 	logger.FuncDebug()
-
-	rockyWebsite := NewRockyWebsite()
 
 	u := &Uploader{
 		Player:               player,
 		updateGUI:            updateGUI,
 		updateUploadProgress: updateUploadProgress,
-		websites:             []Website{rockyWebsite},
+		appConfig:            appConfig,
+		websites:             []*Website{},
 	}
 
-	u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
+	for _, websiteConfig := range appConfig.GetWebsiteAppConfig() {
+		website := NewWebsite(websiteConfig)
+		u.websites = append(u.websites, website)
+	}
+
+	if appConfig.GetAppConfig(config.UploadOnLaunch) {
+		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
+	} else {
+		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, nil, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
+	}
 
 	return u
+}
+
+func (u *Uploader) UpdateWebsite() {
+	logger.FuncDebug()
+	u.websites = []*Website{}
+
+	for _, websiteConfig := range u.appConfig.GetWebsiteAppConfig() {
+		website := NewWebsite(websiteConfig)
+		u.websites = append(u.websites, website)
+	}
 }
 
 func (u *Uploader) Toggle(value bool) {
@@ -117,40 +139,63 @@ func (u *Uploader) upload(p *rocket_network.Player) {
 
 	defer u.lockInUpload.Unlock()
 
-	uploadCache := LoadUploadedCache()
+	u.HistorySended = []string{}
+
+	addToHistory := func(replay rlapi.MatchEntry) {
+		alreadyInHistory := false
+		for _, matchGUID := range u.HistorySended {
+			if matchGUID == replay.Match.MatchGUID {
+				alreadyInHistory = true
+			}
+		}
+
+		if !alreadyInHistory {
+			u.HistorySended = append(u.HistorySended, replay.Match.MatchGUID)
+		}
+	}
 
 	for i, replay := range p.MatchHistory {
-		u.updateUploadProgress(float64(i) / float64(len(p.MatchHistory)))
+		filePath, err := downloadFile(replay.ReplayUrl)
+		if err != nil {
+			logger.Rlogger.Error("Download error:", slog.Any("err", err))
+			continue
+		}
+		defer os.Remove(filePath)
 
-		if !uploadCache.index[replay.Match.MatchGUID] {
-			filePath, err := downloadFile(replay.ReplayUrl)
-			if err != nil {
-				logger.Rlogger.Error("Download error:", slog.Any("err", err))
+		for wi, website := range u.websites {
+			u.updateUploadProgress(float64((i*len(u.websites))+wi) / float64(len(p.MatchHistory)*len(u.websites)))
+
+			if !website.config.SendReplay {
 				continue
 			}
 
-			logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
+			uploadCache := LoadUploadedCache(website.config.Name)
 
-			for _, website := range u.websites {
+			if !uploadCache.index[replay.Match.MatchGUID] {
+				logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
+
 				err = website.UploadReplay(filePath)
 				if err != nil {
 					logger.Rlogger.Error("Upload error:", slog.Any("err", err))
 				} else {
 					uploadCache.Add(replay.Match.MatchGUID)
+					addToHistory(replay)
 				}
+
+				time.Sleep(uploadSleep)
+			} else {
+				logger.Rlogger.Debug("Skipping replay as it was already uploaded")
+				addToHistory(replay)
 			}
 
-			os.Remove(filePath)
-
-			time.Sleep(uploadSleep)
-		} else {
-			logger.Rlogger.Debug("Skipping replay as it was already uploaded")
+			uploadCache.Save()
 		}
+
+		os.Remove(filePath)
+		u.updateGUI()
 	}
 
 	logger.Rlogger.Debug("Upload complete")
 
 	u.updateUploadProgress(float64(-1))
-
-	uploadCache.Save()
 }

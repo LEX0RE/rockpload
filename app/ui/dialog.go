@@ -32,31 +32,3 @@ func (d *Dialog) DuplicateApp() {
 	d.window.Resize(fyne.NewSize(300, 170))
 	d.window.Show()
 }
-
-func (d *Dialog) NewUploadProgress(progress float64) {
-	logger.FuncDebug()
-
-	var uploadDialog *dialog.CustomDialog
-	var uploadBar *widget.ProgressBar
-
-	fyne.Do(func() {
-		if progress == -1 {
-			if uploadDialog != nil {
-				uploadDialog.Hide()
-				uploadDialog = nil
-			}
-			return
-		}
-
-		if uploadDialog == nil {
-			uploadBar = widget.NewProgressBar()
-			uploadBar.SetValue(0)
-
-			uploadDialog = dialog.NewCustomWithoutButtons("Uploading Replays...", uploadBar, d.window)
-			uploadDialog.Show()
-		}
-
-		value := float64(max(0, min(progress, 1)))
-		uploadBar.SetValue(value)
-	})
-}

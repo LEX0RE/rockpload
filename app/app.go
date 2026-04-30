@@ -49,7 +49,7 @@ func NewApp(version string) *App {
 		config.AutoStart:  a.SetAutoStart,
 		config.AutoUpload: a.SetAutoUpload,
 	}
-	a.appConfig = config.NewAppConfig(prefs, onAppConfigChange)
+	a.appConfig = config.NewAppConfig(prefs, onAppConfigChange, a.OnWebsiteConfigChange)
 
 	icon := fyne.NewStaticResource("logo.png", logoBytes)
 	a.app.SetIcon(icon)
@@ -95,6 +95,8 @@ func (a *App) Run() {
 	a.setupAppUpdate()
 	a.initPlayer()
 
+	a.window.Resize(fyne.NewSize(400, 300))
+
 	if a.appConfig.GetAppConfig(config.ExitInTray) && a.appConfig.GetAppConfig(config.StartInTray) {
 		a.app.Run()
 	} else {
@@ -111,13 +113,12 @@ func (a *App) initPlayer() {
 
 	a.player = rocket_network.NewPlayer(auth)
 
-	dialog := ui.NewDialog(a.app)
-
 	onUpdateState := func() {
 		fyne.Do(a.gui.UpdateState)
 	}
 
-	a.uploader = upload.NewUploader(a.player, onUpdateState, dialog.NewUploadProgress)
+	uploadPopup := ui.NewUploadingPopup(ui.NewPopup("Uploading Replays...", a.window, a.appConfig), 0)
+	a.uploader = upload.NewUploader(a.player, a.appConfig, onUpdateState, uploadPopup.UpdateProgress)
 
 	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.uploader)
 	if err != nil {
@@ -125,13 +126,14 @@ func (a *App) initPlayer() {
 	}
 
 	a.player.Auth.Sub.Subscribe(func(event string) {
-		if event == rocket_network.EventUserAuthenticated {
-			a.uploader.Run()
+		if event == rocket_network.EventUserAuthenticated && a.appConfig.GetAppConfig(config.AutoUpload) {
+			a.uploader.Start()
 		}
 	})
 
 	if a.player.Auth != nil {
-		a.uploader.Run()
+		a.player.GetInfo()
+		a.gui.UpdateState()
 	}
 
 	if a.appConfig.GetAppConfig(config.AutoUpload) {
@@ -153,9 +155,8 @@ func (a *App) setupAppUpdate() {
 	a.updateInfo = updater.UpdateInfo
 
 	if needUpdate {
-		// TODO Make auto update withtout ask setting
-		popup := ui.NewPopup("New Update!", a.window, a.appConfig)
-		updatePopup := ui.NewUpdatePopup(popup, a.updateInfo.Version, func() {
+		// TODO Make auto update without ask setting to not annoy people
+		updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig), a.updateInfo.Version, func() {
 			err := updater.ApplyUpdate()
 			if err != nil {
 				logger.Rlogger.Error("Update failed", slog.Any("err", err))
@@ -229,4 +230,10 @@ func (a *App) restart() {
 	}
 
 	os.Exit(0)
+}
+
+func (a *App) OnWebsiteConfigChange(value []*config.WebsiteConfig) {
+	logger.FuncDebug()
+
+	a.uploader.UpdateWebsite()
 }

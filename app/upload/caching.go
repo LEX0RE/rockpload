@@ -2,7 +2,6 @@ package upload
 
 import (
 	"bufio"
-	"log/slog"
 	"os"
 	"strings"
 
@@ -15,23 +14,25 @@ const (
 )
 
 type UploadCache struct {
-	items []string
-	index map[string]bool
-	max   int
+	indexName string
+	items     []string
+	index     map[string]bool
+	max       int
 }
 
-func LoadUploadedCache() *UploadCache {
+func LoadUploadedCache(indexName string) *UploadCache {
 	logger.FuncDebug()
-	cache := &UploadCache{
-		items: []string{},
-		index: make(map[string]bool),
-		max:   maxCacheSize,
+	c := &UploadCache{
+		indexName: indexName,
+		items:     []string{},
+		index:     make(map[string]bool),
+		max:       maxCacheSize,
 	}
 
-	file, err := os.Open(config.UploadedCache)
+	file, err := os.Open(c.cachePath())
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cache
+			return c
 		}
 		panic(err)
 	}
@@ -44,13 +45,15 @@ func LoadUploadedCache() *UploadCache {
 			continue
 		}
 
-		cache.items = append(cache.items, id)
-		cache.index[id] = true
+		c.items = append(c.items, id)
+		c.index[id] = true
 	}
 
-	logger.Rlogger.Debug("Storing cache in ", slog.Any("cachePath", config.GetCachePath()))
+	return c
+}
 
-	return cache
+func (c *UploadCache) cachePath() string {
+	return config.UploadedCache + "_" + c.indexName
 }
 
 func (c *UploadCache) Add(id string) {
@@ -81,7 +84,7 @@ func (c *UploadCache) Save() error {
 
 	c.ensureCapacity()
 
-	f, err := os.OpenFile(config.UploadedCache, os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(c.cachePath(), os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -90,8 +93,6 @@ func (c *UploadCache) Save() error {
 	for _, id := range c.items {
 		f.WriteString(id + "\n")
 	}
-
-	logger.Rlogger.Debug("Cache file saved")
 
 	return nil
 }

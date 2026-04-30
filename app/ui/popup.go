@@ -12,21 +12,28 @@ import (
 )
 
 type Popup struct {
-	popup     *widget.PopUp
-	content   *fyne.Container
-	appConfig *config.AppConfig
+	popup        *widget.PopUp
+	content      *fyne.Container
+	appConfig    *config.AppConfig
+	parentWindow fyne.Window
+	onClosed     func()
 }
 
 func NewPopup(title string, parentWindow fyne.Window, appConfig *config.AppConfig) *Popup {
 	logger.FuncDebug()
 
 	p := &Popup{
-		content:   container.NewStack(),
-		appConfig: appConfig,
+		content:      container.NewStack(),
+		appConfig:    appConfig,
+		parentWindow: parentWindow,
+	}
+
+	p.onClosed = func() {
+		p.popup.Hide()
 	}
 
 	closeBtn := widget.NewButtonWithIcon("", theme.WindowCloseIcon(), func() {
-		p.popup.Hide()
+		p.onClosed()
 	})
 	closeBtn.Importance = widget.LowImportance
 
@@ -36,11 +43,8 @@ func NewPopup(title string, parentWindow fyne.Window, appConfig *config.AppConfi
 		closeBtn,
 	)
 
-	content := container.NewVBox(
-		header,
-		widget.NewSeparator(),
-		p.content,
-	)
+	topSection := container.NewVBox(header, widget.NewSeparator())
+	content := container.NewBorder(topSection, nil, nil, nil, p.content)
 
 	p.popup = widget.NewModalPopUp(content, parentWindow.Canvas())
 
