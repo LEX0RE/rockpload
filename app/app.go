@@ -37,6 +37,7 @@ type App struct {
 	updateInfo    *UpdateInfo
 
 	uploader       *upload.Uploader
+	statsApi       *rocket_network.StatsAPI
 	accountManager *manager.AccountManager
 	rlSupervisor   *manager.RLSupervisor
 }
@@ -133,6 +134,15 @@ func (a *App) initManager() {
 
 func (a *App) initEvents() {
 	logger.FuncDebug()
+
+	a.statsApi = rocket_network.NewStatsAPI()
+	a.statsApi.EventManager.Subscribe("MatchCreated", tools.Listener{IsSync: false, Callback: func(data any) {
+		logger.Rlogger.Debug("Match Created", slog.Any("data", data))
+	}})
+	a.statsApi.EventManager.Subscribe("MatchDestroyed", tools.Listener{IsSync: false, Callback: func(data any) {
+		logger.Rlogger.Debug("Match Destroyed", slog.Any("data", data))
+	}})
+	a.statsApi.StartListener()
 
 	onUpdateState := func() {
 		fyne.Do(a.gui.UpdateState)
