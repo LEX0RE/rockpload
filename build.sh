@@ -7,7 +7,7 @@ PACKAGE_NAME="rockpload"
 rm -rf $RELEASE_PATH
 mkdir -p $RELEASE_PATH
 
-VERSION="1.1.0"
+VERSION=${GITHUB_REF_NAME:-"dev"}
 echo "Building version $VERSION"
 
 ###############

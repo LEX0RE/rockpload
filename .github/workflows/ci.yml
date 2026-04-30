@@ -29,7 +29,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             pkg-config \
             libgl1-mesa-dev \
-            xorg-dev
+            xorg-dev \
+            gcc-mingw-w64-x86-64
 
       - name: Check formatting
         run: |
@@ -40,8 +41,17 @@ jobs:
             exit 1
           fi
 
-      - name: Build
-        run: go build ./...
+      - name: Build with Script
+        run: |
+          chmod +x ./build.sh
+          ./build.sh
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+
+      - name: Check generated files
+        run: |
+          ls -lh releases/
+          [ "$(ls -A releases/)" ] || (echo "Error: No generated file" && exit 1)
 
       - name: Vet
         run: go vet ./...
