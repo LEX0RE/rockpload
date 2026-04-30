@@ -19,7 +19,7 @@ func NewUpdatePopup(p *Popup, newVersion string, onAccept func()) *UpdatePopup {
 
 	versionInfo := ""
 	if newVersion != "" {
-		versionInfo = " (" + newVersion + ")"
+		versionInfo = " (v" + newVersion + ")"
 	}
 
 	up := &UpdatePopup{Popup: p}

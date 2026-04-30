@@ -37,14 +37,15 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 
 	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Welcome to Rockpload! ("+version+")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
 
-	optionPopup := NewPopup("Option", g.window, appConfig)
-	settingPopup := NewSettingPopup(optionPopup)
+	websiteSettingsPopup := NewWebsiteSettingsPopup(NewPopup("Website Option", g.window, appConfig))
+	websiteSettingsBtn := widget.NewButtonWithIcon("", theme.UploadIcon(), func() { websiteSettingsPopup.Show() })
+	websiteSettingsBtn.Importance = widget.LowImportance
 
-	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
-		settingPopup.Show()
-	})
+	settingsPopup := NewSettingPopup(NewPopup("Option", g.window, appConfig))
+	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { settingsPopup.Show() })
 	settingsBtn.Importance = widget.LowImportance
-	rightAlignedBtn := container.NewHBox(layout.NewSpacer(), settingsBtn)
+
+	rightAlignedBtn := container.NewHBox(layout.NewSpacer(), websiteSettingsBtn, settingsBtn)
 
 	header := container.NewStack(centeredLabel, rightAlignedBtn)
 
@@ -60,6 +61,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 	contentBox := container.NewBorder(g.LoginBox, nil, nil, nil, g.PlayerBox)
 
 	g.window.SetContent(container.NewBorder(infoBox, nil, nil, nil, contentBox))
+	g.window.Resize(fyne.NewSize(450, 350))
 
 	g.UpdateState()
 
@@ -87,9 +89,17 @@ func (g *GUI) UpdateState() {
 	if g.uploader.Player.MatchHistory != nil {
 		g.MatchHistoryData = []string{}
 		for _, match := range g.uploader.Player.MatchHistory {
+			matchUploaded := ""
+			for _, replay := range g.uploader.HistorySended {
+				if replay == match.Match.MatchGUID {
+					matchUploaded = "   (Uploaded)"
+					break
+				}
+			}
+
 			matchDate := time.Unix(match.Match.RecordStartTimestamp, 0).Format("2006-01-02 15:04:05")
 			matchScore := strconv.Itoa(match.Match.Team0Score) + " - " + strconv.Itoa(match.Match.Team1Score)
-			g.MatchHistoryData = append(g.MatchHistoryData, matchDate+" : "+matchScore+" ("+match.Match.MatchGUID+")")
+			g.MatchHistoryData = append(g.MatchHistoryData, matchDate+" : "+matchScore+" ("+match.Match.MatchGUID+")"+matchUploaded)
 		}
 		g.MatchHistoryList.Refresh()
 	} else {

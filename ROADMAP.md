@@ -7,7 +7,7 @@ Rockpload aims to become a powerful multi-platform Rocket League replay manager:
 - Provide live and post-game statistics
 
 
-## 🌐 v2.0.0 – Multi Upload System
+## 🌐 v1.1.0 – Multi Upload System
 > Inspired by Ballchasing-like workflow
 
 - [ ] Create "Upload Provider" interface
@@ -23,7 +23,7 @@ Rockpload aims to become a powerful multi-platform Rocket League replay manager:
 
 ---
 
-## 👥 v3.0.0 – Multi Account Tracking
+## 👥 v1.2.0 – Multi Account Tracking
 > Manage multiple Rocket League profiles
 
 - [ ] Support multiple account identifiers
@@ -33,7 +33,7 @@ Rockpload aims to become a powerful multi-platform Rocket League replay manager:
 
 ---
 
-## 📡 v4.0.0 – Live Match Tracking
+## 📡 v1.3.0 – Live Match Tracking
 > Real-time match monitoring
 
 - [ ] Detect active match from StatsAPI

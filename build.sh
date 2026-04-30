@@ -7,7 +7,7 @@ PACKAGE_NAME="rockpload"
 rm -rf $RELEASE_PATH
 mkdir -p $RELEASE_PATH
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 echo "Building version $VERSION"
 
 ###############

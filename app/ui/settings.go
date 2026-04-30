@@ -14,10 +14,11 @@ type SettingPopup struct {
 	*Popup
 	OptionBox *fyne.Container
 
-	autoStartCheck   *widget.Check
-	autoUploadCheck  *widget.Check
-	startInTrayCheck *widget.Check
-	exitInTrayCheck  *widget.Check
+	autoStartCheck      *widget.Check
+	autoUploadCheck     *widget.Check
+	uploadOnLaunchCheck *widget.Check
+	startInTrayCheck    *widget.Check
+	exitInTrayCheck     *widget.Check
 }
 
 func NewSettingPopup(p *Popup) *SettingPopup {
@@ -30,6 +31,9 @@ func NewSettingPopup(p *Popup) *SettingPopup {
 
 	sp.autoUploadCheck = widget.NewCheck("Auto Upload Replays", func(value bool) {})
 	sp.autoUploadCheck.SetChecked(sp.appConfig.GetAppConfig(config.AutoUpload))
+
+	sp.uploadOnLaunchCheck = widget.NewCheck("Upload Replays on launch", func(value bool) {})
+	sp.uploadOnLaunchCheck.SetChecked(sp.appConfig.GetAppConfig(config.UploadOnLaunch))
 
 	sp.startInTrayCheck = widget.NewCheck("Start in Tray", func(value bool) {})
 	sp.startInTrayCheck.SetChecked(sp.appConfig.GetAppConfig(config.StartInTray))
@@ -52,7 +56,7 @@ func NewSettingPopup(p *Popup) *SettingPopup {
 	})
 	sp.exitInTrayCheck.SetChecked(p.appConfig.GetAppConfig(config.ExitInTray))
 
-	sp.OptionBox = container.NewVBox(sp.autoStartCheck, sp.autoUploadCheck, sp.exitInTrayCheck, sp.startInTrayCheck)
+	sp.OptionBox = container.NewVBox(sp.autoStartCheck, sp.autoUploadCheck, sp.uploadOnLaunchCheck, sp.exitInTrayCheck, sp.startInTrayCheck)
 
 	saveBtn := widget.NewButton("Save", func() {
 		currentAutoSave := sp.appConfig.GetAppConfig(config.AutoStart)
@@ -63,6 +67,11 @@ func NewSettingPopup(p *Popup) *SettingPopup {
 		currentAutoUpload := sp.appConfig.GetAppConfig(config.AutoUpload)
 		if sp.autoUploadCheck.Checked != currentAutoUpload {
 			sp.appConfig.SetAppConfig(config.AutoUpload, sp.autoUploadCheck.Checked)
+		}
+
+		currentUploadOnLaunch := sp.appConfig.GetAppConfig(config.UploadOnLaunch)
+		if sp.uploadOnLaunchCheck.Checked != currentUploadOnLaunch {
+			sp.appConfig.SetAppConfig(config.UploadOnLaunch, sp.uploadOnLaunchCheck.Checked)
 		}
 
 		currentExitInTray := sp.appConfig.GetAppConfig(config.ExitInTray)
@@ -95,6 +104,7 @@ func (sp *SettingPopup) Show() {
 
 	sp.autoStartCheck.SetChecked(sp.appConfig.GetAppConfig(config.AutoStart))
 	sp.autoUploadCheck.SetChecked(sp.appConfig.GetAppConfig(config.AutoUpload))
+	sp.uploadOnLaunchCheck.SetChecked(sp.appConfig.GetAppConfig(config.UploadOnLaunch))
 	sp.startInTrayCheck.SetChecked(sp.appConfig.GetAppConfig(config.StartInTray))
 	sp.exitInTrayCheck.SetChecked(sp.appConfig.GetAppConfig(config.ExitInTray))
 
