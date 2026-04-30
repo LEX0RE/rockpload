@@ -8,7 +8,7 @@
 </p>
 
 
-A desktop companion app for [Rocky](https://lexore.ca/rocky) that watches your Rocket League replay history and automatically uploads new replays to the Rocky stats tracker.
+A desktop companion app for [Rocky](https://lexore.ca/rocky) that watches your Rocket League replay history and automatically uploads new replays to the any website! (Rocky, Ballchasing and the one you want).
 
 ## Features
 
@@ -16,13 +16,13 @@ A desktop companion app for [Rocky](https://lexore.ca/rocky) that watches your R
 - **Epic Games Authentication**: Seamless authentication via Epic Games Launcher or custom OAuth
 - **System Tray Integration**: Runs quietly in the background with system tray controls
 - **Auto-start Support**: Launch rockpload automatically on system startup
-- **Cross-platform**: Supports Linux and Windows (macOS is not supported)
+- **Cross-platform**: Supports Linux and Windows (macOS is not supported yet)
 
 ## Supported Platforms
 
 - **Linux** (amd64)
 - **Windows** (amd64)
-- **macOS**: Not supported
+- **macOS**: Not supported yet
 
 ## Installation
 
@@ -54,7 +54,7 @@ rockpload.exe  # Windows
 The app will:
 1. Authenticate with Epic Games
 2. Monitor your Rocket League replay history
-3. Automatically upload new replays to https://lexore.ca/rocky/api
+3. Automatically upload new replays to Rocky website, Ballchasing and all others configured websites
 4. Run in the system tray
 
 **Local State:**
