@@ -139,7 +139,7 @@ func (a *App) initPlayers() {
 	}})
 
 	var err error
-	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager)
+	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.app.Clipboard)
 	if err != nil {
 		logger.Rlogger.Error("Failed to initialize GUI:", slog.Any("err", err))
 	}
