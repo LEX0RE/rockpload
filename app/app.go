@@ -126,8 +126,12 @@ func (a *App) initPlayer() {
 	}
 
 	a.player.Auth.Sub.Subscribe(func(event string) {
-		if event == rocket_network.EventUserAuthenticated && a.appConfig.GetAppConfig(config.AutoUpload) {
-			a.uploader.Start()
+		if event == rocket_network.EventUserAuthenticated {
+			if a.appConfig.GetAppConfig(config.AutoUpload) {
+				a.uploader.Start()
+			}
+
+			a.gui.UpdateState()
 		}
 	})
 
