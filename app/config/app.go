@@ -1,17 +1,13 @@
 package config
 
 import (
+	"encoding/json"
+	"log/slog"
 	"os"
 
-	"github.com/LEX0RE/rockpload/app/tools/logger"
-
-	"encoding/json"
-
 	"fyne.io/fyne/v2"
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
-
-type AppConfigType int
-type OnAppConfigChange map[AppConfigType]func(bool)
 
 type WebsiteConfig struct {
 	Name         string            `json:"name"`
@@ -29,98 +25,131 @@ type WebsiteConfig struct {
 	// LivePath   string // TODO Not implemented yet
 }
 
-const (
-	AutoStart AppConfigType = iota
-	AutoUpload
-	UploadOnLaunch
-	ExitInTray
-	StartInTray
-)
-
-var AppConfigMap = map[AppConfigType]string{
-	AutoStart:      "rockpload_autoStart",
-	AutoUpload:     "rockpload_autoUpload",
-	UploadOnLaunch: "rockpload_uploadOnLaunch",
-	ExitInTray:     "rockpload_exitInTray",
-	StartInTray:    "rockpload_startInTray",
-}
-
-var websiteConfigPrefs = "rockpload_websiteSettings"
-
 type AppConfig struct {
-	prefs                 fyne.Preferences
-	onAppConfigChange     OnAppConfigChange
-	onWebsiteConfigChance func([]*WebsiteConfig)
+	AutoUpload      Setting[bool]             `json:"auto_upload"`
+	ExitInTray      Setting[bool]             `json:"exit_in_tray"`
+	AutoStart       Setting[bool]             `json:"auto_start"`
+	StartInTray     Setting[bool]             `json:"start_in_tray"`
+	UploadOnLaunch  Setting[bool]             `json:"upload_on_launch"`
+	WebsiteSettings Setting[[]*WebsiteConfig] `json:"website_settings"`
 }
 
-func NewAppConfig(prefs fyne.Preferences, onAppConfigChange OnAppConfigChange, onWebsiteConfigChance func([]*WebsiteConfig)) *AppConfig {
-	logger.FuncDebug()
-	return &AppConfig{prefs: prefs, onAppConfigChange: onAppConfigChange, onWebsiteConfigChance: onWebsiteConfigChance}
-}
-
-func (a *AppConfig) GetAppConfig(configName AppConfigType) bool {
+func NewAppConfig() *AppConfig {
 	logger.FuncDebug()
 
-	switch configName {
-	case AutoUpload, ExitInTray:
-		return a.prefs.BoolWithFallback(AppConfigMap[configName], true)
-	case AutoStart, StartInTray, UploadOnLaunch:
-		return a.prefs.BoolWithFallback(AppConfigMap[configName], false)
-	default:
-		return a.prefs.BoolWithFallback(AppConfigMap[configName], false)
+	cfg := &AppConfig{}
+
+	saveHook := func() {
+		cfg.Save()
 	}
-}
 
-func (a *AppConfig) SetAppConfig(configName AppConfigType, value bool) {
-	logger.FuncDebug()
-	a.prefs.SetBool(AppConfigMap[configName], value)
+	cfg.AutoUpload = NewSetting(true, saveHook)
+	cfg.ExitInTray = NewSetting(true, saveHook)
 
-	if a.onAppConfigChange != nil {
-		if f, ok := a.onAppConfigChange[configName]; ok {
-			f(value)
-		}
+	cfg.AutoStart = NewSetting(false, saveHook)
+	cfg.StartInTray = NewSetting(false, saveHook)
+	cfg.UploadOnLaunch = NewSetting(false, saveHook)
+
+	cfg.WebsiteSettings = NewSetting([]*WebsiteConfig{}, saveHook)
+
+	err := cfg.Load()
+	if err != nil {
+		logger.Rlogger.Error("Failed to load settings:", slog.Any("err", err))
 	}
+
+	return cfg
 }
 
-func (a *AppConfig) GetWebsiteAppConfig() []*WebsiteConfig {
+func (a *AppConfig) Load() error {
 	logger.FuncDebug()
 
-	jsonData := a.prefs.StringWithFallback(websiteConfigPrefs, "[]")
+	err := LoadFilePath(SettingsFile, a, false)
+	if err != nil {
+		return err
+	}
 
-	var websites []*WebsiteConfig
-	json.Unmarshal([]byte(jsonData), &websites)
+	a.WebsiteSettings.value = append([]*WebsiteConfig{ROCKY_WEBSITE}, a.WebsiteSettings.value...)
 
-	websites = append([]*WebsiteConfig{ROCKY_WEBSITE}, websites...)
-
-	if len(websites) == 1 {
+	if len(a.WebsiteSettings.value) == 1 {
 		predefinedWebsites := []*WebsiteConfig{BALLCHASING_WEBSITE}
-		websites = append(websites, predefinedWebsites...)
+		a.WebsiteSettings.value = append(a.WebsiteSettings.value, predefinedWebsites...)
 	}
 
 	addLocalhost := os.Getenv("ADD_LOCALHOST")
 	if addLocalhost == "true" {
-		websites = append(websites, LOCAL_WEBSITE)
+		a.WebsiteSettings.value = append(a.WebsiteSettings.value, LOCAL_WEBSITE)
 	}
 
-	return websites
+	return nil
 }
 
-func (a *AppConfig) SetWebsiteAppConfig(value []*WebsiteConfig) {
+func (a *AppConfig) Save() error {
 	logger.FuncDebug()
 
-	filteredWebsite := []*WebsiteConfig{}
-	for _, website := range value {
+	originalWebsites := a.WebsiteSettings.value
+
+	filteredWebsites := []*WebsiteConfig{}
+	for _, website := range originalWebsites {
 		if !website.IsPrimary {
-			filteredWebsite = append(filteredWebsite, website)
+			filteredWebsites = append(filteredWebsites, website)
 		}
 	}
 
-	jsonData, err := json.Marshal(filteredWebsite)
-	if err == nil {
-		a.prefs.SetString(websiteConfigPrefs, string(jsonData))
+	a.WebsiteSettings.value = filteredWebsites
+
+	err := SaveFilePath(SettingsFile, a)
+
+	a.WebsiteSettings.value = originalWebsites
+
+	return err
+}
+
+// TODO Deprecated, Fyne Pref will be removed in future version
+func (a *AppConfig) ImportFynePreferences(prefs fyne.Preferences) {
+	logger.FuncDebug()
+
+	savedAndRemove := func(key string) {
+		if a.Save() == nil {
+			prefs.RemoveValue(key)
+		}
 	}
 
-	if a.onWebsiteConfigChance != nil {
-		a.onWebsiteConfigChance(value)
+	a.AutoUpload.value = prefs.BoolWithFallback("rockpload_autoUpload", a.AutoUpload.value)
+	savedAndRemove("rockpload_autoUpload")
+	a.ExitInTray.value = prefs.BoolWithFallback("rockpload_exitInTray", a.ExitInTray.value)
+	savedAndRemove("rockpload_exitInTray")
+
+	a.AutoStart.value = prefs.BoolWithFallback("rockpload_autoStart", a.AutoStart.value)
+	savedAndRemove("rockpload_autoStart")
+	a.StartInTray.value = prefs.BoolWithFallback("rockpload_startInTray", a.StartInTray.value)
+	savedAndRemove("rockpload_startInTray")
+	a.UploadOnLaunch.value = prefs.BoolWithFallback("rockpload_uploadOnLaunch", a.UploadOnLaunch.value)
+	savedAndRemove("rockpload_uploadOnLaunch")
+
+	jsonData := prefs.StringWithFallback("rockpload_websiteSettings", "[]")
+	var websites []*WebsiteConfig
+	json.Unmarshal([]byte(jsonData), &websites)
+
+	for _, importedSite := range websites {
+		found := false
+
+		for _, configSite := range a.WebsiteSettings.Get() {
+			if configSite.Name == importedSite.Name {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			a.WebsiteSettings.value = append(a.WebsiteSettings.value, importedSite)
+		} else if importedSite.IsPredefined {
+			for i, configSite := range a.WebsiteSettings.Get() {
+				if configSite.Name == importedSite.Name {
+					a.WebsiteSettings.value[i] = importedSite
+				}
+			}
+		}
 	}
+
+	savedAndRemove("rockpload_websiteSettings")
 }

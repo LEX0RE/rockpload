@@ -48,6 +48,7 @@ type WebsiteSettingsPopup struct {
 	split         *container.Split
 	leftPanel     *fyne.Container
 	detailPanel   *fyne.Container
+	editForm      *widget.Form
 }
 
 func NewWebsiteSettingsPopup(p *Popup) *WebsiteSettingsPopup {
@@ -56,7 +57,7 @@ func NewWebsiteSettingsPopup(p *Popup) *WebsiteSettingsPopup {
 	wsp := &WebsiteSettingsPopup{Popup: p, infoContainer: WebsiteInfoContainer{}}
 
 	wsp.selectedIndex = -1
-	wsp.websites = wsp.appConfig.GetWebsiteAppConfig()
+	wsp.websites = wsp.appConfig.WebsiteSettings.Get()
 
 	wsp.btnSave = widget.NewButtonWithIcon("Save Changes", theme.DocumentSaveIcon(), wsp.onSaveBtn)
 	wsp.btnSave.Importance = widget.HighImportance
@@ -66,8 +67,8 @@ func NewWebsiteSettingsPopup(p *Popup) *WebsiteSettingsPopup {
 	wsp.btnDelete.Importance = widget.DangerImportance
 	wsp.btnDelete.Disable()
 
-	editForm := wsp.createInfoContainer()
-	scrollableForm := container.NewVScroll(editForm)
+	wsp.editForm = wsp.createInfoContainer()
+	scrollableForm := container.NewVScroll(wsp.editForm)
 	buttonsBox := container.NewHBox(layout.NewSpacer(), wsp.btnSave, wsp.btnDelete)
 
 	wsp.detailPanel = container.NewBorder(
@@ -104,7 +105,7 @@ func NewWebsiteSettingsPopup(p *Popup) *WebsiteSettingsPopup {
 func (wsp *WebsiteSettingsPopup) Show() {
 	logger.FuncDebug()
 
-	wsp.websites = wsp.appConfig.GetWebsiteAppConfig()
+	wsp.websites = wsp.appConfig.WebsiteSettings.Get()
 	wsp.list.Refresh()
 	wsp.reload()
 
@@ -236,6 +237,8 @@ func (wsp *WebsiteSettingsPopup) reload() {
 	} else {
 		wsp.infoContainer.replayPathForm.Widget.Hide()
 	}
+
+	wsp.editForm.Refresh()
 }
 
 func (wsp *WebsiteSettingsPopup) onUnselected(id widget.ListItemID) {
@@ -288,7 +291,7 @@ func (wsp *WebsiteSettingsPopup) onSaveBtn() {
 	}
 	site.URIParams = newParams
 
-	wsp.appConfig.SetWebsiteAppConfig(wsp.websites)
+	wsp.appConfig.WebsiteSettings.Set(wsp.websites)
 
 	dialog.ShowInformation("Success", "Settings saved successfully!", wsp.parentWindow)
 }
@@ -321,7 +324,7 @@ func (wsp *WebsiteSettingsPopup) onAddWebsiteBtn() {
 			}
 
 			wsp.websites = append(wsp.websites, newSite)
-			wsp.appConfig.SetWebsiteAppConfig(wsp.websites)
+			wsp.appConfig.WebsiteSettings.Set(wsp.websites)
 
 			wsp.onSelected(len(wsp.websites) - 1)
 
@@ -343,7 +346,7 @@ func (wsp *WebsiteSettingsPopup) onDeleteWebsiteBtn() {
 		if confirmed {
 			wsp.websites = append(wsp.websites[:wsp.selectedIndex], wsp.websites[wsp.selectedIndex+1:]...)
 
-			wsp.appConfig.SetWebsiteAppConfig(wsp.websites)
+			wsp.appConfig.WebsiteSettings.Set(wsp.websites)
 
 			wsp.list.UnselectAll()
 			wsp.list.Refresh()
