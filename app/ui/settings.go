@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
@@ -27,17 +26,17 @@ func NewSettingPopup(p *Popup) *SettingPopup {
 	sp := &SettingPopup{Popup: p}
 
 	sp.autoStartCheck = widget.NewCheck("Start with system", func(value bool) {})
-	sp.autoStartCheck.SetChecked(sp.appConfig.GetAppConfig(config.AutoStart))
+	sp.autoStartCheck.SetChecked(sp.appConfig.AutoStart.Get())
 
 	sp.autoUploadCheck = widget.NewCheck("Auto Upload Replays", func(value bool) {})
-	sp.autoUploadCheck.SetChecked(sp.appConfig.GetAppConfig(config.AutoUpload))
+	sp.autoUploadCheck.SetChecked(sp.appConfig.AutoUpload.Get())
 
 	sp.uploadOnLaunchCheck = widget.NewCheck("Upload Replays on launch", func(value bool) {})
-	sp.uploadOnLaunchCheck.SetChecked(sp.appConfig.GetAppConfig(config.UploadOnLaunch))
+	sp.uploadOnLaunchCheck.SetChecked(sp.appConfig.UploadOnLaunch.Get())
 
 	sp.startInTrayCheck = widget.NewCheck("Start in Tray", func(value bool) {})
-	sp.startInTrayCheck.SetChecked(sp.appConfig.GetAppConfig(config.StartInTray))
-	if !p.appConfig.GetAppConfig(config.ExitInTray) {
+	sp.startInTrayCheck.SetChecked(sp.appConfig.StartInTray.Get())
+	if !p.appConfig.ExitInTray.Get() {
 		sp.startInTrayCheck.Hide()
 	}
 
@@ -54,34 +53,34 @@ func NewSettingPopup(p *Popup) *SettingPopup {
 			}
 		}
 	})
-	sp.exitInTrayCheck.SetChecked(p.appConfig.GetAppConfig(config.ExitInTray))
+	sp.exitInTrayCheck.SetChecked(p.appConfig.ExitInTray.Get())
 
 	sp.OptionBox = container.NewVBox(sp.autoStartCheck, sp.autoUploadCheck, sp.uploadOnLaunchCheck, sp.exitInTrayCheck, sp.startInTrayCheck)
 
 	saveBtn := widget.NewButton("Save", func() {
-		currentAutoSave := sp.appConfig.GetAppConfig(config.AutoStart)
+		currentAutoSave := sp.appConfig.AutoStart.Get()
 		if sp.autoStartCheck.Checked != currentAutoSave {
-			sp.appConfig.SetAppConfig(config.AutoStart, sp.autoStartCheck.Checked)
+			sp.appConfig.AutoStart.Set(sp.autoStartCheck.Checked)
 		}
 
-		currentAutoUpload := sp.appConfig.GetAppConfig(config.AutoUpload)
+		currentAutoUpload := sp.appConfig.AutoUpload.Get()
 		if sp.autoUploadCheck.Checked != currentAutoUpload {
-			sp.appConfig.SetAppConfig(config.AutoUpload, sp.autoUploadCheck.Checked)
+			sp.appConfig.AutoUpload.Set(sp.autoUploadCheck.Checked)
 		}
 
-		currentUploadOnLaunch := sp.appConfig.GetAppConfig(config.UploadOnLaunch)
+		currentUploadOnLaunch := sp.appConfig.UploadOnLaunch.Get()
 		if sp.uploadOnLaunchCheck.Checked != currentUploadOnLaunch {
-			sp.appConfig.SetAppConfig(config.UploadOnLaunch, sp.uploadOnLaunchCheck.Checked)
+			sp.appConfig.UploadOnLaunch.Set(sp.uploadOnLaunchCheck.Checked)
 		}
 
-		currentExitInTray := sp.appConfig.GetAppConfig(config.ExitInTray)
+		currentExitInTray := sp.appConfig.ExitInTray.Get()
 		if sp.exitInTrayCheck.Checked != currentExitInTray {
-			sp.appConfig.SetAppConfig(config.ExitInTray, sp.exitInTrayCheck.Checked)
+			sp.appConfig.ExitInTray.Set(sp.exitInTrayCheck.Checked)
 		}
 
-		currentStartInTray := sp.appConfig.GetAppConfig(config.StartInTray)
+		currentStartInTray := sp.appConfig.StartInTray.Get()
 		if sp.startInTrayCheck.Checked != currentStartInTray {
-			sp.appConfig.SetAppConfig(config.StartInTray, sp.startInTrayCheck.Checked)
+			sp.appConfig.StartInTray.Set(sp.startInTrayCheck.Checked)
 		}
 
 		sp.popup.Hide()
@@ -102,11 +101,11 @@ func NewSettingPopup(p *Popup) *SettingPopup {
 func (sp *SettingPopup) Show() {
 	logger.FuncDebug()
 
-	sp.autoStartCheck.SetChecked(sp.appConfig.GetAppConfig(config.AutoStart))
-	sp.autoUploadCheck.SetChecked(sp.appConfig.GetAppConfig(config.AutoUpload))
-	sp.uploadOnLaunchCheck.SetChecked(sp.appConfig.GetAppConfig(config.UploadOnLaunch))
-	sp.startInTrayCheck.SetChecked(sp.appConfig.GetAppConfig(config.StartInTray))
-	sp.exitInTrayCheck.SetChecked(sp.appConfig.GetAppConfig(config.ExitInTray))
+	sp.autoStartCheck.SetChecked(sp.appConfig.AutoStart.Get())
+	sp.autoUploadCheck.SetChecked(sp.appConfig.AutoUpload.Get())
+	sp.uploadOnLaunchCheck.SetChecked(sp.appConfig.UploadOnLaunch.Get())
+	sp.startInTrayCheck.SetChecked(sp.appConfig.StartInTray.Get())
+	sp.exitInTrayCheck.SetChecked(sp.appConfig.ExitInTray.Get())
 
 	sp.Popup.Show()
 }

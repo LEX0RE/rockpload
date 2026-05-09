@@ -50,12 +50,12 @@ func NewUploader(player *rocket_network.Player, appConfig *config.AppConfig, upd
 		websites:             []*Website{},
 	}
 
-	for _, websiteConfig := range appConfig.GetWebsiteAppConfig() {
+	for _, websiteConfig := range appConfig.WebsiteSettings.Get() {
 		website := NewWebsite(websiteConfig)
 		u.websites = append(u.websites, website)
 	}
 
-	if appConfig.GetAppConfig(config.UploadOnLaunch) {
+	if appConfig.UploadOnLaunch.Get() {
 		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
 	} else {
 		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, nil, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
@@ -68,7 +68,7 @@ func (u *Uploader) UpdateWebsite() {
 	logger.FuncDebug()
 	u.websites = []*Website{}
 
-	for _, websiteConfig := range u.appConfig.GetWebsiteAppConfig() {
+	for _, websiteConfig := range u.appConfig.WebsiteSettings.Get() {
 		website := NewWebsite(websiteConfig)
 		u.websites = append(u.websites, website)
 	}

@@ -15,6 +15,7 @@
         "SLOG_LEVEL": "debug",
         "FUNC_DEBUG": "false",
         "ADD_LOCALHOST": "false",
+        "SKIP_UPDATE": "true",
       },
       "args": [],
       "showLog": true,

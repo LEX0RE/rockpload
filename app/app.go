@@ -44,12 +44,13 @@ func NewApp(version string) *App {
 
 	a.app = app.NewWithID("com.lexore.rockpload")
 
-	prefs := a.app.Preferences()
-	onAppConfigChange := map[config.AppConfigType]func(bool){
-		config.AutoStart:  a.SetAutoStart,
-		config.AutoUpload: a.SetAutoUpload,
-	}
-	a.appConfig = config.NewAppConfig(prefs, onAppConfigChange, a.OnWebsiteConfigChange)
+	a.appConfig = config.NewAppConfig()
+	a.appConfig.AutoStart.Bind(a.SetAutoStart)
+	a.appConfig.AutoUpload.Bind(a.SetAutoUpload)
+	a.appConfig.WebsiteSettings.Bind(a.OnWebsiteConfigChange)
+
+	// TODO Deprecated, Fyne Pref will be removed in future version
+	a.appConfig.ImportFynePreferences(a.app.Preferences())
 
 	icon := fyne.NewStaticResource("logo.png", logoBytes)
 	a.app.SetIcon(icon)
@@ -67,7 +68,7 @@ func NewApp(version string) *App {
 	}
 
 	a.window.SetCloseIntercept(func() {
-		if a.appConfig.GetAppConfig(config.ExitInTray) {
+		if a.appConfig.ExitInTray.Get() {
 			a.window.Hide()
 		} else {
 			a.app.Quit()
@@ -97,7 +98,7 @@ func (a *App) Run() {
 
 	a.window.Resize(fyne.NewSize(400, 300))
 
-	if a.appConfig.GetAppConfig(config.ExitInTray) && a.appConfig.GetAppConfig(config.StartInTray) {
+	if a.appConfig.ExitInTray.Get() && a.appConfig.StartInTray.Get() {
 		a.app.Run()
 	} else {
 		a.window.ShowAndRun()
@@ -127,7 +128,7 @@ func (a *App) initPlayer() {
 
 	a.player.Auth.Sub.Subscribe(func(event string) {
 		if event == rocket_network.EventUserAuthenticated {
-			if a.appConfig.GetAppConfig(config.AutoUpload) {
+			if a.appConfig.AutoUpload.Get() {
 				a.uploader.Start()
 			}
 
@@ -140,7 +141,7 @@ func (a *App) initPlayer() {
 		a.gui.UpdateState()
 	}
 
-	if a.appConfig.GetAppConfig(config.AutoUpload) {
+	if a.appConfig.AutoUpload.Get() {
 		a.uploader.Start()
 	}
 }
@@ -148,6 +149,7 @@ func (a *App) initPlayer() {
 func (a *App) setupAppUpdate() {
 	logger.FuncDebug()
 	updater := NewUpdater()
+	skipUpdate := os.Getenv("SKIP_UPDATE")
 
 	needUpdate, err := updater.CheckForUpdate(a.version)
 	if err != nil {
@@ -158,7 +160,7 @@ func (a *App) setupAppUpdate() {
 
 	a.updateInfo = updater.UpdateInfo
 
-	if needUpdate {
+	if needUpdate && skipUpdate != "true" {
 		// TODO Make auto update without ask setting to not annoy people
 		updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig), a.updateInfo.Version, func() {
 			err := updater.ApplyUpdate()
