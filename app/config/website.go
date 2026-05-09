@@ -1,5 +1,21 @@
 package config
 
+type WebsiteConfig struct {
+	Name         string            `json:"name"`
+	URL          string            `json:"url"`
+	IsPrimary    bool              `json:"is_primary"`
+	IsPredefined bool              `json:"is_predefined"`
+	URIParams    map[string]string `json:"uri_params"`
+	NeedToken    bool              `json:"need_token"`
+	Token        string            `json:"token"`
+	SendPing     bool              `json:"send_ping"`
+	PingPath     string            `json:"ping_path"`
+	SendReplay   bool              `json:"send_replay"`
+	ReplayPath   string            `json:"replay_path"`
+	// SendLive   bool // TODO Not implemented yet
+	// LivePath   string // TODO Not implemented yet
+}
+
 var ROCKY_WEBSITE = &WebsiteConfig{
 	Name:         "Rocky",
 	URL:          "https://lexore.ca/rocky/api",

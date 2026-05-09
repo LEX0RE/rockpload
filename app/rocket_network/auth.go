@@ -1,13 +1,14 @@
 package rocket_network
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
@@ -16,29 +17,59 @@ import (
 
 const (
 	EventUserAuthenticated = "user_authenticated"
+
+	TokenFilePrefix = "token_profile_"
 )
 
 type Auth struct {
-	EGS  *rlapi.EGS
-	Auth *rlapi.TokenResponse
-	Sub  *tools.Subscription
+	ProfileId    int                 `json:"profile_id"`
+	EventManager *tools.EventManager `json:"-"`
+
+	eosToken *rlapi.EOSTokenResponse `json:"-"`
+	egs      *rlapi.EGS              `json:"-"`
 }
 
-func NewAuth() (ra *Auth, err error) {
+func NewAuth(profileId int) (a *Auth, err error) {
 	logger.FuncDebug()
-	ra = &Auth{Sub: tools.NewSubscription()}
+	a = &Auth{EventManager: tools.NewEventManager(), ProfileId: profileId}
 
-	ra.EGS = rlapi.NewEGS()
-	err = ra.retrieveToken()
-	if err != nil {
+	a.egs = rlapi.NewEGS()
+
+	if err := a.retrieveToken(); err != nil {
 		logger.Rlogger.Error("Failed to retrieve token:", slog.Any("err", err))
-		return ra, err
+		return a, err
 	}
 
-	return ra, nil
+	return a, nil
 }
 
-func (ra *Auth) OpenAuth() {
+func (a *Auth) UnmarshalJSON(data []byte) error {
+	logger.FuncDebug()
+
+	type Alias Auth
+
+	aux := (*Alias)(a)
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	a.EventManager = tools.NewEventManager()
+	a.egs = rlapi.NewEGS()
+
+	if err := a.retrieveToken(); err != nil {
+		logger.Rlogger.Error("Failed to retrieve token:", slog.Any("err", err))
+		return err
+	}
+
+	return nil
+}
+
+func (a *Auth) IsAuthenticated() bool {
+	return a.eosToken != nil
+}
+
+func (a *Auth) OpenAuth() {
 	logger.FuncDebug()
 
 	defer func() {
@@ -47,65 +78,63 @@ func (ra *Auth) OpenAuth() {
 		}
 	}()
 
-	err := ra.openAutoAuth()
+	err := a.openAutoAuth()
 	if err != nil {
 		logger.Rlogger.Error("Failed to retrieve token from auto browser (will try manually):", slog.Any("err", err))
-		ra.openAuthURL()
+		a.openAuthURL()
 	}
 
 }
 
-func (ra *Auth) AuthenticateWithCode(authCode string) (err error) {
+func (a *Auth) AuthenticateWithCode(authCode string) (err error) {
 	logger.FuncDebug()
-	auth, err := ra.EGS.AuthenticateWithCode(strings.TrimSpace(strings.ReplaceAll(authCode, "\"", "")))
+	auth, err := a.egs.AuthenticateWithCode(strings.TrimSpace(strings.ReplaceAll(authCode, "\"", "")))
 	if err != nil {
 		logger.Rlogger.Error("Failed to authenticate with code:", slog.Any("err", err))
 		return err
 	}
 
-	ra.Auth = auth
-	ra.writeTokenToFile()
-	ra.Sub.Notify(EventUserAuthenticated)
+	_, err = a.exchangeToEOSToken(auth)
+	if err != nil {
+		logger.Rlogger.Error("Failed to exchange to EOS Token:", slog.Any("err", err))
+		return err
+	}
 
 	return nil
 }
 
-func (ra *Auth) ClearBrowserProfile() {
+func (a *Auth) ClearToken() {
 	logger.FuncDebug()
-	err := os.RemoveAll(config.BrowserSession)
-	if err != nil {
-		logger.Rlogger.Error("Failed to clear browser profile", slog.Any("err", err))
-	}
-}
+	a.eosToken = nil
 
-func (ra *Auth) ClearToken() {
-	logger.FuncDebug()
-	ra.Auth = nil
-
-	err := os.Remove(config.RLToken)
+	err := os.Remove(a.tokenPath())
 	if err != nil && !os.IsNotExist(err) {
 		logger.Rlogger.Error("Failed to clear token file", slog.Any("err", err))
 	}
 }
 
+func (a *Auth) tokenPath() string {
+	return filepath.Join(constant.TokensPath, TokenFilePrefix+fmt.Sprint(a.ProfileId))
+}
+
 // User interaction, but any browser
-func (ra *Auth) openAuthURL() {
+func (a *Auth) openAuthURL() {
 	logger.FuncDebug()
 
-	tools.OpenBrowser(ra.EGS.GetAuthURL())
+	tools.OpenBrowser(a.egs.GetAuthURL())
 }
 
 // No user interaction, but chrome
-func (ra *Auth) openAutoAuth() (err error) {
+func (a *Auth) openAutoAuth() (err error) {
 	logger.FuncDebug()
 
-	tokenEntry, err := tools.OpenAutoChromiumBrowser(ra.EGS.GetAuthURL())
+	tokenEntry, err := tools.OpenAutoChromiumBrowser(a.egs.GetAuthURL(), a.ProfileId)
 	if err != nil {
 		logger.Rlogger.Error("Failed to retrieve token:", slog.Any("err", err))
 		return err
 	}
 
-	err = ra.AuthenticateWithCode(tokenEntry)
+	err = a.AuthenticateWithCode(tokenEntry)
 	if err != nil {
 		logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
 		return err
@@ -114,41 +143,62 @@ func (ra *Auth) openAutoAuth() (err error) {
 	return nil
 }
 
-func (ra *Auth) retrieveToken() (err error) {
+func (a *Auth) retrieveToken() (err error) {
 	logger.FuncDebug()
 
-	// Wait a bit if file is not found
-	for range 10 {
-		if _, err := os.Stat(config.RLToken); err == nil {
-			break
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	if refreshTokenData, err := os.ReadFile(config.RLToken); err == nil && len(strings.TrimSpace(string(refreshTokenData))) > 0 {
+	if refreshTokenData, err := os.ReadFile(a.tokenPath()); err == nil && len(strings.TrimSpace(string(refreshTokenData))) > 0 {
 		refreshToken := strings.TrimSpace(string(refreshTokenData))
-		auth, err := ra.EGS.AuthenticateWithRefreshToken(refreshToken)
+		eosToken, err := a.egs.RefreshEOSToken(refreshToken)
 
 		if err != nil {
 			logger.Rlogger.Error("Failed to authenticate with refresh token", slog.Any("err", err))
 			return err
-		} else {
-			ra.Auth = auth
-			ra.writeTokenToFile()
-			ra.Sub.Notify(EventUserAuthenticated)
-
-			return nil
 		}
+
+		a.eosToken = eosToken
+		a.onAuth()
+
+		return nil
 	}
 
 	return fmt.Errorf("no valid authentication token")
 }
 
-func (ra *Auth) writeTokenToFile() {
+func (a *Auth) exchangeToEOSToken(token *rlapi.TokenResponse) (eosToken *rlapi.EOSTokenResponse, err error) {
 	logger.FuncDebug()
-	if ra.Auth != nil {
-		err := os.WriteFile(config.RLToken, []byte(ra.Auth.RefreshToken), 0644)
-		if err != nil {
+
+	code, err := a.egs.GetExchangeCode(token.AccessToken)
+	if err != nil {
+		logger.Rlogger.Error("Failed to get exchange code:", slog.Any("err", err))
+		return nil, err
+	}
+
+	authToken, err := a.egs.ExchangeEOSToken(code)
+	if err != nil {
+		logger.Rlogger.Error("Failed to exchange to EOS token:", slog.Any("err", err))
+		return nil, err
+	} else {
+		a.eosToken = authToken
+		a.onAuth()
+
+		return authToken, nil
+	}
+}
+
+func (a *Auth) onAuth() {
+	a.writeTokenToFile()
+	a.EventManager.Notify(EventUserAuthenticated, nil)
+}
+
+func (a *Auth) writeTokenToFile() {
+	logger.FuncDebug()
+	if a.eosToken != nil {
+		if err := os.MkdirAll(constant.TokensPath, 0700); err != nil {
+			logger.Rlogger.Error("Failed to create tokens directory", slog.Any("err", err))
+			return
+		}
+
+		if err := os.WriteFile(a.tokenPath(), []byte(a.eosToken.RefreshToken), 0600); err != nil {
 			logger.Rlogger.Error("Failed to save refresh token", slog.Any("err", err))
 		}
 	}

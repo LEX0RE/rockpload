@@ -15,7 +15,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-type WebsiteInfoContainer struct {
+type StorageInfoContainer struct {
 	titleLabel      *widget.Label
 	urlEntry        *widget.Entry
 	uriParamsEntry  *widget.Entry
@@ -36,12 +36,12 @@ type WebsiteInfoContainer struct {
 	replayPathForm *widget.FormItem
 }
 
-type WebsiteSettingsPopup struct {
+type StorageSettingsPopup struct {
 	*Popup
 
 	selectedIndex int
 	websites      []*config.WebsiteConfig
-	infoContainer WebsiteInfoContainer
+	infoContainer StorageInfoContainer
 	btnDelete     *widget.Button
 	btnSave       *widget.Button
 	list          *widget.List
@@ -51,10 +51,10 @@ type WebsiteSettingsPopup struct {
 	editForm      *widget.Form
 }
 
-func NewWebsiteSettingsPopup(p *Popup) *WebsiteSettingsPopup {
+func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	logger.FuncDebug()
 
-	wsp := &WebsiteSettingsPopup{Popup: p, infoContainer: WebsiteInfoContainer{}}
+	wsp := &StorageSettingsPopup{Popup: p, infoContainer: StorageInfoContainer{}}
 
 	wsp.selectedIndex = -1
 	wsp.websites = wsp.appConfig.WebsiteSettings.Get()
@@ -102,7 +102,7 @@ func NewWebsiteSettingsPopup(p *Popup) *WebsiteSettingsPopup {
 	return wsp
 }
 
-func (wsp *WebsiteSettingsPopup) Show() {
+func (wsp *StorageSettingsPopup) Show() {
 	logger.FuncDebug()
 
 	wsp.websites = wsp.appConfig.WebsiteSettings.Get()
@@ -112,7 +112,7 @@ func (wsp *WebsiteSettingsPopup) Show() {
 	wsp.Popup.Show()
 }
 
-func (wsp *WebsiteSettingsPopup) createInfoContainer() *widget.Form {
+func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	logger.FuncDebug()
 
 	wsp.infoContainer.titleLabel = widget.NewLabelWithStyle("Select a website", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
@@ -152,7 +152,7 @@ func (wsp *WebsiteSettingsPopup) createInfoContainer() *widget.Form {
 	)
 }
 
-func (wsp *WebsiteSettingsPopup) onSelected(id widget.ListItemID) {
+func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	logger.FuncDebug()
 
 	wsp.selectedIndex = id
@@ -182,7 +182,7 @@ func (wsp *WebsiteSettingsPopup) onSelected(id widget.ListItemID) {
 	wsp.reload()
 }
 
-func (wsp *WebsiteSettingsPopup) reload() {
+func (wsp *StorageSettingsPopup) reload() {
 	logger.FuncDebug()
 
 	if wsp.selectedIndex < len(wsp.websites) && wsp.selectedIndex >= 0 {
@@ -241,7 +241,7 @@ func (wsp *WebsiteSettingsPopup) reload() {
 	wsp.editForm.Refresh()
 }
 
-func (wsp *WebsiteSettingsPopup) onUnselected(id widget.ListItemID) {
+func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	logger.FuncDebug()
 
 	wsp.selectedIndex = -1
@@ -260,7 +260,7 @@ func (wsp *WebsiteSettingsPopup) onUnselected(id widget.ListItemID) {
 	wsp.btnSave.Disable()
 }
 
-func (wsp *WebsiteSettingsPopup) onSaveBtn() {
+func (wsp *StorageSettingsPopup) onSaveBtn() {
 	logger.FuncDebug()
 
 	if wsp.selectedIndex < 0 {
@@ -296,7 +296,7 @@ func (wsp *WebsiteSettingsPopup) onSaveBtn() {
 	dialog.ShowInformation("Success", "Settings saved successfully!", wsp.parentWindow)
 }
 
-func (wsp *WebsiteSettingsPopup) onAddWebsiteBtn() {
+func (wsp *StorageSettingsPopup) onAddWebsiteBtn() {
 	logger.FuncDebug()
 
 	nameEntry := widget.NewEntry()
@@ -333,7 +333,7 @@ func (wsp *WebsiteSettingsPopup) onAddWebsiteBtn() {
 	}, wsp.parentWindow)
 }
 
-func (wsp *WebsiteSettingsPopup) onDeleteWebsiteBtn() {
+func (wsp *StorageSettingsPopup) onDeleteWebsiteBtn() {
 	logger.FuncDebug()
 
 	if wsp.selectedIndex < 0 || wsp.selectedIndex >= len(wsp.websites) {

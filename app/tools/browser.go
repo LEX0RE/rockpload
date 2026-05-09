@@ -2,10 +2,12 @@ package tools
 
 import (
 	"log/slog"
+	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 
-	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"context"
@@ -14,6 +16,10 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+)
+
+const (
+	BrowserProfilePrefix = "rockpload_profile_"
 )
 
 type EpicAuthResponse struct {
@@ -38,12 +44,12 @@ func OpenBrowser(url string) {
 	exec.Command(cmd, args...).Start()
 }
 
-func OpenAutoChromiumBrowser(url string) (authCode string, err error) {
+func OpenAutoChromiumBrowser(url string, profileId int) (authCode string, err error) {
 	logger.FuncDebug()
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", false), // TODO Check when profile folder exist and make it headless so user dont see navigator
-		chromedp.Flag("user-data-dir", config.BrowserSession),
-		chromedp.Flag("profile-directory", "profile_"+"main_account"), // TODO Add a way to change it so we can have multiple account
+		chromedp.Flag("user-data-dir", constant.BrowserSession),
+		chromedp.Flag("profile-directory", BrowserProfilePrefix+strconv.Itoa(profileId)),
 		chromedp.Flag("disable-restore-session-state", true),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("excludeSwitches", "enable-automation"),
@@ -94,4 +100,20 @@ func OpenAutoChromiumBrowser(url string) (authCode string, err error) {
 	}
 
 	return authResp.AuthorizationCode, nil
+}
+
+func ClearBrowserSession() {
+	logger.FuncDebug()
+	err := os.RemoveAll(constant.BrowserSession)
+	if err != nil {
+		logger.Rlogger.Error("Failed to clear browser profile", slog.Any("err", err))
+	}
+}
+
+func ClearTokenFile(tokenPath string) {
+	logger.FuncDebug()
+	err := os.Remove(tokenPath)
+	if err != nil {
+		logger.Rlogger.Error("Failed to clear token file", slog.Any("err", err))
+	}
 }

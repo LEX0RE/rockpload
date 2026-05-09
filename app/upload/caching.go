@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
@@ -53,7 +53,7 @@ func LoadUploadedCache(indexName string) *UploadCache {
 }
 
 func (c *UploadCache) cachePath() string {
-	return config.UploadedCache + "_" + c.indexName
+	return constant.UploadedCache + "_" + c.indexName
 }
 
 func (c *UploadCache) Add(id string) {
