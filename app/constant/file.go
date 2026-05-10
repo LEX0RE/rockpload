@@ -13,9 +13,13 @@ var (
 	UploadedCache  = filepath.Join(GetCachePath(), ".uploaded")
 	BrowserSession = filepath.Join(GetCachePath(), ".browser_session")
 
-	AppLock      = filepath.Join(GetConfigPath(), "rockpload.lock")
-	SettingsFile = filepath.Join(GetConfigPath(), "settings.json")
-	TokensPath   = filepath.Join(GetConfigPath(), ".tokens")
+	AppLock    = filepath.Join(GetConfigPath(), "rockpload.lock")
+	TokensPath = filepath.Join(GetConfigPath(), ".tokens")
+
+	SettingsFolder       = filepath.Join(GetConfigPath(), "settings")
+	AccountSettingsFile  = filepath.Join(SettingsFolder, "account.json")
+	StorageSettingsFile  = filepath.Join(SettingsFolder, "storage.json")
+	BehaviorSettingsFile = filepath.Join(SettingsFolder, "behavior.json")
 )
 
 func GetCachePath() string {

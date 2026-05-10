@@ -1,8 +1,9 @@
-package config
+package tools
 
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -13,7 +14,7 @@ const (
 	FOUND_FILE_BOOT_WAIT = 500 * time.Millisecond
 )
 
-func SaveFilePath(filePath string, data any) error {
+func SaveJSONFilePath(filePath string, data any) error {
 	logger.FuncDebug()
 
 	jsonData, err := json.Marshal(data)
@@ -21,7 +22,18 @@ func SaveFilePath(filePath string, data any) error {
 		return err
 	}
 
-	err = os.WriteFile(filePath, jsonData, 0600)
+	return SaveFilePath(filePath, jsonData)
+}
+
+func SaveFilePath(filePath string, data []byte) error {
+	logger.FuncDebug()
+
+	dirPath := filepath.Dir(filePath)
+	if err := os.MkdirAll(dirPath, 0700); err != nil {
+		return err
+	}
+
+	err := os.WriteFile(filePath, data, 0600)
 	if err != nil {
 		return err
 	}
@@ -29,7 +41,7 @@ func SaveFilePath(filePath string, data any) error {
 	return os.Chmod(filePath, 0600)
 }
 
-func LoadFilePath(filePath string, data any, errNotFound bool) error {
+func LoadJSONFilePath(filePath string, data any, errNotFound bool) error {
 	logger.FuncDebug()
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {

@@ -39,19 +39,19 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 
 	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Welcome to Rockpload! ("+version+")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
 
-	StorageSettingsPopup := NewStorageSettingsPopup(NewPopup("Storage Option", g.window, appConfig))
-	websiteSettingsBtn := widget.NewButtonWithIcon("", theme.StorageIcon(), func() { StorageSettingsPopup.Show() })
-	websiteSettingsBtn.Importance = widget.LowImportance
-
-	settingsPopup := NewSettingPopup(NewPopup("Option", g.window, appConfig))
-	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { settingsPopup.Show() })
-	settingsBtn.Importance = widget.LowImportance
-
-	accountPopup := NewAccountSettingsPopup(NewPopup("Account", g.window, appConfig))
+	accountPopup := NewAccountSettingsPopup(NewPopup("Account Settings", g.window, appConfig))
 	accountBtn := widget.NewButtonWithIcon("", theme.AccountIcon(), func() { accountPopup.Show() })
 	accountBtn.Importance = widget.LowImportance
 
-	rightAlignedBtn := container.NewHBox(layout.NewSpacer(), accountBtn, websiteSettingsBtn, settingsBtn)
+	StorageSettingsPopup := NewStorageSettingsPopup(NewPopup("Storage Settings", g.window, appConfig))
+	storageSettingsBtn := widget.NewButtonWithIcon("", theme.StorageIcon(), func() { StorageSettingsPopup.Show() })
+	storageSettingsBtn.Importance = widget.LowImportance
+
+	behaviorSettingsPopup := NewBehaviorSettingPopup(NewPopup("Behavior Settings", g.window, appConfig))
+	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { behaviorSettingsPopup.Show() })
+	settingsBtn.Importance = widget.LowImportance
+
+	rightAlignedBtn := container.NewHBox(layout.NewSpacer(), accountBtn, storageSettingsBtn, settingsBtn)
 
 	header := container.NewStack(centeredLabel, rightAlignedBtn)
 

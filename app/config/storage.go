@@ -1,6 +1,38 @@
 package config
 
-type WebsiteConfig struct {
+import (
+	"encoding/json"
+	"os"
+
+	"github.com/LEX0RE/rockpload/app/tools/logger"
+)
+
+type storageListConfig []*StorageConfig
+
+func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
+	logger.FuncDebug()
+
+	var temp []*StorageConfig
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	temp = append([]*StorageConfig{ROCKY_WEBSITE}, temp...)
+
+	if len(temp) <= 1 {
+		temp = append(temp, BALLCHASING_WEBSITE)
+	}
+
+	if os.Getenv("ADD_LOCALHOST") == "true" {
+		temp = append(temp, LOCAL_WEBSITE)
+	}
+
+	*wls = temp
+
+	return nil
+}
+
+type StorageConfig struct {
 	Name         string            `json:"name"`
 	URL          string            `json:"url"`
 	IsPrimary    bool              `json:"is_primary"`
@@ -16,7 +48,7 @@ type WebsiteConfig struct {
 	// LivePath   string // TODO Not implemented yet
 }
 
-var ROCKY_WEBSITE = &WebsiteConfig{
+var ROCKY_WEBSITE = &StorageConfig{
 	Name:         "Rocky",
 	URL:          "https://lexore.ca/rocky/api",
 	IsPrimary:    true,
@@ -32,7 +64,7 @@ var ROCKY_WEBSITE = &WebsiteConfig{
 	// LivePath:   "", // TODO Not implemented yet
 }
 
-var BALLCHASING_WEBSITE = &WebsiteConfig{
+var BALLCHASING_WEBSITE = &StorageConfig{
 	Name:         "Ballchasing",
 	URL:          "https://ballchasing.com/api",
 	IsPrimary:    false,
@@ -48,7 +80,7 @@ var BALLCHASING_WEBSITE = &WebsiteConfig{
 	// LivePath:   "", // TODO Not implemented yet
 }
 
-var LOCAL_WEBSITE = &WebsiteConfig{
+var LOCAL_WEBSITE = &StorageConfig{
 	Name:         "Localhost",
 	URL:          "http://localhost:3000",
 	IsPrimary:    true,

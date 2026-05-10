@@ -51,8 +51,8 @@ func NewApp(version string) *App {
 		logger.Rlogger.Error("Failed to load settings:", slog.Any("err", err))
 	}
 
-	a.appConfig.AutoStart.Bind(a.SetAutoStart)
-	a.appConfig.AutoUpload.Bind(a.SetAutoUpload)
+	a.appConfig.BehaviorConfig.AutoStart.Bind(a.SetAutoStart)
+	a.appConfig.BehaviorConfig.AutoUpload.Bind(a.SetAutoUpload)
 
 	icon := fyne.NewStaticResource("logo.png", logoBytes)
 	a.app.SetIcon(icon)
@@ -70,7 +70,7 @@ func NewApp(version string) *App {
 	}
 
 	a.window.SetCloseIntercept(func() {
-		if a.appConfig.ExitInTray.Get() {
+		if a.appConfig.BehaviorConfig.ExitInTray.Get() {
 			a.window.Hide()
 		} else {
 			a.app.Quit()
@@ -100,7 +100,7 @@ func (a *App) Run() {
 
 	a.window.Resize(fyne.NewSize(400, 300))
 
-	if a.appConfig.ExitInTray.Get() && a.appConfig.StartInTray.Get() {
+	if a.appConfig.BehaviorConfig.ExitInTray.Get() && a.appConfig.BehaviorConfig.StartInTray.Get() {
 		a.app.Run()
 	} else {
 		a.window.ShowAndRun()
@@ -141,7 +141,7 @@ func (a *App) initPlayers() {
 		if ac.Player.Auth != nil {
 			ac.Player.Auth.EventManager.UnsubscribeAll(rocket_network.EventUserAuthenticated)
 			ac.Player.Auth.EventManager.Subscribe(rocket_network.EventUserAuthenticated, func(data any) {
-				if a.appConfig.AutoUpload.Get() {
+				if a.appConfig.BehaviorConfig.AutoUpload.Get() {
 					a.uploader.Stop()
 					a.uploader.Start()
 				}
@@ -168,7 +168,7 @@ func (a *App) initPlayers() {
 		a.gui.UpdateState()
 	}
 
-	if a.appConfig.AutoUpload.Get() {
+	if a.appConfig.BehaviorConfig.AutoUpload.Get() {
 		a.uploader.Start()
 	}
 }

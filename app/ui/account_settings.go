@@ -1,8 +1,9 @@
 package ui
 
 import (
-	"strconv"
+	"slices"
 
+	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
@@ -35,8 +36,6 @@ func NewAccountSettingsPopup(p *Popup) *AccountSettingsPopup {
 	asp := &AccountSettingsPopup{Popup: p}
 	asp.selectedIndex = -1
 
-	allAccounts := asp.appConfig.AccountSettings.Get()
-
 	asp.currentSelectedLabel = widget.NewLabelWithStyle("Current Selected Account: None", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	asp.currentUnusedLabel = widget.NewLabelWithStyle("Current Unused Account: None", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	asp.updateLabels()
@@ -49,7 +48,7 @@ func NewAccountSettingsPopup(p *Popup) *AccountSettingsPopup {
 
 	asp.btnAdd = widget.NewButtonWithIcon("Add Account", theme.ContentAddIcon(), asp.onAddAccountBtn)
 
-	asp.btnSetSelected = widget.NewButtonWithIcon("Set Selected", theme.ConfirmIcon(), asp.onSetSelectedBtn)
+	asp.btnSetSelected = widget.NewButtonWithIcon("Select", theme.ConfirmIcon(), asp.onSetSelectedBtn)
 	asp.btnSetSelected.Importance = widget.HighImportance
 	asp.btnSetSelected.Disable()
 
@@ -75,9 +74,10 @@ func NewAccountSettingsPopup(p *Popup) *AccountSettingsPopup {
 	)
 
 	asp.list = widget.NewList(
-		func() int { return len(allAccounts) },
+		func() int { return len(asp.getAllAccounts()) },
 		func() fyne.CanvasObject { return widget.NewLabel("Template...") },
 		func(i widget.ListItemID, o fyne.CanvasObject) {
+			allAccounts := asp.getAllAccounts()
 			name := allAccounts[i].Player.PlayerName
 			suffix := ""
 
@@ -123,6 +123,22 @@ func (asp *AccountSettingsPopup) Reload() {
 	asp.updateBtnStates()
 }
 
+func (asp *AccountSettingsPopup) getAllAccounts() []*config.AccountConfig {
+	logger.FuncDebug()
+
+	allAccounts := asp.appConfig.AccountSettings.Get()
+	allAccountsList := make([]*config.AccountConfig, 0, len(allAccounts))
+	for _, account := range allAccounts {
+		allAccountsList = append(allAccountsList, account)
+	}
+
+	slices.SortFunc(allAccountsList, func(a, b *config.AccountConfig) int {
+		return a.Id() - b.Id()
+	})
+
+	return allAccountsList
+}
+
 func (asp *AccountSettingsPopup) updateLabels() {
 	logger.FuncDebug()
 
@@ -142,7 +158,7 @@ func (asp *AccountSettingsPopup) updateLabels() {
 func (asp *AccountSettingsPopup) updateBtnStates() {
 	logger.FuncDebug()
 
-	allAccounts := asp.appConfig.AccountSettings.Get()
+	allAccounts := asp.getAllAccounts()
 
 	if asp.selectedIndex < 0 || asp.selectedIndex >= len(allAccounts) {
 		asp.btnSetSelected.Disable()
@@ -186,7 +202,7 @@ func (asp *AccountSettingsPopup) onUnselected(id widget.ListItemID) {
 func (asp *AccountSettingsPopup) onSetSelectedBtn() {
 	logger.FuncDebug()
 
-	allAccounts := asp.appConfig.AccountSettings.Get()
+	allAccounts := asp.getAllAccounts()
 
 	if asp.selectedIndex < 0 || asp.selectedIndex >= len(allAccounts) {
 		return
@@ -202,7 +218,7 @@ func (asp *AccountSettingsPopup) onSetSelectedBtn() {
 func (asp *AccountSettingsPopup) onSetUnusedBtn() {
 	logger.FuncDebug()
 
-	allAccounts := asp.appConfig.AccountSettings.Get()
+	allAccounts := asp.getAllAccounts()
 
 	if asp.selectedIndex < 0 || asp.selectedIndex >= len(allAccounts) {
 		return
@@ -227,22 +243,29 @@ func (asp *AccountSettingsPopup) onUnsetUnusedBtn() {
 func (asp *AccountSettingsPopup) onAddAccountBtn() {
 	logger.FuncDebug()
 
-	_ = asp.appConfig.AddAccount()
+	newAccount := asp.appConfig.AddAccount()
 
-	allAccounts := asp.appConfig.AccountSettings.Get()
+	allAccounts := asp.getAllAccounts()
 	if len(allAccounts) == 1 {
 		asp.updateLabels()
 	}
 
+	for i, account := range allAccounts {
+		if account.Id() == newAccount.Id() {
+			asp.list.Select(i)
+			asp.appConfig.SetSelectedAccount(account.Id())
+			break
+		}
+	}
+
 	asp.Reload()
 	asp.list.Refresh()
-	asp.list.Select(len(allAccounts) - 1)
 }
 
 func (asp *AccountSettingsPopup) onDeleteAccountBtn() {
 	logger.FuncDebug()
 
-	allAccounts := asp.appConfig.AccountSettings.Get()
+	allAccounts := asp.getAllAccounts()
 
 	if asp.selectedIndex < 0 || asp.selectedIndex >= len(allAccounts) {
 		return
@@ -254,9 +277,7 @@ func (asp *AccountSettingsPopup) onDeleteAccountBtn() {
 	}
 
 	accountToDelete := allAccounts[asp.selectedIndex]
-	accountName := accountToDelete.Player.PlayerName + " (ID: " + strconv.Itoa(accountToDelete.Id()) + ")"
-
-	dialog.ShowConfirm("Delete", "Are you sure you want to delete the account '"+accountName+"'?", func(confirmed bool) {
+	dialog.ShowConfirm("Delete", "Are you sure you want to delete the account '"+accountToDelete.Player.PlayerName+"'?", func(confirmed bool) {
 		if confirmed {
 			asp.appConfig.DeleteAccount(accountToDelete.Id())
 

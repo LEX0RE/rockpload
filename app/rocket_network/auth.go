@@ -35,8 +35,8 @@ func NewAuth(profileId int) (a *Auth, err error) {
 
 	a.egs = rlapi.NewEGS()
 
-	if err := a.retrieveToken(); err != nil {
-		logger.Rlogger.Error("Failed to retrieve token:", slog.Any("err", err))
+	if err := a.Authenticate(); err != nil {
+		logger.Rlogger.Error("Failed to authenticate:", slog.Any("err", err))
 		return a, err
 	}
 
@@ -56,6 +56,16 @@ func (a *Auth) UnmarshalJSON(data []byte) error {
 
 	a.EventManager = tools.NewEventManager()
 	a.egs = rlapi.NewEGS()
+
+	return nil
+}
+
+func (a *Auth) Authenticate() (err error) {
+	logger.FuncDebug()
+
+	if a.IsAuthenticated() {
+		return nil
+	}
 
 	if err := a.retrieveToken(); err != nil {
 		logger.Rlogger.Error("Failed to retrieve token:", slog.Any("err", err))
@@ -193,12 +203,7 @@ func (a *Auth) onAuth() {
 func (a *Auth) writeTokenToFile() {
 	logger.FuncDebug()
 	if a.eosToken != nil {
-		if err := os.MkdirAll(constant.TokensPath, 0700); err != nil {
-			logger.Rlogger.Error("Failed to create tokens directory", slog.Any("err", err))
-			return
-		}
-
-		if err := os.WriteFile(a.tokenPath(), []byte(a.eosToken.RefreshToken), 0600); err != nil {
+		if err := tools.SaveFilePath(a.tokenPath(), []byte(a.eosToken.RefreshToken)); err != nil {
 			logger.Rlogger.Error("Failed to save refresh token", slog.Any("err", err))
 		}
 	}

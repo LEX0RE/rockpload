@@ -40,7 +40,7 @@ type StorageSettingsPopup struct {
 	*Popup
 
 	selectedIndex int
-	websites      []*config.WebsiteConfig
+	websites      []*config.StorageConfig
 	infoContainer StorageInfoContainer
 	btnDelete     *widget.Button
 	btnSave       *widget.Button
@@ -57,7 +57,7 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	wsp := &StorageSettingsPopup{Popup: p, infoContainer: StorageInfoContainer{}}
 
 	wsp.selectedIndex = -1
-	wsp.websites = wsp.appConfig.WebsiteSettings.Get()
+	wsp.websites = wsp.appConfig.StorageSettings.Get()
 
 	wsp.btnSave = widget.NewButtonWithIcon("Save Changes", theme.DocumentSaveIcon(), wsp.onSaveBtn)
 	wsp.btnSave.Importance = widget.HighImportance
@@ -105,7 +105,7 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 func (wsp *StorageSettingsPopup) Show() {
 	logger.FuncDebug()
 
-	wsp.websites = wsp.appConfig.WebsiteSettings.Get()
+	wsp.websites = wsp.appConfig.StorageSettings.Get()
 	wsp.list.Refresh()
 	wsp.reload()
 
@@ -291,7 +291,7 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	}
 	site.URIParams = newParams
 
-	wsp.appConfig.WebsiteSettings.Set(wsp.websites)
+	wsp.appConfig.StorageSettings.Set(wsp.websites)
 
 	dialog.ShowInformation("Success", "Settings saved successfully!", wsp.parentWindow)
 }
@@ -306,7 +306,7 @@ func (wsp *StorageSettingsPopup) onAddWebsiteBtn() {
 
 	dialog.ShowForm("New Website", "Add", "Cancel", items, func(valide bool) {
 		if valide && nameEntry.Text != "" {
-			newSite := &config.WebsiteConfig{
+			newSite := &config.StorageConfig{
 				Name:         nameEntry.Text,
 				URL:          "",
 				IsPrimary:    false,
@@ -317,14 +317,14 @@ func (wsp *StorageSettingsPopup) onAddWebsiteBtn() {
 				URIParams:    make(map[string]string),
 			}
 
-			for _, websiteConfig := range wsp.websites {
-				if websiteConfig.Name == newSite.Name {
+			for _, StorageConfig := range wsp.websites {
+				if StorageConfig.Name == newSite.Name {
 					return
 				}
 			}
 
 			wsp.websites = append(wsp.websites, newSite)
-			wsp.appConfig.WebsiteSettings.Set(wsp.websites)
+			wsp.appConfig.StorageSettings.Set(wsp.websites)
 
 			wsp.onSelected(len(wsp.websites) - 1)
 
@@ -346,7 +346,7 @@ func (wsp *StorageSettingsPopup) onDeleteWebsiteBtn() {
 		if confirmed {
 			wsp.websites = append(wsp.websites[:wsp.selectedIndex], wsp.websites[wsp.selectedIndex+1:]...)
 
-			wsp.appConfig.WebsiteSettings.Set(wsp.websites)
+			wsp.appConfig.StorageSettings.Set(wsp.websites)
 
 			wsp.list.UnselectAll()
 			wsp.list.Refresh()

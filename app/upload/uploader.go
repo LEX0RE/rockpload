@@ -44,7 +44,7 @@ func NewUploader(appConfig *config.AppConfig) *Uploader {
 
 	u := &Uploader{appConfig: appConfig, EventManager: tools.NewEventManager()}
 
-	if appConfig.UploadOnLaunch.Get() {
+	if appConfig.BehaviorConfig.UploadOnLaunch.Get() {
 		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
 	} else {
 		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, nil, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
@@ -96,12 +96,18 @@ func (u *Uploader) Run() {
 	}
 	defer u.lockInRunRLAPI.Unlock()
 
-	for _, ac := range u.appConfig.AccountSettings.Get() {
-		u.RunForAccount(ac)
-	}
+	u.EventManager.Notify(EventUploadStarted, nil)
+
+	go func() {
+		for _, ac := range u.appConfig.AccountSettings.Get() {
+			if ac.IsConnected() {
+				u.runForAccount(ac)
+			}
+		}
+	}()
 }
 
-func (u *Uploader) RunForAccount(ac *config.AccountConfig) {
+func (u *Uploader) runForAccount(ac *config.AccountConfig) {
 	logger.FuncDebug()
 
 	err := ac.Player.GetInfo()
@@ -109,9 +115,7 @@ func (u *Uploader) RunForAccount(ac *config.AccountConfig) {
 		return
 	}
 
-	u.EventManager.Notify(EventUploadStarted, nil)
-	go u.upload(ac)
-	u.EventManager.Notify(EventUploadCompleted, nil)
+	u.upload(ac)
 }
 
 func (u *Uploader) upload(ac *config.AccountConfig) {
@@ -125,8 +129,12 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 	defer u.lockInUpload.Unlock()
 
 	websites := []*Website{}
-	for _, websiteConfig := range u.appConfig.WebsiteSettings.Get() {
-		website := NewWebsite(websiteConfig)
+	for _, StorageConfig := range u.appConfig.StorageSettings.Get() {
+		if !StorageConfig.SendReplay {
+			continue
+		}
+
+		website := NewWebsite(StorageConfig)
 		websites = append(websites, website)
 	}
 
@@ -146,7 +154,7 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 			}
 
 			if os.Getenv("FAKE_UPLOAD") == "true" {
-				logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
+				logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.Player.PlayerName), slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
 				continue
 			}
 
@@ -179,4 +187,5 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 	logger.Rlogger.Info("Upload complete")
 
 	u.EventManager.Notify(EventUploadProgress, float64(-1))
+	u.EventManager.Notify(EventUploadCompleted, nil)
 }

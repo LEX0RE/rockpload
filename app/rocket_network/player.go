@@ -2,6 +2,7 @@ package rocket_network
 
 import (
 	"log/slog"
+	"strconv"
 	"sync"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -20,7 +21,7 @@ type Player struct {
 func NewPlayer(profileId int) *Player {
 	logger.FuncDebug()
 
-	p := &Player{PlayerName: "Unknown Player Name"}
+	p := &Player{PlayerName: "Player (ID: " + strconv.Itoa(profileId) + ")"}
 	playerAuth, err := NewAuth(profileId)
 	if err != nil {
 		logger.Rlogger.Error("Unable to create Auth:", slog.Any("err", err))
@@ -98,7 +99,7 @@ func (p *Player) Reset() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.PlayerName = "Unknown Player Name"
+	p.PlayerName = "Player (ID: " + strconv.Itoa(p.Auth.ProfileId) + ")"
 	p.Auth.ClearToken()
 	p.PlayerID = nil
 	p.MatchHistory = nil
