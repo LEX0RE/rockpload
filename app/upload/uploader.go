@@ -145,6 +145,11 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 				continue
 			}
 
+			if os.Getenv("FAKE_UPLOAD") == "true" {
+				logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
+				continue
+			}
+
 			uploadCache := LoadUploadedCache(website.config.Name)
 
 			if !uploadCache.index[replay.Match.MatchGUID] {
