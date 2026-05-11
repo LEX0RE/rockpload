@@ -11,8 +11,8 @@ github.com/chromedp/chromedp v0.15.1/go.mod h1:CdTHtUqD/dqaFw/cvFWtTydoEQS44wLBu
 github.com/chromedp/sysutil v1.1.0 h1:PUFNv5EcprjqXZD9nJb9b/c9ibAbxiYo4exNWZyipwM=
 github.com/chromedp/sysutil v1.1.0/go.mod h1:WiThHUdltqCNKGc4gaU50XgYjwjYIhKWoHGPTUfWTJ8=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
-github.com/dank/rlapi v0.1.14 h1:tJRglJwsOsFrtyKN5Mj0H3RDW2f52ojDa+TJ7GhIPLA=
-github.com/dank/rlapi v0.1.14/go.mod h1:Ni9EDtQdYIjBGYola2qbdDDqTl9+x5zI5eC3p0P+04w=
+github.com/dank/rlapi v0.1.15 h1:5wFw7+CBpLNd/WUCsjqcWTvcyXli9pn7963ihKlaAyE=
+github.com/dank/rlapi v0.1.15/go.mod h1:Ni9EDtQdYIjBGYola2qbdDDqTl9+x5zI5eC3p0P+04w=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2 h1:CgF8+TNFvlnxEbplSgS70ZI4IUFEzVkY+ICNqTVE/AM=
