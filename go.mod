@@ -53,5 +53,3 @@ require (
 	golang.org/x/text v0.22.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/dank/rlapi => github.com/ktiedt/rlapi v0.0.0-20260503031150-57b7939ffbda
