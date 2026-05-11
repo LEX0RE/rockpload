@@ -166,6 +166,10 @@ func (am *AccountManager) RefreshInfo() {
 
 		onlineStatus := make(map[rlapi.PlayerID]bool)
 		for _, player := range playerList {
+			if player.PlayerID == nil {
+				continue
+			}
+
 			for _, profile := range profiles {
 				if profile.PlayerID == player.PlayerID.String() {
 					player.SetProfile(profile)
