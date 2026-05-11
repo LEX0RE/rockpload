@@ -29,10 +29,11 @@ type Auth struct {
 	ProfileId    int                 `json:"profile_id"`
 	EventManager *tools.EventManager `json:"-"`
 
-	mu       sync.Mutex              `json:"-"`
-	egsToken *rlapi.TokenResponse    `json:"-"`
-	eosToken *rlapi.EOSTokenResponse `json:"-"`
-	egs      *rlapi.EGS              `json:"-"`
+	mu         sync.Mutex                `json:"-"`
+	egsToken   *rlapi.TokenResponse      `json:"-"`
+	eosToken   *rlapi.EOSTokenResponse   `json:"-"`
+	deviceAuth *rlapi.DeviceAuthResponse `json:"-"`
+	egs        *rlapi.EGS                `json:"-"`
 }
 
 type AuthTokenPath struct {
@@ -127,6 +128,12 @@ func (a *Auth) GetValidToken() *rlapi.EOSTokenResponse {
 	return a.eosToken
 }
 
+func (a *Auth) OpenDeviceAuth() {
+	logger.FuncDebug()
+
+	tools.OpenBrowser(a.deviceAuth.VerificationURI)
+}
+
 func (a *Auth) OpenAuth() {
 	logger.FuncDebug()
 
@@ -141,10 +148,9 @@ func (a *Auth) OpenAuth() {
 		logger.Rlogger.Error("Failed to retrieve token from auto browser (will try manually):", slog.Any("err", err))
 		a.openAuthURL()
 	}
-
 }
 
-func (a *Auth) AuthenticateWithCode(authCode string) (err error) {
+func (a *Auth) AuthenticateWithAuthCode(authCode string) (err error) {
 	logger.FuncDebug()
 
 	auth, err := a.egs.AuthenticateWithCode(strings.TrimSpace(strings.ReplaceAll(authCode, "\"", "")))
@@ -163,6 +169,31 @@ func (a *Auth) AuthenticateWithCode(authCode string) (err error) {
 	a.EventManager.Notify(EventUserAuthenticated, nil)
 
 	return nil
+}
+
+func (a *Auth) AuthenticateWithDeviceCode() (err error) {
+	logger.FuncDebug()
+
+	var eosToken *rlapi.EOSTokenResponse
+
+	for range a.deviceAuth.ExpiresIn / a.deviceAuth.Interval {
+		eosToken, err = a.egs.WaitForDeviceAuthorization(a.deviceAuth)
+		if err == nil {
+			break
+		}
+
+		time.Sleep(time.Duration(a.deviceAuth.Interval) * time.Second)
+	}
+
+	if err != nil {
+		logger.Rlogger.Error("Failed to authenticate with refresh token", slog.Any("err", err))
+		return err
+	} else {
+		a.setEOSToken(eosToken)
+		a.EventManager.Notify(EventUserAuthenticated, nil)
+
+		return nil
+	}
 }
 
 func (a *Auth) ClearToken() {
@@ -204,6 +235,17 @@ func (a *Auth) tokenPath() AuthTokenPath {
 	}
 }
 
+func (a *Auth) GetDeviceCode() (deviceAuth *rlapi.DeviceAuthResponse, err error) {
+	logger.FuncDebug()
+	a.deviceAuth, err = a.egs.AuthenticateWithDevice()
+	if err != nil {
+		logger.Rlogger.Error("Failed to get device code", slog.Any("err", err))
+		return nil, err
+	}
+
+	return a.deviceAuth, nil
+}
+
 // User interaction, but any browser
 func (a *Auth) openAuthURL() {
 	logger.FuncDebug()
@@ -221,7 +263,7 @@ func (a *Auth) openAutoAuth() (err error) {
 		return err
 	}
 
-	err = a.AuthenticateWithCode(tokenEntry)
+	err = a.AuthenticateWithAuthCode(tokenEntry)
 	if err != nil {
 		logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
 		return err

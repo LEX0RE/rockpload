@@ -11,6 +11,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
+	"github.com/dank/rlapi"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -20,7 +21,8 @@ import (
 )
 
 const (
-	EVENT_CLICK_UPLOAD = "click_upload"
+	EVENT_CLICK_UPLOAD       = "click_upload"
+	WAIT_BEFORE_OPEN_BROWSER = 5 * time.Second
 )
 
 type GUI struct {
@@ -37,11 +39,13 @@ type GUI struct {
 	MatchHistoryList *widget.List
 
 	EventManager *tools.EventManager
+
+	Clipboard func() fyne.Clipboard
 }
 
-func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager) (g *GUI, err error) {
+func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager, clipboard func() fyne.Clipboard) (g *GUI, err error) {
 	logger.FuncDebug()
-	g = &GUI{window: window, appConfig: appConfig, accountManager: accountManager, EventManager: tools.NewEventManager()}
+	g = &GUI{window: window, appConfig: appConfig, accountManager: accountManager, EventManager: tools.NewEventManager(), Clipboard: clipboard}
 
 	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Welcome to Rockpload! ("+version+")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
 
@@ -120,9 +124,51 @@ func (g *GUI) UpdateState() {
 
 func (g *GUI) createLoginUI() {
 	logger.FuncDebug()
+
+	// Auth with device code
+	deviceCodeEntry := widget.NewEntry()
+	deviceCodeEntry.Disable()
+	deviceCodeEntry.Hide()
+
+	var deviceCodeText *rlapi.DeviceAuthResponse
+	var err error
+
+	copyBtn := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
+		if deviceCodeText != nil && deviceCodeText.UserCode != "" {
+			g.Clipboard().SetContent(deviceCodeText.UserCode)
+		}
+	})
+	copyBtn.Hide()
+
+	AuthWithDeviceCodeBtn := widget.NewButton("Temporary Authenticate", func() {
+		selectedAccount := g.accountManager.GetSelected()
+		deviceCodeText, err = selectedAccount.Player.Auth.GetDeviceCode()
+		if err != nil {
+			logger.Rlogger.Error("Failed to get device code:", slog.Any("err", err))
+			return
+		}
+
+		deviceCodeEntry.SetText("Copy this code to the browser that will open: " + deviceCodeText.UserCode)
+		deviceCodeEntry.Show()
+		copyBtn.Show()
+
+		go func() {
+			time.Sleep(WAIT_BEFORE_OPEN_BROWSER)
+			selectedAccount := g.accountManager.GetSelected()
+			selectedAccount.Player.Auth.OpenDeviceAuth()
+
+			err = selectedAccount.Player.Auth.AuthenticateWithDeviceCode()
+			if err != nil {
+				logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
+			}
+		}()
+	})
+	deviceAuthBorder := container.NewBorder(nil, nil, AuthWithDeviceCodeBtn, copyBtn, deviceCodeEntry)
+
+	// Auth with Auth Code
 	ConnectBtn := widget.NewButton("Connect", func() {
 		selectedAccount := g.accountManager.GetSelected()
-		err := selectedAccount.Player.Auth.AuthenticateWithCode(g.TokenEntry.Text)
+		err := selectedAccount.Player.Auth.AuthenticateWithAuthCode(g.TokenEntry.Text)
 		if err != nil {
 			logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
 		}
@@ -153,6 +199,7 @@ func (g *GUI) createLoginUI() {
 	actionButtonBorder := container.NewBorder(nil, nil, LoginBtn, nil, ResetBrowserBtn)
 
 	g.LoginBox = container.NewVBox(
+		deviceAuthBorder,
 		container.NewBorder(nil, nil, actionButtonBorder, nil, g.TokenEntry),
 		ConnectBtn,
 	)
