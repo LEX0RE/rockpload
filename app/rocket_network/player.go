@@ -52,34 +52,6 @@ func (p *Player) Reset() {
 	p.MatchHistory = nil
 }
 
-func (p *Player) GetBaseInfo() (err error) {
-	logger.FuncDebug()
-
-	if !p.mu.TryLock() {
-		logger.Rlogger.Debug("Duplicate GetInfo at the same time, skipping")
-		return
-	}
-	defer p.mu.Unlock()
-
-	var rpc *rlapi.PsyNetRPC
-	rpc, p.PlayerID, err = GetRPC(p.Auth)
-	if err != nil {
-		return err
-	}
-
-	defer rpc.Close()
-
-	playerData, err := GetProfiles(rpc, []rlapi.PlayerID{*p.PlayerID})
-	if err != nil {
-		logger.Rlogger.Error("Failed to get profiles:", slog.Any("err", err))
-		return err
-	} else {
-		p.PlayerName = playerData[0].PlayerName
-	}
-
-	return nil
-}
-
 func (p *Player) GetInfo() (err error) {
 	logger.FuncDebug()
 
