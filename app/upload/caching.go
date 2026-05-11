@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	maxCacheSize = 100
+	MAX_CACHE_SIZE_FACTOR = 2
+	HISTORY_PER_ACCOUNT   = 20
 )
 
 type UploadCache struct {
@@ -20,13 +21,13 @@ type UploadCache struct {
 	max       int
 }
 
-func LoadUploadedCache(indexName string) *UploadCache {
+func LoadUploadedCache(indexName string, nAccount int) *UploadCache {
 	logger.FuncDebug()
 	c := &UploadCache{
 		indexName: indexName,
 		items:     []string{},
 		index:     make(map[string]bool),
-		max:       maxCacheSize,
+		max:       nAccount * HISTORY_PER_ACCOUNT * MAX_CACHE_SIZE_FACTOR,
 	}
 
 	file, err := os.Open(c.cachePath())
