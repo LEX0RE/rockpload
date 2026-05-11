@@ -177,7 +177,7 @@ func (a *Auth) AuthenticateWithDeviceCode() (err error) {
 	var eosToken *rlapi.EOSTokenResponse
 
 	for range a.deviceAuth.ExpiresIn / a.deviceAuth.Interval {
-		eosToken, err = a.egs.PollEOSToken(a.deviceAuth.DeviceCode)
+		eosToken, err = a.egs.WaitForDeviceAuthorization(a.deviceAuth)
 		if err == nil {
 			break
 		}
@@ -237,7 +237,7 @@ func (a *Auth) tokenPath() AuthTokenPath {
 
 func (a *Auth) GetDeviceCode() (deviceAuth *rlapi.DeviceAuthResponse, err error) {
 	logger.FuncDebug()
-	a.deviceAuth, err = a.egs.AuthenticateWithDeviceCode()
+	a.deviceAuth, err = a.egs.AuthenticateWithDevice()
 	if err != nil {
 		logger.Rlogger.Error("Failed to get device code", slog.Any("err", err))
 		return nil, err
