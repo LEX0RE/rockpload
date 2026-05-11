@@ -135,6 +135,7 @@ func (a *App) initPlayers() {
 
 	a.uploader.EventManager.Subscribe(upload.EventUploadStarted, tools.Listener{IsSync: true, Callback: func(data any) {
 		a.accountManager.RefreshInfo()
+		a.appConfig.Save()
 	}})
 
 	var err error
@@ -156,6 +157,8 @@ func (a *App) initPlayers() {
 		if ac.Player.Auth != nil {
 			ac.Player.Auth.EventManager.UnsubscribeAll(rocket_network.EventUserAuthenticated)
 			ac.Player.Auth.EventManager.Subscribe(rocket_network.EventUserAuthenticated, tools.Listener{IsSync: false, Callback: func(data any) {
+				a.accountManager.RefreshProfile()
+
 				if a.appConfig.BehaviorConfig.AutoUpload.Get() {
 					a.uploader.Stop()
 					a.uploader.Start()

@@ -29,17 +29,16 @@ func (amc *accountMapConfig) UnmarshalJSON(data []byte) error {
 }
 
 type AccountConfig struct {
-	Player        rocket_network.Player `json:"player"`
-	IsUnused      bool                  `json:"is_unused,omitempty"`
-	HistorySended []string              `json:"-"`
+	Player        *rocket_network.Player `json:"player"`
+	IsUnused      bool                   `json:"is_unused,omitempty"`
+	HistorySended []string               `json:"-"`
 }
 
 // TODO Delete uploaded file when account is deleted
 func NewAccountConfig(profileId int) *AccountConfig {
 	logger.FuncDebug()
 
-	ac := &AccountConfig{IsUnused: false}
-	ac.Player = *rocket_network.NewPlayer(profileId)
+	ac := &AccountConfig{IsUnused: false, Player: rocket_network.NewPlayer(profileId)}
 	return ac
 }
 

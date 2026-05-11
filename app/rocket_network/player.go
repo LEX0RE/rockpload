@@ -21,43 +21,35 @@ type Player struct {
 func NewPlayer(profileId int) *Player {
 	logger.FuncDebug()
 
-	p := &Player{PlayerName: "Player (ID: " + strconv.Itoa(profileId) + ")"}
-	playerAuth, err := NewAuth(profileId)
-	if err != nil {
-		logger.Rlogger.Error("Unable to create Auth:", slog.Any("err", err))
-	}
-	p.Auth = playerAuth
+	p := &Player{PlayerName: "Player (ID: " + strconv.Itoa(profileId) + ")", Auth: NewAuth(profileId)}
 
 	return p
 }
 
-// TODO Get base info from Unused account
-func (p *Player) GetBaseInfo() (err error) {
+func (p *Player) Connect() {
 	logger.FuncDebug()
 
-	if !p.mu.TryLock() {
-		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
-		return
-	}
+	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	var rpc *rlapi.PsyNetRPC
-	rpc, p.PlayerID, err = GetRPC(p.Auth)
-	if err != nil {
-		return err
+	p.Auth.Authenticate()
+
+	if !p.Auth.IsAuthenticated() {
+		p.Reset()
 	}
+}
 
-	defer rpc.Close()
+func (p *Player) SetProfile(profile rlapi.PlayerData) {
+	p.PlayerName = profile.PlayerName
+}
 
-	playerData, err := GetProfiles(rpc, []rlapi.PlayerID{*p.PlayerID})
-	if err != nil {
-		logger.Rlogger.Error("Failed to get profiles:", slog.Any("err", err))
-		return err
-	} else {
-		p.PlayerName = playerData[0].PlayerName
-	}
+func (p *Player) Reset() {
+	logger.FuncDebug()
 
-	return nil
+	p.PlayerName = "Player (ID: " + strconv.Itoa(p.Auth.ProfileId) + ")"
+	p.Auth.ClearToken()
+	p.PlayerID = nil
+	p.MatchHistory = nil
 }
 
 func (p *Player) GetInfo() (err error) {
@@ -70,6 +62,41 @@ func (p *Player) GetInfo() (err error) {
 	defer p.mu.Unlock()
 
 	var rpc *rlapi.PsyNetRPC
+	rpc, playerId, err := GetRPC(p.Auth)
+	if err != nil {
+		return err
+	}
+	p.PlayerID = playerId
+
+	defer rpc.Close()
+
+	playerData, err := GetProfiles(rpc, []rlapi.PlayerID{*p.PlayerID})
+	if err != nil {
+		logger.Rlogger.Error("Failed to get profiles:", slog.Any("err", err))
+		return err
+	}
+
+	p.SetProfile(playerData[0])
+
+	p.MatchHistory, err = GetReplays(rpc)
+	if err != nil {
+		logger.Rlogger.Error("Failed to get replays:", slog.Any("err", err))
+		return err
+	}
+
+	return nil
+}
+
+func (p *Player) UpdateProfile() (err error) {
+	logger.FuncDebug()
+
+	if !p.mu.TryLock() {
+		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
+		return
+	}
+	defer p.mu.Unlock()
+
+	var rpc *rlapi.PsyNetRPC
 	rpc, p.PlayerID, err = GetRPC(p.Auth)
 	if err != nil {
 		return err
@@ -81,20 +108,13 @@ func (p *Player) GetInfo() (err error) {
 	if err != nil {
 		logger.Rlogger.Error("Failed to get profiles:", slog.Any("err", err))
 		return err
-	} else {
-		p.PlayerName = playerData[0].PlayerName
 	}
 
-	p.MatchHistory, err = GetReplays(rpc)
-	if err != nil {
-		logger.Rlogger.Error("Failed to get replays:", slog.Any("err", err))
-		return err
-	}
-
+	p.SetProfile(playerData[0])
 	return nil
 }
 
-func (p *Player) CheckOnline(playerIDs []rlapi.PlayerID) map[rlapi.PlayerID]bool {
+func (p *Player) GetProfiles(players []*Player) []rlapi.PlayerData {
 	logger.FuncDebug()
 
 	if !p.mu.TryLock() {
@@ -111,33 +131,18 @@ func (p *Player) CheckOnline(playerIDs []rlapi.PlayerID) map[rlapi.PlayerID]bool
 
 	defer rpc.Close()
 
-	profiles, err := GetProfiles(rpc, playerIDs)
+	playerIds := make([]rlapi.PlayerID, 0, len(players))
+	for _, player := range players {
+		if player.PlayerID != nil {
+			playerIds = append(playerIds, *player.PlayerID)
+		}
+	}
+
+	profiles, err := GetProfiles(rpc, playerIds)
 	if err != nil {
 		logger.Rlogger.Error("Failed to get online statuses:", slog.Any("err", err))
 		return nil
 	}
 
-	onlineStatuses := make(map[rlapi.PlayerID]bool)
-	for _, pid := range playerIDs {
-		for _, profile := range profiles {
-			if profile.PlayerID == pid.String() {
-				onlineStatuses[pid] = profile.PresenceState != "Online"
-				break
-			}
-		}
-	}
-
-	return onlineStatuses
-}
-
-func (p *Player) Reset() {
-	logger.FuncDebug()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.PlayerName = "Player (ID: " + strconv.Itoa(p.Auth.ProfileId) + ")"
-	p.Auth.ClearToken()
-	p.PlayerID = nil
-	p.MatchHistory = nil
+	return profiles
 }

@@ -1,9 +1,8 @@
 package manager
 
 import (
-	"log/slog"
-
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	"github.com/dank/rlapi"
@@ -27,7 +26,7 @@ func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 
 	am := &AccountManager{appConfig: appConfig, EventManager: tools.NewEventManager()}
 
-	am.AuthenticateAll()
+	am.ConnectAll()
 
 	return am
 }
@@ -140,37 +139,48 @@ func (am *AccountManager) Delete(accountId int) {
 	}
 }
 
-func (am *AccountManager) AuthenticateAll() {
+func (am *AccountManager) ConnectAll() {
 	logger.FuncDebug()
 
 	for _, ac := range am.appConfig.AccountSettings.Get() {
-		ac.Player.Auth.Authenticate()
-		if err := ac.Player.Auth.Authenticate(); err != nil {
-			logger.Rlogger.Error("Failed to authenticate:", slog.Any("err", err))
-		}
+		ac.Player.Connect()
 	}
 }
 
 func (am *AccountManager) RefreshInfo() {
 	logger.FuncDebug()
 
-	playerIds := []rlapi.PlayerID{}
+	playerList := []*rocket_network.Player{}
 	uploadActiveMap := make(map[int]bool)
-	playerIdMap := make(map[int]rlapi.PlayerID)
+	playersMap := make(map[int]*rocket_network.Player)
 
 	for _, ac := range am.GetActives() {
-		playerIds = append(playerIds, *ac.Player.PlayerID)
+		playerList = append(playerList, ac.Player)
 		uploadActiveMap[ac.Id()] = true
-		playerIdMap[ac.Id()] = *ac.Player.PlayerID
+		playersMap[ac.Id()] = ac.Player
 	}
 
 	unusedAccount := am.GetUnused()
 	if unusedAccount != nil && am.appConfig.BehaviorConfig.NoUploadConnected.Get() {
-		onlineStatus := unusedAccount.Player.CheckOnline(playerIds)
+		profiles := unusedAccount.Player.GetProfiles(playerList)
+
+		onlineStatus := make(map[rlapi.PlayerID]bool)
+		for _, player := range playerList {
+			for _, profile := range profiles {
+				if profile.PlayerID == player.PlayerID.String() {
+					player.SetProfile(profile)
+
+					onlineStatus[*player.PlayerID] = profile.PresenceState != "Online"
+					break
+				}
+			}
+		}
 
 		for pid := range uploadActiveMap {
-			if onlineStatus[playerIdMap[pid]] {
-				uploadActiveMap[pid] = false
+			if playersMap[pid].PlayerID != nil {
+				if value, ok := onlineStatus[*playersMap[pid].PlayerID]; ok && !value {
+					uploadActiveMap[pid] = false
+				}
 			}
 		}
 	}
@@ -181,5 +191,34 @@ func (am *AccountManager) RefreshInfo() {
 		}
 
 		ac.Player.GetInfo()
+	}
+}
+
+func (am *AccountManager) RefreshProfile() {
+	logger.FuncDebug()
+
+	playerList := []*rocket_network.Player{}
+	for _, ac := range am.GetActives() {
+		playerList = append(playerList, ac.Player)
+	}
+
+	unusedAccount := am.GetUnused()
+	if am.appConfig.BehaviorConfig.NoUploadConnected.Get() || unusedAccount != nil {
+		if unusedAccount != nil {
+			profiles := unusedAccount.Player.GetProfiles(playerList)
+
+			for _, player := range playerList {
+				for _, profile := range profiles {
+					if profile.PlayerID == player.PlayerID.String() {
+						player.SetProfile(profile)
+						break
+					}
+				}
+			}
+		}
+	} else {
+		for _, ac := range am.appConfig.AccountSettings.Get() {
+			ac.Player.UpdateProfile()
+		}
 	}
 }

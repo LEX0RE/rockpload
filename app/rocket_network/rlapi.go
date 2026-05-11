@@ -13,19 +13,24 @@ import (
 
 func GetRPC(a *Auth) (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
 	logger.FuncDebug()
-	if a.eosToken == nil {
+	if !a.IsAuthenticated() {
 		logger.Rlogger.Error("No valid authentication token found. Please retrieve a new token.")
 		return nil, nil, fmt.Errorf("no valid authentication token")
 	}
 
 	psyNet := rlapi.NewPsyNet()
-	rpc, err := psyNet.AuthPlayer(a.eosToken.AccessToken, a.eosToken.AccountID, "")
+	eosToken := a.GetValidToken()
+	if eosToken == nil {
+		return nil, nil, fmt.Errorf("failed to get any valid token")
+	}
+
+	rpc, err := psyNet.AuthPlayer(eosToken.AccessToken, eosToken.AccountID, "")
 	if err != nil {
 		logger.Rlogger.Error("Failed to authenticate player:", slog.Any("err", err))
 		return nil, nil, err
 	}
 
-	pid := rlapi.NewPlayerID(rlapi.PlatformEpic, a.eosToken.AccountID)
+	pid := rlapi.NewPlayerID(rlapi.PlatformEpic, eosToken.AccountID)
 	return rpc, &pid, nil
 }
 

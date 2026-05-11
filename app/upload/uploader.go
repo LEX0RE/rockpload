@@ -100,20 +100,9 @@ func (u *Uploader) Run() {
 
 	go func() {
 		for _, ac := range u.appConfig.AccountSettings.Get() {
-			u.runForAccount(ac)
+			u.upload(ac)
 		}
 	}()
-}
-
-func (u *Uploader) runForAccount(ac *config.AccountConfig) {
-	logger.FuncDebug()
-
-	err := ac.Player.GetInfo()
-	if err != nil {
-		return
-	}
-
-	u.upload(ac)
 }
 
 func (u *Uploader) upload(ac *config.AccountConfig) {
