@@ -31,11 +31,12 @@ func NewPlayer(profileId int) *Player {
 	return p
 }
 
+// TODO Get base info from Unused account
 func (p *Player) GetBaseInfo() (err error) {
 	logger.FuncDebug()
 
 	if !p.mu.TryLock() {
-		logger.Rlogger.Debug("Duplicate GetInfo at the same time, skipping")
+		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
 		return
 	}
 	defer p.mu.Unlock()
@@ -63,7 +64,7 @@ func (p *Player) GetInfo() (err error) {
 	logger.FuncDebug()
 
 	if !p.mu.TryLock() {
-		logger.Rlogger.Debug("Duplicate GetInfo at the same time, skipping")
+		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
 		return
 	}
 	defer p.mu.Unlock()
@@ -91,6 +92,42 @@ func (p *Player) GetInfo() (err error) {
 	}
 
 	return nil
+}
+
+func (p *Player) CheckOnline(playerIDs []rlapi.PlayerID) map[rlapi.PlayerID]bool {
+	logger.FuncDebug()
+
+	if !p.mu.TryLock() {
+		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
+		return nil
+	}
+	defer p.mu.Unlock()
+
+	var rpc *rlapi.PsyNetRPC
+	rpc, _, err := GetRPC(p.Auth)
+	if err != nil {
+		return nil
+	}
+
+	defer rpc.Close()
+
+	profiles, err := GetProfiles(rpc, playerIDs)
+	if err != nil {
+		logger.Rlogger.Error("Failed to get online statuses:", slog.Any("err", err))
+		return nil
+	}
+
+	onlineStatuses := make(map[rlapi.PlayerID]bool)
+	for _, pid := range playerIDs {
+		for _, profile := range profiles {
+			if profile.PlayerID == pid.String() {
+				onlineStatuses[pid] = profile.PresenceState != "Online"
+				break
+			}
+		}
+	}
+
+	return onlineStatuses
 }
 
 func (p *Player) Reset() {

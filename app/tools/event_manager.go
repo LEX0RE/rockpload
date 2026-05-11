@@ -8,7 +8,10 @@ import (
 	"fyne.io/fyne/v2"
 )
 
-type Listener func(data any)
+type Listener struct {
+	Callback func(data any)
+	IsSync   bool
+}
 
 type EventManager struct {
 	listeners map[string][]Listener
@@ -52,10 +55,15 @@ func (n *EventManager) Notify(event string, data any) {
 
 	if ok {
 		for _, listener := range listeners {
-			callback := listener
-			fyne.Do(func() {
+			callback := listener.Callback
+
+			if listener.IsSync {
 				callback(data)
-			})
+			} else {
+				fyne.Do(func() {
+					callback(data)
+				})
+			}
 		}
 	}
 }

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
-	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -19,10 +19,14 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+const (
+	EVENT_CLICK_UPLOAD = "click_upload"
+)
+
 type GUI struct {
-	window    fyne.Window
-	uploader  *upload.Uploader
-	appConfig *config.AppConfig
+	window         fyne.Window
+	appConfig      *config.AppConfig
+	accountManager *manager.AccountManager
 
 	LoginBox  *fyne.Container
 	PlayerBox *fyne.Container
@@ -31,23 +35,25 @@ type GUI struct {
 	ConnectedLabel   *widget.Label
 	MatchHistoryData []string
 	MatchHistoryList *widget.List
+
+	EventManager *tools.EventManager
 }
 
-func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, uploader *upload.Uploader) (g *GUI, err error) {
+func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager) (g *GUI, err error) {
 	logger.FuncDebug()
-	g = &GUI{window: window, appConfig: appConfig, uploader: uploader}
+	g = &GUI{window: window, appConfig: appConfig, accountManager: accountManager, EventManager: tools.NewEventManager()}
 
 	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Welcome to Rockpload! ("+version+")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
 
-	accountPopup := NewAccountSettingsPopup(NewPopup("Account Settings", g.window, appConfig))
+	accountPopup := NewAccountSettingsPopup(NewPopup("Account Settings", g.window, appConfig, accountManager))
 	accountBtn := widget.NewButtonWithIcon("", theme.AccountIcon(), func() { accountPopup.Show() })
 	accountBtn.Importance = widget.LowImportance
 
-	StorageSettingsPopup := NewStorageSettingsPopup(NewPopup("Storage Settings", g.window, appConfig))
+	StorageSettingsPopup := NewStorageSettingsPopup(NewPopup("Storage Settings", g.window, appConfig, accountManager))
 	storageSettingsBtn := widget.NewButtonWithIcon("", theme.StorageIcon(), func() { StorageSettingsPopup.Show() })
 	storageSettingsBtn.Importance = widget.LowImportance
 
-	behaviorSettingsPopup := NewBehaviorSettingPopup(NewPopup("Behavior Settings", g.window, appConfig))
+	behaviorSettingsPopup := NewBehaviorSettingPopup(NewPopup("Behavior Settings", g.window, appConfig, accountManager))
 	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { behaviorSettingsPopup.Show() })
 	settingsBtn.Importance = widget.LowImportance
 
@@ -67,7 +73,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 	contentBox := container.NewBorder(g.LoginBox, nil, nil, nil, g.PlayerBox)
 
 	g.window.SetContent(container.NewBorder(infoBox, nil, nil, nil, contentBox))
-	g.window.Resize(fyne.NewSize(450, 350))
+	g.window.Resize(fyne.NewSize(450, 400))
 
 	g.UpdateState()
 
@@ -77,7 +83,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 func (g *GUI) UpdateState() {
 	logger.FuncDebug()
 
-	selectedAccount := g.appConfig.SelectedAccount()
+	selectedAccount := g.accountManager.GetSelected()
 
 	g.RefreshConnectedAccount()
 
@@ -115,7 +121,7 @@ func (g *GUI) UpdateState() {
 func (g *GUI) createLoginUI() {
 	logger.FuncDebug()
 	ConnectBtn := widget.NewButton("Connect", func() {
-		selectedAccount := g.appConfig.SelectedAccount()
+		selectedAccount := g.accountManager.GetSelected()
 		err := selectedAccount.Player.Auth.AuthenticateWithCode(g.TokenEntry.Text)
 		if err != nil {
 			logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
@@ -136,7 +142,7 @@ func (g *GUI) createLoginUI() {
 	}
 
 	LoginBtn := widget.NewButton("Authenticate", func() {
-		selectedAccount := g.appConfig.SelectedAccount()
+		selectedAccount := g.accountManager.GetSelected()
 		selectedAccount.Player.Auth.OpenAuth()
 	})
 
@@ -171,11 +177,11 @@ func (g *GUI) createPlayerUI() {
 	)
 
 	uploadBtn := widget.NewButton("Upload Now", func() {
-		g.uploader.Run()
+		g.EventManager.Notify(EVENT_CLICK_UPLOAD, nil)
 	})
 
 	disconnectBtn := widget.NewButton("Disconnect", func() {
-		selectedAccount := g.appConfig.SelectedAccount()
+		selectedAccount := g.accountManager.GetSelected()
 		selectedAccount.Player.Reset()
 		g.UpdateState()
 	})
@@ -201,7 +207,7 @@ func (g *GUI) createPlayerUI() {
 func (g *GUI) RefreshConnectedAccount() {
 	logger.FuncDebug()
 
-	selectedAccount := g.appConfig.SelectedAccount()
+	selectedAccount := g.accountManager.GetSelected()
 	allAccount := len(g.appConfig.AccountSettings.Get())
 
 	authenticatedAccount := 0

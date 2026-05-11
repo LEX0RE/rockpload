@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 
 	"fyne.io/fyne/v2"
 	"github.com/LEX0RE/rockpload/app/constant"
@@ -11,22 +10,16 @@ import (
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
-const (
-	EVENT_SELECTED_ACCOUNT_CHANGED = "selected_account_changed"
-)
-
 type AppConfig struct {
 	BehaviorConfig  BehaviorConfig
 	StorageSettings Setting[storageListConfig]
 	AccountSettings Setting[map[int]*AccountConfig]
-
-	EventManager *tools.EventManager
 }
 
 func NewAppConfig() *AppConfig {
 	logger.FuncDebug()
 
-	cfg := &AppConfig{EventManager: tools.NewEventManager()}
+	cfg := &AppConfig{}
 
 	saveHook := func() {
 		cfg.Save()
@@ -44,22 +37,6 @@ func NewAppConfig() *AppConfig {
 	cfg.AccountSettings = NewSetting(make(map[int]*AccountConfig), saveHook)
 
 	return cfg
-}
-
-func (ac *AppConfig) UnmarshalJSON(data []byte) error {
-	logger.FuncDebug()
-
-	type Alias AppConfig
-
-	aux := (*Alias)(ac)
-
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	ac.EventManager = tools.NewEventManager()
-
-	return nil
 }
 
 // TODO prefs parameters is deprecated, will be removed in future version
@@ -82,8 +59,6 @@ func (a *AppConfig) Load(prefs fyne.Preferences) error {
 
 	// TODO Deprecated, Fyne Pref will be removed in future version
 	a.importFynePreferences(prefs)
-
-	a.AuthAllAccounts()
 
 	return nil
 }
@@ -163,109 +138,4 @@ func (a *AppConfig) importFynePreferences(prefs fyne.Preferences) {
 	}
 
 	savedAndRemove("rockpload_websiteSettings")
-}
-
-func (a *AppConfig) SelectedAccount() *AccountConfig {
-	logger.FuncDebug()
-
-	if ac, ok := a.AccountSettings.Get()[a.BehaviorConfig.SelectedAccountId.Get()]; ok {
-		return ac
-	} else if ac, ok := a.AccountSettings.Get()[0]; ok {
-		a.BehaviorConfig.SelectedAccountId.Set(0)
-		return ac
-	} else {
-		a.BehaviorConfig.SelectedAccountId.Set(0)
-		return a.AddAccount()
-	}
-}
-
-func (a *AppConfig) UnusedAccount() *AccountConfig {
-	logger.FuncDebug()
-
-	var currentAlt *AccountConfig
-
-	for _, ac := range a.AccountSettings.Get() {
-		if ac.IsUnused {
-			if currentAlt != nil {
-				currentAlt.IsUnused = false
-				ac.IsUnused = true
-			}
-
-			currentAlt = ac
-		}
-	}
-
-	return currentAlt
-}
-
-func (a *AppConfig) SetSelectedAccount(accountId int) {
-	logger.FuncDebug()
-
-	if _, ok := a.AccountSettings.Get()[accountId]; ok {
-		a.BehaviorConfig.SelectedAccountId.Set(accountId)
-	} else {
-		a.BehaviorConfig.SelectedAccountId.Set(0)
-	}
-
-	a.EventManager.Notify(EVENT_SELECTED_ACCOUNT_CHANGED, a.BehaviorConfig.SelectedAccountId.Get())
-}
-
-func (a *AppConfig) SetUnusedAccount(accountId int) {
-	logger.FuncDebug()
-
-	if _, ok := a.AccountSettings.Get()[accountId]; ok {
-		for _, ac := range a.AccountSettings.Get() {
-			ac.IsUnused = false
-		}
-
-		a.AccountSettings.Get()[accountId].IsUnused = true
-	} else {
-		for _, ac := range a.AccountSettings.Get() {
-			ac.IsUnused = false
-		}
-	}
-
-	a.Save()
-}
-
-func (a *AppConfig) AddAccount() *AccountConfig {
-	logger.FuncDebug()
-
-	for i := 0; ; i++ {
-		if _, ok := a.AccountSettings.Get()[i]; !ok {
-			currentAccountSettings := a.AccountSettings.Get()
-			currentAccountSettings[i] = NewAccountConfig(i)
-			a.AccountSettings.Set(currentAccountSettings)
-			return currentAccountSettings[i]
-		}
-	}
-}
-
-func (a *AppConfig) DeleteAccount(accountId int) {
-	logger.FuncDebug()
-
-	if len(a.AccountSettings.Get()) <= 1 {
-		return
-	}
-
-	if _, ok := a.AccountSettings.Get()[accountId]; ok {
-		currentAccountSettings := a.AccountSettings.Get()
-		delete(currentAccountSettings, accountId)
-		a.AccountSettings.Set(currentAccountSettings)
-
-		if a.BehaviorConfig.SelectedAccountId.Get() == accountId {
-			a.SetSelectedAccount(0)
-		}
-	}
-}
-
-func (a *AppConfig) AuthAllAccounts() {
-	logger.FuncDebug()
-
-	for _, ac := range a.AccountSettings.Get() {
-		ac.Player.Auth.Authenticate()
-		if err := ac.Player.Auth.Authenticate(); err != nil {
-			logger.Rlogger.Error("Failed to authenticate:", slog.Any("err", err))
-		}
-	}
 }

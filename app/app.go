@@ -8,7 +8,9 @@ import (
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/constant"
+	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
+	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	"github.com/LEX0RE/rockpload/app/ui"
 	"github.com/LEX0RE/rockpload/app/upload"
@@ -34,7 +36,8 @@ type App struct {
 	version       string
 	updateInfo    *UpdateInfo
 
-	uploader *upload.Uploader
+	uploader       *upload.Uploader
+	accountManager *manager.AccountManager
 }
 
 func NewApp(version string) *App {
@@ -53,6 +56,8 @@ func NewApp(version string) *App {
 
 	a.appConfig.BehaviorConfig.AutoStart.Bind(a.SetAutoStart)
 	a.appConfig.BehaviorConfig.AutoUpload.Bind(a.SetAutoUpload)
+
+	a.accountManager = manager.NewAccountManager(a.appConfig)
 
 	icon := fyne.NewStaticResource("logo.png", logoBytes)
 	a.app.SetIcon(icon)
@@ -98,7 +103,7 @@ func (a *App) Run() {
 	a.setupAppUpdate()
 	a.initPlayers()
 
-	a.window.Resize(fyne.NewSize(400, 300))
+	a.window.Resize(fyne.NewSize(450, 400))
 
 	if a.appConfig.BehaviorConfig.ExitInTray.Get() && a.appConfig.BehaviorConfig.StartInTray.Get() {
 		a.app.Run()
@@ -114,33 +119,43 @@ func (a *App) initPlayers() {
 		fyne.Do(a.gui.UpdateState)
 	}
 
-	uploadPopup := ui.NewUploadingPopup(ui.NewPopup("Uploading Replays...", a.window, a.appConfig), 0)
+	uploadPopup := ui.NewUploadingPopup(ui.NewPopup("Uploading Replays...", a.window, a.appConfig, a.accountManager), 0)
 	a.uploader = upload.NewUploader(a.appConfig)
 
-	a.uploader.EventManager.Subscribe(upload.EventUploadProgress, func(data any) {
+	a.uploader.EventManager.Subscribe(upload.EventUploadProgress, tools.Listener{IsSync: false, Callback: func(data any) {
 		if progress, ok := data.(float64); ok {
 			uploadPopup.UpdateProgress(progress)
 		}
-	})
+	}})
 
-	a.uploader.EventManager.MultiSubscribe([]string{upload.EventReplayUploaded, upload.EventUploadCompleted, upload.EventReplayUploaded}, func(data any) {
+	guiUploaderEventList := []string{upload.EventReplayUploaded, upload.EventUploadCompleted, upload.EventReplayUploaded}
+	a.uploader.EventManager.MultiSubscribe(guiUploaderEventList, tools.Listener{IsSync: false, Callback: func(data any) {
 		onUpdateState()
-	})
+	}})
+
+	a.uploader.EventManager.Subscribe(upload.EventUploadStarted, tools.Listener{IsSync: true, Callback: func(data any) {
+		a.accountManager.RefreshInfo()
+	}})
 
 	var err error
-	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.uploader)
+	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager)
 	if err != nil {
 		logger.Rlogger.Error("Failed to initialize GUI:", slog.Any("err", err))
 	}
 
-	a.appConfig.EventManager.Subscribe(config.EVENT_SELECTED_ACCOUNT_CHANGED, func(data any) {
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD, tools.Listener{IsSync: false, Callback: func(data any) {
+		a.uploader.Run()
+	}})
+
+	guiAccountManagerEventList := []string{manager.EVENT_SELECT_ACCOUNT, manager.EVENT_ADD_ACCOUNT, manager.EVENT_DELETE_ACCOUNT}
+	a.accountManager.EventManager.MultiSubscribe(guiAccountManagerEventList, tools.Listener{IsSync: false, Callback: func(data any) {
 		a.gui.UpdateState()
-	})
+	}})
 
 	refreshSubscription := func(ac *config.AccountConfig) {
 		if ac.Player.Auth != nil {
 			ac.Player.Auth.EventManager.UnsubscribeAll(rocket_network.EventUserAuthenticated)
-			ac.Player.Auth.EventManager.Subscribe(rocket_network.EventUserAuthenticated, func(data any) {
+			ac.Player.Auth.EventManager.Subscribe(rocket_network.EventUserAuthenticated, tools.Listener{IsSync: false, Callback: func(data any) {
 				if a.appConfig.BehaviorConfig.AutoUpload.Get() {
 					a.uploader.Stop()
 					a.uploader.Start()
@@ -148,7 +163,7 @@ func (a *App) initPlayers() {
 
 				onUpdateState()
 				a.appConfig.Save()
-			})
+			}})
 		}
 	}
 
@@ -162,7 +177,7 @@ func (a *App) initPlayers() {
 		refreshSubscription(ac)
 	}
 
-	selectedAccount := a.appConfig.SelectedAccount()
+	selectedAccount := a.accountManager.GetSelected()
 	if selectedAccount != nil && selectedAccount.IsConnected() {
 		selectedAccount.Player.GetInfo()
 		a.gui.UpdateState()
@@ -189,7 +204,7 @@ func (a *App) setupAppUpdate() {
 
 	if needUpdate && skipUpdate != "true" {
 		// TODO Make auto update without ask setting to not annoy people
-		updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig), a.updateInfo.Version, func() {
+		updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig, a.accountManager), a.updateInfo.Version, func() {
 			err := updater.ApplyUpdate()
 			if err != nil {
 				logger.Rlogger.Error("Update failed", slog.Any("err", err))

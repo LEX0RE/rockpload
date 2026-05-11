@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
@@ -14,18 +15,21 @@ import (
 type Popup struct {
 	popup        *widget.PopUp
 	content      *fyne.Container
-	appConfig    *config.AppConfig
 	parentWindow fyne.Window
 	onClosed     func()
+
+	appConfig      *config.AppConfig
+	accountManager *manager.AccountManager
 }
 
-func NewPopup(title string, parentWindow fyne.Window, appConfig *config.AppConfig) *Popup {
+func NewPopup(title string, parentWindow fyne.Window, appConfig *config.AppConfig, accountManager *manager.AccountManager) *Popup {
 	logger.FuncDebug()
 
 	p := &Popup{
-		content:      container.NewStack(),
-		appConfig:    appConfig,
-		parentWindow: parentWindow,
+		content:        container.NewStack(),
+		parentWindow:   parentWindow,
+		appConfig:      appConfig,
+		accountManager: accountManager,
 	}
 
 	p.onClosed = func() {

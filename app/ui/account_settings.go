@@ -81,11 +81,11 @@ func NewAccountSettingsPopup(p *Popup) *AccountSettingsPopup {
 			name := allAccounts[i].Player.PlayerName
 			suffix := ""
 
-			if asp.appConfig.SelectedAccount() == allAccounts[i] && asp.appConfig.UnusedAccount() == allAccounts[i] {
+			if asp.accountManager.GetSelected() == allAccounts[i] && asp.accountManager.GetUnused() == allAccounts[i] {
 				suffix = " (Selected & Unused)"
-			} else if asp.appConfig.SelectedAccount() == allAccounts[i] {
+			} else if asp.accountManager.GetSelected() == allAccounts[i] {
 				suffix = " (Selected)"
-			} else if asp.appConfig.UnusedAccount() == allAccounts[i] {
+			} else if asp.accountManager.GetUnused() == allAccounts[i] {
 				suffix = " (Unused)"
 			}
 
@@ -142,16 +142,16 @@ func (asp *AccountSettingsPopup) getAllAccounts() []*config.AccountConfig {
 func (asp *AccountSettingsPopup) updateLabels() {
 	logger.FuncDebug()
 
-	if asp.appConfig.SelectedAccount() == nil {
-		asp.currentSelectedLabel.SetText("Current Selected Account: None")
+	if asp.accountManager.GetSelected() == nil {
+		asp.currentSelectedLabel.SetText("Selected Account: None")
 	} else {
-		asp.currentSelectedLabel.SetText("Current Selected Account: " + asp.appConfig.SelectedAccount().Player.PlayerName)
+		asp.currentSelectedLabel.SetText("Selected Account: " + asp.accountManager.GetSelected().Player.PlayerName)
 	}
 
-	if asp.appConfig.UnusedAccount() == nil {
-		asp.currentUnusedLabel.SetText("Current Unused Account: None")
+	if asp.accountManager.GetUnused() == nil {
+		asp.currentUnusedLabel.SetText("Unused Account: None")
 	} else {
-		asp.currentUnusedLabel.SetText("Current Unused Account: " + asp.appConfig.UnusedAccount().Player.PlayerName)
+		asp.currentUnusedLabel.SetText("Unused Account: " + asp.accountManager.GetUnused().Player.PlayerName)
 	}
 }
 
@@ -170,13 +170,13 @@ func (asp *AccountSettingsPopup) updateBtnStates() {
 
 	selectedAccount := allAccounts[asp.selectedIndex]
 
-	if asp.appConfig.SelectedAccount() != nil && asp.appConfig.SelectedAccount().Id() == selectedAccount.Id() {
+	if asp.accountManager.GetSelected() != nil && asp.accountManager.GetSelected().Id() == selectedAccount.Id() {
 		asp.btnSetSelected.Disable()
 	} else {
 		asp.btnSetSelected.Enable()
 	}
 
-	if asp.appConfig.UnusedAccount() != nil && asp.appConfig.UnusedAccount().Id() == selectedAccount.Id() {
+	if asp.accountManager.GetUnused() != nil && asp.accountManager.GetUnused().Id() == selectedAccount.Id() {
 		asp.btnSetUnused.Disable()
 		asp.btnUnsetUnused.Enable()
 	} else {
@@ -209,7 +209,7 @@ func (asp *AccountSettingsPopup) onSetSelectedBtn() {
 	}
 
 	selectedAccount := allAccounts[asp.selectedIndex]
-	asp.appConfig.SetSelectedAccount(selectedAccount.Id())
+	asp.accountManager.SetSelected(selectedAccount.Id())
 
 	asp.Reload()
 	asp.list.Refresh()
@@ -225,7 +225,7 @@ func (asp *AccountSettingsPopup) onSetUnusedBtn() {
 	}
 
 	selectedAccount := allAccounts[asp.selectedIndex]
-	asp.appConfig.SetUnusedAccount(selectedAccount.Id())
+	asp.accountManager.SetUnused(selectedAccount.Id())
 
 	asp.Reload()
 	asp.list.Refresh()
@@ -234,7 +234,7 @@ func (asp *AccountSettingsPopup) onSetUnusedBtn() {
 func (asp *AccountSettingsPopup) onUnsetUnusedBtn() {
 	logger.FuncDebug()
 
-	asp.appConfig.SetUnusedAccount(-1)
+	asp.accountManager.SetUnused(-1)
 
 	asp.Reload()
 	asp.list.Refresh()
@@ -243,7 +243,7 @@ func (asp *AccountSettingsPopup) onUnsetUnusedBtn() {
 func (asp *AccountSettingsPopup) onAddAccountBtn() {
 	logger.FuncDebug()
 
-	newAccount := asp.appConfig.AddAccount()
+	newAccount := asp.accountManager.Add()
 
 	allAccounts := asp.getAllAccounts()
 	if len(allAccounts) == 1 {
@@ -253,7 +253,7 @@ func (asp *AccountSettingsPopup) onAddAccountBtn() {
 	for i, account := range allAccounts {
 		if account.Id() == newAccount.Id() {
 			asp.list.Select(i)
-			asp.appConfig.SetSelectedAccount(account.Id())
+			asp.accountManager.SetSelected(account.Id())
 			break
 		}
 	}
@@ -279,7 +279,7 @@ func (asp *AccountSettingsPopup) onDeleteAccountBtn() {
 	accountToDelete := allAccounts[asp.selectedIndex]
 	dialog.ShowConfirm("Delete", "Are you sure you want to delete the account '"+accountToDelete.Player.PlayerName+"'?", func(confirmed bool) {
 		if confirmed {
-			asp.appConfig.DeleteAccount(accountToDelete.Id())
+			asp.accountManager.Delete(accountToDelete.Id())
 
 			asp.Reload()
 			asp.list.UnselectAll()
