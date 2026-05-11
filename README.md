@@ -2,6 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.26.1-00ADD8?logo=go)](https://go.dev/)
+[![Discord](https://img.shields.io/discord/1127401780930686996?color=7289da&label=discord&logo=discord&logoColor=white)](https://discord.gg/bFw6mcVXSW)
 
 <p align="center">
    <img src="app/assets/logo.png" alt="Rockpload logo" width="360" />
