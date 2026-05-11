@@ -15,6 +15,7 @@ A desktop companion app for [Rocky](https://lexore.ca/rocky) that watches your R
 
 - **Automatic Upload**: Monitors your Rocket League replay directory and uploads new replays in real time
 - **Epic Games Authentication**: Seamless authentication via Epic Games Launcher or custom OAuth
+- **Multi Account Upload**: Allow to upload for multiple account at the same time
 - **System Tray Integration**: Runs quietly in the background with system tray controls
 - **Auto-start Support**: Launch rockpload automatically on system startup
 - **Cross-platform**: Supports Linux and Windows (macOS is not supported yet)
@@ -59,7 +60,7 @@ The app will:
 4. Run in the system tray
 
 **Local State:**
-- Rocket League tokens: `~/.cache/rockpload/.rltoken` (Linux) or `%LOCALAPPDATA%\rockpload\.rltoken` (Windows)
+- Rocket League tokens: `~/.cache/rockpload/.token/` (Linux) or `%LOCALAPPDATA%\rockpload\.token\` (Windows)
 - Upload cache: `~/.cache/rockpload/.uploaded`
 - Application lock: `~/.cache/rockpload/rockpload.lock`
 
