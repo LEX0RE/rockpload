@@ -56,7 +56,7 @@ func (u *Updater) CheckForUpdate(currentVersion string) (bool, error) {
 		return false, nil
 	}
 
-	if info.Version != currentVersion {
+	if info.Version > currentVersion {
 		logger.Rlogger.Info("New version available: " + info.Version)
 		u.UpdateInfo = &info
 		return true, nil
