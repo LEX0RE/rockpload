@@ -7,7 +7,10 @@ import (
 	"os/exec"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/constant"
+	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
+	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	"github.com/LEX0RE/rockpload/app/ui"
 	"github.com/LEX0RE/rockpload/app/upload"
@@ -33,8 +36,8 @@ type App struct {
 	version       string
 	updateInfo    *UpdateInfo
 
-	player   *rocket_network.Player
-	uploader *upload.Uploader
+	uploader       *upload.Uploader
+	accountManager *manager.AccountManager
 }
 
 func NewApp(version string) *App {
@@ -44,13 +47,17 @@ func NewApp(version string) *App {
 
 	a.app = app.NewWithID("com.lexore.rockpload")
 
+	// TODO Check for update before load config to be sure that if the config crash, we can still update it
 	a.appConfig = config.NewAppConfig()
-	a.appConfig.AutoStart.Bind(a.SetAutoStart)
-	a.appConfig.AutoUpload.Bind(a.SetAutoUpload)
-	a.appConfig.WebsiteSettings.Bind(a.OnWebsiteConfigChange)
+	err := a.appConfig.Load(a.app.Preferences())
+	if err != nil {
+		logger.Rlogger.Error("Failed to load settings:", slog.Any("err", err))
+	}
 
-	// TODO Deprecated, Fyne Pref will be removed in future version
-	a.appConfig.ImportFynePreferences(a.app.Preferences())
+	a.appConfig.BehaviorConfig.AutoStart.Bind(a.SetAutoStart)
+	a.appConfig.BehaviorConfig.AutoUpload.Bind(a.SetAutoUpload)
+
+	a.accountManager = manager.NewAccountManager(a.appConfig)
 
 	icon := fyne.NewStaticResource("logo.png", logoBytes)
 	a.app.SetIcon(icon)
@@ -68,7 +75,7 @@ func NewApp(version string) *App {
 	}
 
 	a.window.SetCloseIntercept(func() {
-		if a.appConfig.ExitInTray.Get() {
+		if a.appConfig.BehaviorConfig.ExitInTray.Get() {
 			a.window.Hide()
 		} else {
 			a.app.Quit()
@@ -94,54 +101,92 @@ func (a *App) Run() {
 	defer a.duplicateLock.Unlock()
 
 	a.setupAppUpdate()
-	a.initPlayer()
+	a.initPlayers()
 
-	a.window.Resize(fyne.NewSize(400, 300))
+	a.window.Resize(fyne.NewSize(450, 400))
 
-	if a.appConfig.ExitInTray.Get() && a.appConfig.StartInTray.Get() {
+	if a.appConfig.BehaviorConfig.ExitInTray.Get() && a.appConfig.BehaviorConfig.StartInTray.Get() {
 		a.app.Run()
 	} else {
 		a.window.ShowAndRun()
 	}
 }
 
-func (a *App) initPlayer() {
+func (a *App) initPlayers() {
 	logger.FuncDebug()
-	auth, err := rocket_network.NewAuth()
-	if err != nil {
-		logger.Rlogger.Error("Authentication error:", slog.Any("err", err))
-	}
-
-	a.player = rocket_network.NewPlayer(auth)
 
 	onUpdateState := func() {
 		fyne.Do(a.gui.UpdateState)
 	}
 
-	uploadPopup := ui.NewUploadingPopup(ui.NewPopup("Uploading Replays...", a.window, a.appConfig), 0)
-	a.uploader = upload.NewUploader(a.player, a.appConfig, onUpdateState, uploadPopup.UpdateProgress)
+	uploadPopup := ui.NewUploadingPopup(ui.NewPopup("Uploading Replays...", a.window, a.appConfig, a.accountManager), 0)
+	a.uploader = upload.NewUploader(a.appConfig)
 
-	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.uploader)
+	a.uploader.EventManager.Subscribe(upload.EventUploadProgress, tools.Listener{IsSync: false, Callback: func(data any) {
+		if progress, ok := data.(float64); ok {
+			uploadPopup.UpdateProgress(progress)
+		}
+	}})
+
+	guiUploaderEventList := []string{upload.EventReplayUploaded, upload.EventUploadCompleted, upload.EventReplayUploaded}
+	a.uploader.EventManager.MultiSubscribe(guiUploaderEventList, tools.Listener{IsSync: false, Callback: func(data any) {
+		onUpdateState()
+	}})
+
+	a.uploader.EventManager.Subscribe(upload.EventUploadStarted, tools.Listener{IsSync: true, Callback: func(data any) {
+		a.accountManager.RefreshInfo()
+		a.appConfig.Save()
+	}})
+
+	var err error
+	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager)
 	if err != nil {
 		logger.Rlogger.Error("Failed to initialize GUI:", slog.Any("err", err))
 	}
 
-	a.player.Auth.Sub.Subscribe(func(event string) {
-		if event == rocket_network.EventUserAuthenticated {
-			if a.appConfig.AutoUpload.Get() {
-				a.uploader.Start()
-			}
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD, tools.Listener{IsSync: false, Callback: func(data any) {
+		a.uploader.Run()
+	}})
 
-			a.gui.UpdateState()
+	guiAccountManagerEventList := []string{manager.EVENT_SELECT_ACCOUNT, manager.EVENT_ADD_ACCOUNT, manager.EVENT_DELETE_ACCOUNT}
+	a.accountManager.EventManager.MultiSubscribe(guiAccountManagerEventList, tools.Listener{IsSync: false, Callback: func(data any) {
+		a.gui.UpdateState()
+	}})
+
+	refreshSubscription := func(ac *config.AccountConfig) {
+		if ac.Player.Auth != nil {
+			ac.Player.Auth.EventManager.UnsubscribeAll(rocket_network.EventUserAuthenticated)
+			ac.Player.Auth.EventManager.Subscribe(rocket_network.EventUserAuthenticated, tools.Listener{IsSync: false, Callback: func(data any) {
+				a.accountManager.RefreshProfile()
+
+				if a.appConfig.BehaviorConfig.AutoUpload.Get() {
+					a.uploader.Stop()
+					a.uploader.Start()
+				}
+
+				onUpdateState()
+				a.appConfig.Save()
+			}})
+		}
+	}
+
+	a.appConfig.AccountSettings.Bind(func(map[int]*config.AccountConfig) {
+		for _, ac := range a.appConfig.AccountSettings.Get() {
+			refreshSubscription(ac)
 		}
 	})
 
-	if a.player.Auth != nil {
-		a.player.GetInfo()
+	for _, ac := range a.appConfig.AccountSettings.Get() {
+		refreshSubscription(ac)
+	}
+
+	selectedAccount := a.accountManager.GetSelected()
+	if selectedAccount != nil && selectedAccount.IsConnected() {
+		selectedAccount.Player.GetInfo()
 		a.gui.UpdateState()
 	}
 
-	if a.appConfig.AutoUpload.Get() {
+	if a.appConfig.BehaviorConfig.AutoUpload.Get() {
 		a.uploader.Start()
 	}
 }
@@ -162,7 +207,7 @@ func (a *App) setupAppUpdate() {
 
 	if needUpdate && skipUpdate != "true" {
 		// TODO Make auto update without ask setting to not annoy people
-		updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig), a.updateInfo.Version, func() {
+		updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig, a.accountManager), a.updateInfo.Version, func() {
 			err := updater.ApplyUpdate()
 			if err != nil {
 				logger.Rlogger.Error("Update failed", slog.Any("err", err))
@@ -178,7 +223,8 @@ func (a *App) setupAppUpdate() {
 
 func (a *App) createDuplicateLock() bool {
 	logger.FuncDebug()
-	a.duplicateLock = flock.New(config.AppLock)
+
+	a.duplicateLock = flock.New(constant.AppLock)
 	gotLocked, err := a.duplicateLock.TryLock()
 	if err != nil {
 		panic(err)
@@ -236,10 +282,4 @@ func (a *App) restart() {
 	}
 
 	os.Exit(0)
-}
-
-func (a *App) OnWebsiteConfigChange(value []*config.WebsiteConfig) {
-	logger.FuncDebug()
-
-	a.uploader.UpdateWebsite()
 }

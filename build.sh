@@ -7,7 +7,7 @@ PACKAGE_NAME="rockpload"
 rm -rf $RELEASE_PATH
 mkdir -p $RELEASE_PATH
 
-VERSION=${ROCKPLOAD_VERSION:-"1.1.1"}
+VERSION=${ROCKPLOAD_VERSION:-"1.2.0"}
 VERSION_CLEAN=$(echo $VERSION | sed 's/\//-/g')
 echo "Building version $VERSION_CLEAN"
 
@@ -21,7 +21,7 @@ FILE="$RELEASE_PATH/$OUTPUT"
 
 echo "Building $OUTPUT..."
 
-CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -o "$FILE" -ldflags "-X main.Version=$VERSION_CLEAN"
+CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -trimpath -o "$FILE" -ldflags "-s -w -X main.Version=$VERSION_CLEAN"
 
 #################
 # BUILD WINDOWS #
@@ -34,7 +34,7 @@ FILE="$RELEASE_PATH/$OUTPUT"
 
 echo "Building $OUTPUT..."
 
-CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -o "$FILE" -ldflags "-X main.Version=$VERSION_CLEAN -H windowsgui"
+CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -trimpath -o "$FILE" -ldflags "-s -w -X main.Version=$VERSION_CLEAN -H windowsgui"
 
 #############
 # BUILD MAC # (CURRENTLY NOT SUPPORTED)

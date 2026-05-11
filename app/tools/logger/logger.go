@@ -58,7 +58,6 @@ func (h *AppFilterHandler) Handle(ctx context.Context, r slog.Record) error {
 }
 
 func FuncDebug() {
-
 	if os.Getenv("FUNC_DEBUG") != "true" {
 		return
 	}

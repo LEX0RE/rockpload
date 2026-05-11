@@ -8,15 +8,19 @@ import (
 	"time"
 
 	"github.com/LEX0RE/rockpload/app/config"
-	"github.com/LEX0RE/rockpload/app/rocket_network"
+	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	rtime "github.com/LEX0RE/rockpload/app/tools/time"
-	"github.com/dank/rlapi"
 
 	"fyne.io/fyne/v2"
 )
 
 const (
+	EventUploadStarted   = "upload_started"
+	EventUploadCompleted = "upload_completed"
+	EventUploadProgress  = "upload_progress"
+	EventReplayUploaded  = "replay_uploaded"
+
 	uploadSleep             = time.Second
 	autoUploadTickerTime    = time.Minute * 45
 	autoUploadJitterMinTime = 0
@@ -28,50 +32,25 @@ type Uploader struct {
 	lockInAutoUpload sync.Mutex
 	lockInRunRLAPI   sync.Mutex
 
-	Player    *rocket_network.Player
 	appConfig *config.AppConfig
-	websites  []*Website
 
-	updateGUI            func()
-	updateUploadProgress func(float64)
+	autoTicker *rtime.Ticker
 
-	autoTicker    *rtime.Ticker
-	HistorySended []string
+	EventManager *tools.EventManager
 }
 
-func NewUploader(player *rocket_network.Player, appConfig *config.AppConfig, updateGUI func(), updateUploadProgress func(float64)) *Uploader {
+func NewUploader(appConfig *config.AppConfig) *Uploader {
 	logger.FuncDebug()
 
-	u := &Uploader{
-		Player:               player,
-		updateGUI:            updateGUI,
-		updateUploadProgress: updateUploadProgress,
-		appConfig:            appConfig,
-		websites:             []*Website{},
-	}
+	u := &Uploader{appConfig: appConfig, EventManager: tools.NewEventManager()}
 
-	for _, websiteConfig := range appConfig.WebsiteSettings.Get() {
-		website := NewWebsite(websiteConfig)
-		u.websites = append(u.websites, website)
-	}
-
-	if appConfig.UploadOnLaunch.Get() {
+	if appConfig.BehaviorConfig.UploadOnLaunch.Get() {
 		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
 	} else {
 		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, nil, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
 	}
 
 	return u
-}
-
-func (u *Uploader) UpdateWebsite() {
-	logger.FuncDebug()
-	u.websites = []*Website{}
-
-	for _, websiteConfig := range u.appConfig.WebsiteSettings.Get() {
-		website := NewWebsite(websiteConfig)
-		u.websites = append(u.websites, website)
-	}
 }
 
 func (u *Uploader) Toggle(value bool) {
@@ -117,19 +96,16 @@ func (u *Uploader) Run() {
 	}
 	defer u.lockInRunRLAPI.Unlock()
 
-	err := u.Player.GetInfo()
-	if err != nil {
-		return
-	}
+	u.EventManager.Notify(EventUploadStarted, nil)
 
-	u.updateGUI()
-	go u.upload(u.Player)
-	u.updateGUI()
-
-	logger.Rlogger.Info("Upload complete")
+	go func() {
+		for _, ac := range u.appConfig.AccountSettings.Get() {
+			u.upload(ac)
+		}
+	}()
 }
 
-func (u *Uploader) upload(p *rocket_network.Player) {
+func (u *Uploader) upload(ac *config.AccountConfig) {
 	logger.FuncDebug()
 
 	if !u.lockInUpload.TryLock() {
@@ -139,22 +115,9 @@ func (u *Uploader) upload(p *rocket_network.Player) {
 
 	defer u.lockInUpload.Unlock()
 
-	u.HistorySended = []string{}
+	websites := u.getWebsites()
 
-	addToHistory := func(replay rlapi.MatchEntry) {
-		alreadyInHistory := false
-		for _, matchGUID := range u.HistorySended {
-			if matchGUID == replay.Match.MatchGUID {
-				alreadyInHistory = true
-			}
-		}
-
-		if !alreadyInHistory {
-			u.HistorySended = append(u.HistorySended, replay.Match.MatchGUID)
-		}
-	}
-
-	for i, replay := range p.MatchHistory {
+	for i, replay := range ac.Player.MatchHistory {
 		filePath, err := downloadFile(replay.ReplayUrl)
 		if err != nil {
 			logger.Rlogger.Error("Download error:", slog.Any("err", err))
@@ -162,40 +125,72 @@ func (u *Uploader) upload(p *rocket_network.Player) {
 		}
 		defer os.Remove(filePath)
 
-		for wi, website := range u.websites {
-			u.updateUploadProgress(float64((i*len(u.websites))+wi) / float64(len(p.MatchHistory)*len(u.websites)))
-
-			if !website.config.SendReplay {
-				continue
-			}
-
-			uploadCache := LoadUploadedCache(website.config.Name)
-
-			if !uploadCache.index[replay.Match.MatchGUID] {
-				logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
-
-				err = website.UploadReplay(filePath)
-				if err != nil {
-					logger.Rlogger.Error("Upload error:", slog.Any("err", err))
-				} else {
-					uploadCache.Add(replay.Match.MatchGUID)
-					addToHistory(replay)
-				}
-
-				time.Sleep(uploadSleep)
-			} else {
-				logger.Rlogger.Debug("Skipping replay as it was already uploaded")
-				addToHistory(replay)
-			}
-
-			uploadCache.Save()
+		for wi := range websites {
+			u.singleUpload(i, wi, websites, ac, filePath)
 		}
 
 		os.Remove(filePath)
-		u.updateGUI()
+		u.EventManager.Notify(EventReplayUploaded, nil)
 	}
 
-	logger.Rlogger.Debug("Upload complete")
+	logger.Rlogger.Info("Upload complete")
 
-	u.updateUploadProgress(float64(-1))
+	u.EventManager.Notify(EventUploadProgress, float64(-1))
+	u.EventManager.Notify(EventUploadCompleted, nil)
+}
+
+func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*Website, ac *config.AccountConfig, filePath string) {
+	logger.FuncDebug()
+
+	website := websites[websiteIndex]
+	replay := ac.Player.MatchHistory[replayIndex]
+
+	u.EventManager.Notify(EventUploadProgress, float64((replayIndex*len(websites))+websiteIndex)/float64(len(ac.Player.MatchHistory)*len(websites)))
+
+	if !website.config.SendReplay {
+		return
+	}
+
+	if os.Getenv("FAKE_UPLOAD") == "true" {
+		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.Player.PlayerName), slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
+		ac.AddToMatchHistory(replay.Match.MatchGUID)
+		return
+	}
+
+	uploadCache := LoadUploadedCache(website.config.Name)
+
+	if !uploadCache.index[replay.Match.MatchGUID] {
+		logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
+
+		err := website.UploadReplay(filePath)
+		if err != nil {
+			logger.Rlogger.Error("Upload error:", slog.Any("err", err))
+		} else {
+			uploadCache.Add(replay.Match.MatchGUID)
+			ac.AddToMatchHistory(replay.Match.MatchGUID)
+		}
+
+		time.Sleep(uploadSleep)
+	} else {
+		logger.Rlogger.Debug("Skipping replay as it was already uploaded")
+		ac.AddToMatchHistory(replay.Match.MatchGUID)
+	}
+
+	uploadCache.Save()
+}
+
+func (u *Uploader) getWebsites() []*Website {
+	logger.FuncDebug()
+
+	websites := []*Website{}
+	for _, StorageConfig := range u.appConfig.StorageSettings.Get() {
+		if !StorageConfig.SendReplay {
+			continue
+		}
+
+		website := NewWebsite(StorageConfig)
+		websites = append(websites, website)
+	}
+
+	return websites
 }

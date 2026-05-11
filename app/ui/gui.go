@@ -2,13 +2,15 @@ package ui
 
 import (
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/manager"
+	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
-	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -17,35 +19,45 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+const (
+	EVENT_CLICK_UPLOAD = "click_upload"
+)
+
 type GUI struct {
-	window    fyne.Window
-	uploader  *upload.Uploader
-	appConfig *config.AppConfig
+	window         fyne.Window
+	appConfig      *config.AppConfig
+	accountManager *manager.AccountManager
 
 	LoginBox  *fyne.Container
 	PlayerBox *fyne.Container
 
 	TokenEntry       *widget.Entry
-	PlayerName       *widget.Label
+	ConnectedLabel   *widget.Label
 	MatchHistoryData []string
 	MatchHistoryList *widget.List
+
+	EventManager *tools.EventManager
 }
 
-func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, uploader *upload.Uploader) (g *GUI, err error) {
+func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager) (g *GUI, err error) {
 	logger.FuncDebug()
-	g = &GUI{window: window, appConfig: appConfig, uploader: uploader}
+	g = &GUI{window: window, appConfig: appConfig, accountManager: accountManager, EventManager: tools.NewEventManager()}
 
 	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Welcome to Rockpload! ("+version+")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
 
-	websiteSettingsPopup := NewWebsiteSettingsPopup(NewPopup("Website Option", g.window, appConfig))
-	websiteSettingsBtn := widget.NewButtonWithIcon("", theme.UploadIcon(), func() { websiteSettingsPopup.Show() })
-	websiteSettingsBtn.Importance = widget.LowImportance
+	accountPopup := NewAccountSettingsPopup(NewPopup("Account Settings", g.window, appConfig, accountManager))
+	accountBtn := widget.NewButtonWithIcon("", theme.AccountIcon(), func() { accountPopup.Show() })
+	accountBtn.Importance = widget.LowImportance
 
-	settingsPopup := NewSettingPopup(NewPopup("Option", g.window, appConfig))
-	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { settingsPopup.Show() })
+	StorageSettingsPopup := NewStorageSettingsPopup(NewPopup("Storage Settings", g.window, appConfig, accountManager))
+	storageSettingsBtn := widget.NewButtonWithIcon("", theme.StorageIcon(), func() { StorageSettingsPopup.Show() })
+	storageSettingsBtn.Importance = widget.LowImportance
+
+	behaviorSettingsPopup := NewBehaviorSettingPopup(NewPopup("Behavior Settings", g.window, appConfig, accountManager))
+	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { behaviorSettingsPopup.Show() })
 	settingsBtn.Importance = widget.LowImportance
 
-	rightAlignedBtn := container.NewHBox(layout.NewSpacer(), websiteSettingsBtn, settingsBtn)
+	rightAlignedBtn := container.NewHBox(layout.NewSpacer(), accountBtn, storageSettingsBtn, settingsBtn)
 
 	header := container.NewStack(centeredLabel, rightAlignedBtn)
 
@@ -61,7 +73,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 	contentBox := container.NewBorder(g.LoginBox, nil, nil, nil, g.PlayerBox)
 
 	g.window.SetContent(container.NewBorder(infoBox, nil, nil, nil, contentBox))
-	g.window.Resize(fyne.NewSize(450, 350))
+	g.window.Resize(fyne.NewSize(450, 400))
 
 	g.UpdateState()
 
@@ -71,38 +83,36 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, upl
 func (g *GUI) UpdateState() {
 	logger.FuncDebug()
 
-	if g.uploader.Player.Auth.Auth != nil {
+	selectedAccount := g.accountManager.GetSelected()
+
+	g.RefreshConnectedAccount()
+
+	if selectedAccount != nil && selectedAccount.IsConnected() {
 		g.LoginBox.Hide()
 		g.PlayerBox.Show()
 
-		if g.uploader.Player.Auth.Auth.DisplayName != "" {
-			g.PlayerName.SetText("Connected Account: " + g.uploader.Player.Auth.Auth.DisplayName)
-			g.PlayerName.Show()
+		if selectedAccount.Player.MatchHistory != nil {
+			g.MatchHistoryData = []string{}
+
+			for _, match := range selectedAccount.Player.MatchHistory {
+				matchUploaded := ""
+				if slices.Contains(selectedAccount.HistorySended, match.Match.MatchGUID) {
+					matchUploaded = "   (Uploaded)"
+				}
+
+				matchDate := time.Unix(match.Match.RecordStartTimestamp, 0).Format("2006-01-02 15:04:05")
+				matchScore := strconv.Itoa(match.Match.Team0Score) + " - " + strconv.Itoa(match.Match.Team1Score)
+				g.MatchHistoryData = append(g.MatchHistoryData, matchDate+" : "+matchScore+" ("+match.Match.MatchGUID+")"+matchUploaded)
+			}
+			g.MatchHistoryList.Refresh()
 		} else {
-			g.PlayerName.Hide()
+			g.MatchHistoryData = []string{}
+			g.MatchHistoryList.Refresh()
 		}
 	} else {
 		g.LoginBox.Show()
 		g.PlayerBox.Hide()
-	}
 
-	if g.uploader.Player.MatchHistory != nil {
-		g.MatchHistoryData = []string{}
-		for _, match := range g.uploader.Player.MatchHistory {
-			matchUploaded := ""
-			for _, replay := range g.uploader.HistorySended {
-				if replay == match.Match.MatchGUID {
-					matchUploaded = "   (Uploaded)"
-					break
-				}
-			}
-
-			matchDate := time.Unix(match.Match.RecordStartTimestamp, 0).Format("2006-01-02 15:04:05")
-			matchScore := strconv.Itoa(match.Match.Team0Score) + " - " + strconv.Itoa(match.Match.Team1Score)
-			g.MatchHistoryData = append(g.MatchHistoryData, matchDate+" : "+matchScore+" ("+match.Match.MatchGUID+")"+matchUploaded)
-		}
-		g.MatchHistoryList.Refresh()
-	} else {
 		g.MatchHistoryData = []string{}
 		g.MatchHistoryList.Refresh()
 	}
@@ -111,7 +121,8 @@ func (g *GUI) UpdateState() {
 func (g *GUI) createLoginUI() {
 	logger.FuncDebug()
 	ConnectBtn := widget.NewButton("Connect", func() {
-		err := g.uploader.Player.Auth.AuthenticateWithCode(g.TokenEntry.Text)
+		selectedAccount := g.accountManager.GetSelected()
+		err := selectedAccount.Player.Auth.AuthenticateWithCode(g.TokenEntry.Text)
 		if err != nil {
 			logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
 		}
@@ -131,11 +142,12 @@ func (g *GUI) createLoginUI() {
 	}
 
 	LoginBtn := widget.NewButton("Authenticate", func() {
-		g.uploader.Player.Auth.OpenAuth()
+		selectedAccount := g.accountManager.GetSelected()
+		selectedAccount.Player.Auth.OpenAuth()
 	})
 
 	ResetBrowserBtn := widget.NewButton("Reset Browser", func() {
-		g.uploader.Player.Auth.ClearBrowserProfile()
+		tools.ClearBrowserSession()
 	})
 
 	actionButtonBorder := container.NewBorder(nil, nil, LoginBtn, nil, ResetBrowserBtn)
@@ -148,8 +160,8 @@ func (g *GUI) createLoginUI() {
 
 func (g *GUI) createPlayerUI() {
 	logger.FuncDebug()
-	g.PlayerName = widget.NewLabel("")
-	g.PlayerName.Hide()
+	g.ConnectedLabel = widget.NewLabel("")
+	g.RefreshConnectedAccount()
 
 	g.MatchHistoryData = []string{}
 	g.MatchHistoryList = widget.NewList(
@@ -165,11 +177,12 @@ func (g *GUI) createPlayerUI() {
 	)
 
 	uploadBtn := widget.NewButton("Upload Now", func() {
-		g.uploader.Run()
+		g.EventManager.Notify(EVENT_CLICK_UPLOAD, nil)
 	})
 
 	disconnectBtn := widget.NewButton("Disconnect", func() {
-		g.uploader.Player.Auth.ClearToken()
+		selectedAccount := g.accountManager.GetSelected()
+		selectedAccount.Player.Reset()
 		g.UpdateState()
 	})
 
@@ -180,7 +193,7 @@ func (g *GUI) createPlayerUI() {
 		container.NewBorder(
 			nil,
 			nil,
-			g.PlayerName,
+			g.ConnectedLabel,
 			container.NewBorder(nil, nil, disconnectBtn, nil, uploadBtn),
 			nil,
 		),
@@ -189,4 +202,26 @@ func (g *GUI) createPlayerUI() {
 		nil,
 		widget.NewAccordion(matchHistoryAccordion),
 	)
+}
+
+func (g *GUI) RefreshConnectedAccount() {
+	logger.FuncDebug()
+
+	selectedAccount := g.accountManager.GetSelected()
+	allAccount := len(g.appConfig.AccountSettings.Get())
+
+	authenticatedAccount := 0
+	for _, ac := range g.appConfig.AccountSettings.Get() {
+		if ac.Player.Auth != nil && ac.Player.Auth.IsAuthenticated() {
+			authenticatedAccount++
+		}
+	}
+
+	connectedText := "Connected (" + strconv.Itoa(authenticatedAccount) + "/" + strconv.Itoa(allAccount) + ")"
+
+	if selectedAccount != nil && selectedAccount.IsConnected() {
+		g.ConnectedLabel.SetText(connectedText + ": " + selectedAccount.Player.PlayerName)
+	} else {
+		g.ConnectedLabel.SetText(connectedText)
+	}
 }

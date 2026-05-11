@@ -14,10 +14,10 @@ import (
 )
 
 type Website struct {
-	config *config.WebsiteConfig
+	config *config.StorageConfig
 }
 
-func NewWebsite(config *config.WebsiteConfig) *Website {
+func NewWebsite(config *config.StorageConfig) *Website {
 	return &Website{config: config}
 }
 

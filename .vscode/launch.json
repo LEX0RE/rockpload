@@ -16,6 +16,7 @@
         "FUNC_DEBUG": "false",
         "ADD_LOCALHOST": "false",
         "SKIP_UPDATE": "true",
+        "FAKE_UPLOAD": "true"
       },
       "args": [],
       "showLog": true,
