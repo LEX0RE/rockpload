@@ -157,7 +157,7 @@ func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*W
 		return
 	}
 
-	uploadCache := LoadUploadedCache(website.config.Name)
+	uploadCache := LoadUploadedCache(website.config.Name, len(u.appConfig.AccountSettings.Get()))
 
 	if !uploadCache.index[replay.Match.MatchGUID] {
 		logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
