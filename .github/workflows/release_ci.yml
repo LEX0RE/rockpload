@@ -18,6 +18,10 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
 
       - name: Install Build Dependencies
         run: |
