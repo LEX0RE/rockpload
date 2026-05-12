@@ -46,13 +46,13 @@ func OpenBrowser(url string) {
 
 func OpenAutoChromiumBrowser(url string, profileId int) (authCode string, err error) {
 	logger.FuncDebug()
+
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", false), // TODO Check when profile folder exist and make it headless so user dont see navigator
 		chromedp.Flag("user-data-dir", constant.BrowserSession),
 		chromedp.Flag("profile-directory", BrowserProfilePrefix+strconv.Itoa(profileId)),
 		chromedp.Flag("disable-restore-session-state", true),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
-		chromedp.Flag("excludeSwitches", "enable-automation"),
 	)
 
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), opts...)
@@ -73,17 +73,31 @@ func OpenAutoChromiumBrowser(url string, profileId int) (authCode string, err er
 
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			for {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+
 				var text string
-				err := chromedp.Evaluate(`document.body.innerText`, &text).Do(ctx)
+				evaluateErr := chromedp.Evaluate(`document.body.innerText`, &text).Do(ctx)
 
-				if err == nil && strings.Contains(text, `"authorizationCode"`) {
+				if evaluateErr != nil {
+					if strings.Contains(evaluateErr.Error(), "target closed") || strings.Contains(evaluateErr.Error(), "session deleted") {
+						logger.Rlogger.Warn("User hsas closed the browser.")
+						return evaluateErr
+					}
+
+				} else if strings.Contains(text, `"authorizationCode"`) {
 					pageContent = text
-
 					logger.Rlogger.Debug("Auth retrieved, waiting for browser to save profile.")
 
-					return chromedp.Cancel(ctx)
+					return nil
 				}
-				time.Sleep(500 * time.Millisecond)
+
+				select {
+				case <-time.After(500 * time.Millisecond):
+				case <-ctx.Done():
+					return ctx.Err()
+				}
 			}
 		}),
 	)
@@ -91,6 +105,11 @@ func OpenAutoChromiumBrowser(url string, profileId int) (authCode string, err er
 	if err != nil {
 		logger.Rlogger.Error("Error or expiration of the delay for authentification", slog.Any("err", err))
 		return "", err
+	}
+
+	if pageContent == "" {
+		logger.Rlogger.Error("Page is empty, unable to extract the code")
+		return "", context.Canceled
 	}
 
 	var authResp EpicAuthResponse
