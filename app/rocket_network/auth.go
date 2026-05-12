@@ -139,7 +139,7 @@ func (a *Auth) OpenAuth() {
 
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered from panic:", r)
+			logger.Rlogger.Error("Recovered from panic:", r)
 		}
 	}()
 
