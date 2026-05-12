@@ -128,7 +128,10 @@ func (am *AccountManager) Delete(accountId int) {
 
 	if _, ok := am.appConfig.AccountSettings.Get()[accountId]; ok {
 		temp := am.appConfig.AccountSettings.Get()
-		deletedId := temp[accountId].Id()
+		accountDeleted := temp[accountId]
+		accountDeleted.Player.Reset()
+
+		deletedId := accountDeleted.Id()
 
 		delete(temp, accountId)
 		am.appConfig.AccountSettings.Set(temp)

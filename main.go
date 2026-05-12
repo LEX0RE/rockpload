@@ -23,7 +23,6 @@ func init() {
 }
 
 func main() {
-
 	logger.Rlogger.Debug("Starting Rockpload")
 	logger.FuncDebug()
 
