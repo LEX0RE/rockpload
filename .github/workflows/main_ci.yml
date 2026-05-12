@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
 
 jobs:
   build-and-vet:
@@ -16,18 +19,10 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
 
       - name: Download dependencies
         run: go mod download
-
-      - name: Install Linux GUI build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config \
-            libgl1-mesa-dev \
-            xorg-dev \
-            gcc-mingw-w64-x86-64
 
       - name: Check formatting
         run: |
@@ -37,6 +32,18 @@ jobs:
             echo "$unformatted"
             exit 1
           fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libgl1-mesa-dev \
+            xorg-dev \
+            gcc-mingw-w64-x86-64
 
       - name: Build with Script
         run: |
@@ -49,6 +56,3 @@ jobs:
         run: |
           ls -lh releases/
           [ "$(ls -A releases/)" ] || (echo "Error: No generated file" && exit 1)
-
-      - name: Vet
-        run: go vet ./...
