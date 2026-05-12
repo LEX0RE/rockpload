@@ -2,10 +2,14 @@ package logger
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"runtime"
 	"strconv"
+
+	"github.com/LEX0RE/rockpload/app/constant"
 )
 
 type AppFilterHandler struct {
@@ -19,11 +23,32 @@ func SetLogger() {
 	level := os.Getenv("SLOG_LEVEL")
 
 	slogOpts := &slog.HandlerOptions{}
-	if level == "debug" {
+	switch level {
+	case "debug":
 		slogOpts = &slog.HandlerOptions{Level: slog.LevelDebug}
+	case "info":
+		slogOpts = &slog.HandlerOptions{Level: slog.LevelInfo}
+	case "warn":
+		slogOpts = &slog.HandlerOptions{Level: slog.LevelWarn}
+	case "error":
+		slogOpts = &slog.HandlerOptions{Level: slog.LevelError}
+	default:
+		slogOpts = &slog.HandlerOptions{Level: slog.LevelInfo}
 	}
 
-	baseHandler := slog.NewTextHandler(os.Stdout, slogOpts)
+	var writer io.Writer = os.Stdout
+
+	logFile, err := os.OpenFile(constant.AppLog, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err == nil {
+		writer = io.MultiWriter(os.Stdout, logFile)
+	}
+
+	err = redirectStderr(logFile)
+	if err != nil {
+		fmt.Println("Unable to redirect stderr:", err)
+	}
+
+	baseHandler := slog.NewTextHandler(writer, slogOpts)
 
 	filteredHandler := &AppFilterHandler{baseHandler}
 
