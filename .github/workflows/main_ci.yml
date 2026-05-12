@@ -33,9 +33,6 @@ jobs:
             exit 1
           fi
 
-      - name: Vet
-        run: go vet ./...
-
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -44,6 +41,9 @@ jobs:
             libgl1-mesa-dev \
             xorg-dev \
             gcc-mingw-w64-x86-64
+
+      - name: Vet
+        run: go vet ./...
 
       - name: Build with Script
         run: |
