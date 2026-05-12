@@ -8,12 +8,28 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/LEX0RE/rockpload/app/constant"
 )
 
 type AppFilterHandler struct {
 	slog.Handler
+}
+
+type safeMultiWriter struct {
+	mu      sync.Mutex
+	writers []io.Writer
+}
+
+func (s *safeMultiWriter) Write(p []byte) (n int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, w := range s.writers {
+		w.Write(p)
+	}
+	return len(p), nil
 }
 
 var Rlogger *slog.Logger
@@ -40,12 +56,13 @@ func SetLogger() {
 
 	logFile, err := os.OpenFile(constant.AppLog, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err == nil {
-		writer = io.MultiWriter(os.Stdout, logFile)
-	}
+		logFile.WriteString(fmt.Sprintf("\n\n--- App Started at %s ---\n", time.Now().Format(time.RFC3339)))
+		writer = &safeMultiWriter{writers: []io.Writer{os.Stdout, logFile}}
 
-	err = redirectStderr(logFile)
-	if err != nil {
-		fmt.Println("Unable to redirect stderr:", err)
+		err = redirectStderr(logFile)
+		if err != nil {
+			fmt.Println("Unable to redirect stderr:", err)
+		}
 	}
 
 	baseHandler := slog.NewTextHandler(writer, slogOpts)
