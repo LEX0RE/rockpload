@@ -4,11 +4,12 @@ package logger
 
 import (
 	"os"
-	"syscall"
+
+	"golang.org/x/sys/windows"
 )
 
 func redirectStderr(f *os.File) error {
-	err := syscall.SetStdHandle(syscall.STD_ERROR_HANDLE, syscall.Handle(f.Fd()))
+	err := windows.SetStdHandle(windows.STD_ERROR_HANDLE, windows.Handle(f.Fd()))
 	if err != nil {
 		return err
 	}
