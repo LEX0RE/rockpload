@@ -118,18 +118,33 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 	websites := u.getWebsites()
 
 	for i, replay := range ac.Player.MatchHistory {
-		filePath, err := downloadFile(replay.ReplayUrl)
-		if err != nil {
-			logger.Rlogger.Error("Download error:", slog.Any("err", err))
-			continue
+		var filePath string
+		var isDownloaded bool
+
+		lazyDownload := func() (string, error) {
+			if isDownloaded {
+				return filePath, nil
+			}
+
+			logger.Rlogger.Debug("Downloading file for the first time in this loop", slog.Any("url", replay.ReplayUrl))
+			path, err := downloadFile(replay.ReplayUrl)
+			if err != nil {
+				return "", err
+			}
+
+			filePath = path
+			isDownloaded = true
+			return filePath, nil
 		}
-		defer os.Remove(filePath)
 
 		for wi := range websites {
-			u.singleUpload(i, wi, websites, ac, filePath)
+			u.singleUpload(i, wi, websites, ac, lazyDownload)
 		}
 
-		os.Remove(filePath)
+		if isDownloaded && filePath != "" {
+			os.Remove(filePath)
+		}
+
 		u.EventManager.Notify(EventReplayUploaded, nil)
 	}
 
@@ -139,7 +154,7 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 	u.EventManager.Notify(EventUploadCompleted, nil)
 }
 
-func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*Website, ac *config.AccountConfig, filePath string) {
+func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*Website, ac *config.AccountConfig, getFilePath func() (string, error)) {
 	logger.FuncDebug()
 
 	website := websites[websiteIndex]
@@ -152,7 +167,7 @@ func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*W
 	}
 
 	if os.Getenv("FAKE_UPLOAD") == "true" {
-		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.Player.PlayerName), slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
+		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.Player.PlayerName), slog.Any("matchGUID", replay.Match.MatchGUID))
 		ac.AddToMatchHistory(replay.Match.MatchGUID)
 		return
 	}
@@ -160,9 +175,15 @@ func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*W
 	uploadCache := LoadUploadedCache(website.config.Name, len(u.appConfig.AccountSettings.Get()))
 
 	if !uploadCache.index[replay.Match.MatchGUID] {
+		filePath, err := getFilePath()
+		if err != nil {
+			logger.Rlogger.Error("Download error before upload:", slog.Any("err", err))
+			return
+		}
+
 		logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
 
-		err := website.UploadReplay(filePath)
+		err = website.UploadReplay(filePath)
 		if err != nil {
 			logger.Rlogger.Error("Upload error:", slog.Any("err", err))
 		} else {
