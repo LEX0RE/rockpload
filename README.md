@@ -9,16 +9,18 @@
 </p>
 
 
-A desktop companion app for [Rocky](https://lexore.ca/rocky) that watches your Rocket League replay history and automatically uploads new replays to the any website! (Rocky, Ballchasing and the one you want).
+A desktop companion app for Rocket League that watches your replay history and automatically uploads new replays to any website!
 
 ## Features
 
 - **Automatic Upload**: Monitors your Rocket League replay directory and uploads new replays in real time
 - **Epic Games Authentication**: Seamless authentication via Epic Games Launcher or custom OAuth
 - **Multi Account Upload**: Allow to upload for multiple account at the same time
+- **Multi Website Upload**: Allow to upload for multiple website at the same time ([Rocky](https://lexore.ca/rocky) and [Ballchasing](https://ballchasing.com) are preconfigured, but you can add as many as you want)
 - **System Tray Integration**: Runs quietly in the background with system tray controls
 - **Auto-start Support**: Launch rockpload automatically on system startup
 - **Cross-platform**: Supports Linux and Windows (macOS is not supported yet)
+- **Console Platform**: Supports Epic Games Store, Steam, and console (PlayStation, XBox, Nintendo) as long as the program run on a PC
 
 ## Supported Platforms
 
@@ -53,16 +55,16 @@ Run the application:
 rockpload.exe  # Windows
 ```
 
-The app will:
-1. Authenticate with Epic Games
-2. Monitor your Rocket League replay history
-3. Automatically upload new replays to Rocky website, Ballchasing and all others configured websites
-4. Run in the system tray
+Setup:
+1. Start the program on the PC
+2. Connect to your Epic account (if you are on another console/store then Epic, be sure that your account is linked to Epic)
+3. All the settings will be up right (Account Management, Storage Management and App Settings). Its there that you activate the auto upload
+4. If you wanna upload to Ballchasing, go to Storage Management and be sure that the Token is there and that the "Send Replay" is checked
+5. For not being disconnect while playing the game, be sure to have an account in the "Unused Account" section. This account is used to check for Online Status of all others account you have before trying to upload
 
 **Local State:**
-- Rocket League tokens: `~/.cache/rockpload/.token/` (Linux) or `%LOCALAPPDATA%\rockpload\.token\` (Windows)
-- Upload cache: `~/.cache/rockpload/.uploaded`
-- Application lock: `~/.cache/rockpload/rockpload.lock`
+- Config: `~/.cache/rockpload/` (Linux) or `%LOCALAPPDATA%\rockpload\` (Windows)
+- Cache: `~/.cache/rockpload/`
 
 **Note:** If you run the program on multiple devices, each device will need to authenticate separately. Only one device per account can maintain a valid token at a time.
 
