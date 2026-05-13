@@ -16,10 +16,11 @@ import (
 )
 
 const (
-	EventUploadStarted   = "upload_started"
-	EventUploadCompleted = "upload_completed"
-	EventUploadProgress  = "upload_progress"
-	EventReplayUploaded  = "replay_uploaded"
+	EventUploadStarted         = "upload_started"
+	EventUploadCompleted       = "upload_completed"
+	EventUploadPlayerCompleted = "upload_player_completed"
+	EventUploadProgress        = "upload_progress"
+	EventReplayUploaded        = "replay_uploaded"
 
 	uploadSleep             = time.Second
 	autoUploadTickerTime    = time.Minute * 45
@@ -102,6 +103,7 @@ func (u *Uploader) Run() {
 		for _, ac := range u.appConfig.AccountSettings.Get() {
 			u.upload(ac)
 		}
+		u.EventManager.Notify(EventUploadCompleted, nil)
 	}()
 }
 
@@ -148,10 +150,10 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 		u.EventManager.Notify(EventReplayUploaded, nil)
 	}
 
-	logger.Rlogger.Info("Upload complete")
+	logger.Rlogger.Info("Upload complete", slog.Any("Player", ac.Player.PlayerName))
 
 	u.EventManager.Notify(EventUploadProgress, float64(-1))
-	u.EventManager.Notify(EventUploadCompleted, nil)
+	u.EventManager.Notify(EventUploadPlayerCompleted, nil)
 }
 
 func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*Website, ac *config.AccountConfig, getFilePath func() (string, error)) {
