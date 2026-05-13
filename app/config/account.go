@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -62,14 +63,7 @@ func (ac *AccountConfig) UnmarshalJSON(data []byte) error {
 func (ac *AccountConfig) AddToMatchHistory(matchGUID string) {
 	logger.FuncDebug()
 
-	alreadyInHistory := false
-	for _, guid := range ac.HistorySended {
-		if guid == matchGUID {
-			alreadyInHistory = true
-		}
-	}
-
-	if !alreadyInHistory {
+	if !slices.Contains(ac.HistorySended, matchGUID) {
 		ac.HistorySended = append(ac.HistorySended, matchGUID)
 	}
 }

@@ -9,4 +9,5 @@ type BehaviorConfig struct {
 	NoUploadConnected Setting[bool] `json:"no_upload_connected"`
 
 	SelectedAccountId Setting[int] `json:"selected_account_id"`
+	SelectedStorageId Setting[int] `json:"selected_storage_id"`
 }

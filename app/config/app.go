@@ -33,6 +33,9 @@ func NewAppConfig() *AppConfig {
 	cfg.BehaviorConfig.StartInTray = NewSetting(false, saveHook)
 	cfg.BehaviorConfig.UploadOnLaunch = NewSetting(false, saveHook)
 
+	cfg.BehaviorConfig.SelectedAccountId = NewSetting(0, saveHook)
+	cfg.BehaviorConfig.SelectedStorageId = NewSetting(0, saveHook)
+
 	cfg.StorageSettings = NewSetting(storageListConfig{}, saveHook)
 	cfg.AccountSettings = NewSetting(make(map[int]*AccountConfig), saveHook)
 
