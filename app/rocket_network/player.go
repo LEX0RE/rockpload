@@ -40,7 +40,7 @@ func (p *Player) Connect() {
 }
 
 func (p *Player) SetProfile(profile rlapi.PlayerData) {
-	p.PlayerName = profile.PlayerName
+	p.PlayerName = profile.PlayerName + " (ID: " + strconv.Itoa(p.Auth.ProfileId) + ")"
 }
 
 func (p *Player) Reset() {
