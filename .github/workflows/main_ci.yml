@@ -21,6 +21,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Download dependencies
+        run: go mod download
+
       - name: Check formatting
         run: |
           unformatted=$(gofmt -l .)
@@ -53,6 +56,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Download dependencies
+        run: go mod download
 
       - name: Install Build Dependencies
         run: |
