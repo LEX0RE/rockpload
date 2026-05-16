@@ -7,7 +7,7 @@ PACKAGE_NAME="rockpload"
 rm -rf $RELEASE_PATH
 mkdir -p $RELEASE_PATH
 
-VERSION=${ROCKPLOAD_VERSION:-"1.2.0"}
+VERSION=${ROCKPLOAD_VERSION:-"1.2.1"}
 VERSION_CLEAN=$(echo $VERSION | sed 's/\//-/g')
 echo "Building version $VERSION_CLEAN"
 
