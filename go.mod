@@ -5,10 +5,11 @@ go 1.26.1
 require (
 	fyne.io/fyne/v2 v2.7.3
 	github.com/chromedp/chromedp v0.15.1
-	github.com/dank/rlapi v0.1.15
+	github.com/dank/rlapi v0.1.16
 	github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2
 	github.com/gofrs/flock v0.13.0
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf
+	golang.org/x/sys v0.44.0
 )
 
 require (
@@ -49,7 +50,6 @@ require (
 	github.com/yuin/goldmark v1.7.8 // indirect
 	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
