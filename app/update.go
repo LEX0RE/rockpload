@@ -12,6 +12,7 @@ import (
 	"runtime"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
+	"github.com/rogpeppe/go-internal/semver"
 
 	"github.com/inconshreveable/go-update"
 )
@@ -56,7 +57,7 @@ func (u *Updater) CheckForUpdate(currentVersion string) (bool, error) {
 		return false, nil
 	}
 
-	if info.Version > currentVersion {
+	if semver.Compare(info.Version, currentVersion) == 1 {
 		logger.Rlogger.Info("New version available: " + info.Version)
 		u.UpdateInfo = &info
 		return true, nil
