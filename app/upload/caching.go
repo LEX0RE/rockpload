@@ -97,3 +97,17 @@ func (c *UploadCache) Save() error {
 
 	return nil
 }
+
+func (c *UploadCache) Clear() error {
+	logger.FuncDebug()
+
+	c.items = []string{}
+	c.index = make(map[string]bool)
+
+	err := os.Remove(c.cachePath())
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
+}

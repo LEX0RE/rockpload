@@ -11,6 +11,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/upload"
 	"github.com/dank/rlapi"
 
 	"fyne.io/fyne/v2"
@@ -233,6 +234,15 @@ func (g *GUI) createPlayerUI() {
 		g.UpdateState()
 	})
 
+	clearCacheBtn := widget.NewButton("Clear Cache", func() {
+		storage := g.appConfig.StorageSettings.Get()
+
+		for _, website := range storage {
+			uploadCache := upload.LoadUploadedCache(website.Name, 0)
+			uploadCache.Clear()
+		}
+	})
+
 	matchHistoryAccordion := widget.NewAccordionItem("Match History", g.MatchHistoryList)
 	matchHistoryAccordion.Open = false
 
@@ -241,7 +251,7 @@ func (g *GUI) createPlayerUI() {
 			nil,
 			nil,
 			g.ConnectedLabel,
-			container.NewBorder(nil, nil, disconnectBtn, nil, uploadBtn),
+			container.NewBorder(nil, nil, disconnectBtn, uploadBtn, clearCacheBtn),
 			nil,
 		),
 		nil,
