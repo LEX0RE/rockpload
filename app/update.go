@@ -57,7 +57,14 @@ func (u *Updater) CheckForUpdate(currentVersion string) (bool, error) {
 		return false, nil
 	}
 
-	if semver.Compare(info.Version, currentVersion) == 1 {
+	formatVersion := func(v string) string {
+		if len(v) > 0 && v[0] != 'v' {
+			return "v" + v
+		}
+		return v
+	}
+
+	if semver.Compare(formatVersion(info.Version), formatVersion(currentVersion)) == 1 {
 		logger.Rlogger.Info("New version available: " + info.Version)
 		u.UpdateInfo = &info
 		return true, nil
