@@ -84,7 +84,13 @@ func (am *AccountManager) SetUnused(accountId int) {
 		am.appConfig.AccountSettings.Get()[accountId].IsUnused = true
 	}
 
-	am.EventManager.Notify(EVENT_UNUSED_ACCOUNT, am.GetUnused().Id())
+	nextUnused := am.GetUnused()
+	nextId := -1
+	if nextUnused != nil {
+		nextId = nextUnused.Id()
+	}
+
+	am.EventManager.Notify(EVENT_UNUSED_ACCOUNT, nextId)
 	am.appConfig.Save()
 }
 
