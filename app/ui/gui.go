@@ -16,6 +16,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -229,18 +230,26 @@ func (g *GUI) createPlayerUI() {
 	})
 
 	disconnectBtn := widget.NewButton("Disconnect", func() {
-		selectedAccount := g.accountManager.GetSelected()
-		selectedAccount.Player.Reset()
-		g.UpdateState()
+		dialog.ShowConfirm("Disconnect", "Are you sure you want tto disconnect this account ?", func(confirmed bool) {
+			if confirmed {
+				selectedAccount := g.accountManager.GetSelected()
+				selectedAccount.Player.Reset()
+				g.UpdateState()
+			}
+		}, g.window)
 	})
 
 	clearCacheBtn := widget.NewButton("Clear Cache", func() {
-		storage := g.appConfig.StorageSettings.Get()
+		dialog.ShowConfirm("Clear Match History Cache", "Are you sure you want to delete match history cache ?", func(confirmed bool) {
+			if confirmed {
+				storage := g.appConfig.StorageSettings.Get()
 
-		for _, website := range storage {
-			uploadCache := upload.LoadUploadedCache(website.Name, 0)
-			uploadCache.Clear()
-		}
+				for _, website := range storage {
+					uploadCache := upload.LoadUploadedCache(website.Name, 0)
+					uploadCache.Clear()
+				}
+			}
+		}, g.window)
 	})
 
 	matchHistoryAccordion := widget.NewAccordionItem("Match History", g.MatchHistoryList)
