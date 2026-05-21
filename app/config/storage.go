@@ -69,7 +69,7 @@ var BALLCHASING_WEBSITE = &StorageConfig{
 	URL:          "https://ballchasing.com/api",
 	IsPrimary:    false,
 	IsPredefined: true,
-	URIParams:    map[string]string{"vibilitity": "public"},
+	URIParams:    map[string]string{"visibility": "public"},
 	NeedToken:    true,
 	Token:        "",
 	SendPing:     true,
