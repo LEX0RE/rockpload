@@ -104,6 +104,7 @@ func (u *Uploader) Run() {
 	defer u.lockInRunRLAPI.Unlock()
 
 	u.EventManager.Notify(EventUploadStarted, nil)
+	u.EventManager.Notify(EventUploadProgress, 0)
 
 	go func() {
 		for _, ac := range u.appConfig.AccountSettings.Get() {
@@ -175,8 +176,9 @@ func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []Up
 	}
 
 	if os.Getenv("FAKE_UPLOAD") == "true" {
-		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.AccountName()), slog.Any("matchGUID", replay.Match.MatchGUID))
+		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.AccountName()), slog.Any("Storage", storage.GetConfig().Name), slog.Any("matchGUID", replay.Match.MatchGUID))
 		ac.AddToMatchHistory(replay.Match.MatchGUID)
+		time.Sleep(uploadSleep)
 		return
 	}
 
