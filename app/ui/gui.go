@@ -239,7 +239,7 @@ func (g *GUI) createPlayerUI() {
 		}, g.window)
 	})
 
-	clearCacheBtn := widget.NewButton("Clear Cache", func() {
+	clearCacheBtn := widget.NewButton("Clear Match History Cache", func() {
 		dialog.ShowConfirm("Clear Match History Cache", "Are you sure you want to delete match history cache ?", func(confirmed bool) {
 			if confirmed {
 				storage := g.appConfig.StorageSettings.Get()

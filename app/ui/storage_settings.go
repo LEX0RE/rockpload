@@ -16,24 +16,26 @@ import (
 )
 
 type StorageInfoContainer struct {
-	titleLabel      *widget.Label
-	urlEntry        *widget.Entry
-	uriParamsEntry  *widget.Entry
-	needTokenCheck  *widget.Check
-	tokenEntry      *widget.Entry
-	sendPingCheck   *widget.Check
-	pingPathEntry   *widget.Entry
-	sendReplayCheck *widget.Check
-	replayPathEntry *widget.Entry
+	titleLabel        *widget.Label
+	urlEntry          *widget.Entry
+	storageTypeSelect *widget.Select
+	uriParamsEntry    *widget.Entry
+	needTokenCheck    *widget.Check
+	tokenEntry        *widget.Entry
+	sendPingCheck     *widget.Check
+	pingPathEntry     *widget.Entry
+	sendReplayCheck   *widget.Check
+	replayPathEntry   *widget.Entry
 
-	urlForm        *widget.FormItem
-	uriParamsForm  *widget.FormItem
-	needTokenForm  *widget.FormItem
-	tokenForm      *widget.FormItem
-	sendPingForm   *widget.FormItem
-	pingPathForm   *widget.FormItem
-	sendReplayForm *widget.FormItem
-	replayPathForm *widget.FormItem
+	urlForm         *widget.FormItem
+	storageTypeForm *widget.FormItem
+	uriParamsForm   *widget.FormItem
+	needTokenForm   *widget.FormItem
+	tokenForm       *widget.FormItem
+	sendPingForm    *widget.FormItem
+	pingPathForm    *widget.FormItem
+	sendReplayForm  *widget.FormItem
+	replayPathForm  *widget.FormItem
 }
 
 type StorageSettingsPopup struct {
@@ -136,6 +138,11 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.titleLabel = widget.NewLabelWithStyle("Select a website", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 
 	wsp.infoContainer.urlEntry = widget.NewEntry()
+
+	wsp.infoContainer.storageTypeSelect = widget.NewSelect([]string{"Website", "File System"}, func(val string) {
+		wsp.reload()
+	})
+
 	wsp.infoContainer.uriParamsEntry = widget.NewMultiLineEntry()
 	wsp.infoContainer.uriParamsEntry.SetPlaceHolder("")
 
@@ -150,6 +157,7 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.replayPathEntry = widget.NewEntry()
 
 	wsp.infoContainer.urlForm = widget.NewFormItem("URL", wsp.infoContainer.urlEntry)
+	wsp.infoContainer.storageTypeForm = widget.NewFormItem("Storage Type", wsp.infoContainer.storageTypeSelect)
 	wsp.infoContainer.uriParamsForm = widget.NewFormItem("URI Params", wsp.infoContainer.uriParamsEntry)
 	wsp.infoContainer.needTokenForm = widget.NewFormItem("Need Token", wsp.infoContainer.needTokenCheck)
 	wsp.infoContainer.tokenForm = widget.NewFormItem("Token", wsp.infoContainer.tokenEntry)
@@ -160,6 +168,7 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 
 	return widget.NewForm(
 		wsp.infoContainer.urlForm,
+		wsp.infoContainer.storageTypeForm,
 		wsp.infoContainer.needTokenForm,
 		wsp.infoContainer.tokenForm,
 		wsp.infoContainer.sendPingForm,
@@ -180,6 +189,16 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 
 	wsp.infoContainer.titleLabel.SetText(site.Name)
 	wsp.infoContainer.urlEntry.SetText(site.URL)
+
+	switch site.StorageType {
+	case config.FileSystemConfig:
+		wsp.infoContainer.storageTypeSelect.SetSelected("File System")
+	case config.WebsiteConfig:
+		fallthrough
+	default:
+		wsp.infoContainer.storageTypeSelect.SetSelected("Website")
+	}
+
 	wsp.infoContainer.needTokenCheck.SetChecked(site.NeedToken)
 	wsp.infoContainer.tokenEntry.SetText(site.Token)
 	wsp.infoContainer.sendPingCheck.SetChecked(site.SendPing)
@@ -213,6 +232,7 @@ func (wsp *StorageSettingsPopup) reload() {
 			wsp.btnDelete.Disable()
 
 			wsp.infoContainer.urlEntry.Disable()
+			wsp.infoContainer.storageTypeSelect.Disable()
 			wsp.infoContainer.needTokenCheck.Disable()
 			wsp.infoContainer.sendPingCheck.Disable()
 			wsp.infoContainer.pingPathEntry.Disable()
@@ -225,13 +245,23 @@ func (wsp *StorageSettingsPopup) reload() {
 			} else {
 				wsp.btnSave.Enable()
 				wsp.infoContainer.sendReplayCheck.Enable()
-				wsp.infoContainer.uriParamsEntry.Enable()
+
+				switch site.StorageType {
+				case config.FileSystemConfig:
+					wsp.infoContainer.replayPathEntry.Enable()
+					wsp.infoContainer.uriParamsEntry.Disable()
+				case config.WebsiteConfig:
+				default:
+					wsp.infoContainer.replayPathEntry.Disable()
+					wsp.infoContainer.uriParamsEntry.Enable()
+				}
 			}
 		} else {
 			wsp.btnDelete.Enable()
 			wsp.btnSave.Enable()
 
 			wsp.infoContainer.urlEntry.Enable()
+			wsp.infoContainer.storageTypeSelect.Enable()
 			wsp.infoContainer.uriParamsEntry.Enable()
 			wsp.infoContainer.needTokenCheck.Enable()
 			wsp.infoContainer.sendPingCheck.Enable()
@@ -269,6 +299,7 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	wsp.infoContainer.titleLabel.SetText("Select a website")
 
 	wsp.infoContainer.urlEntry.SetText("")
+	wsp.infoContainer.storageTypeSelect.ClearSelected()
 	wsp.infoContainer.needTokenCheck.SetChecked(false)
 	wsp.infoContainer.tokenEntry.SetText("")
 	wsp.infoContainer.sendPingCheck.SetChecked(false)
@@ -292,6 +323,16 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	site := wsp.websites[selectedIndex]
 
 	site.URL = wsp.infoContainer.urlEntry.Text
+
+	switch site.StorageType {
+	case config.FileSystemConfig:
+		site.StorageType = config.FileSystemConfig
+	case config.WebsiteConfig:
+		fallthrough
+	default:
+		site.StorageType = config.WebsiteConfig
+	}
+
 	site.NeedToken = wsp.infoContainer.needTokenCheck.Checked
 	site.Token = wsp.infoContainer.tokenEntry.Text
 	site.SendPing = wsp.infoContainer.sendPingCheck.Checked
@@ -336,6 +377,7 @@ func (wsp *StorageSettingsPopup) onAddWebsiteBtn() {
 				URL:          "",
 				IsPrimary:    false,
 				IsPredefined: false,
+				StorageType:  config.WebsiteConfig,
 				NeedToken:    false,
 				SendPing:     false,
 				SendReplay:   false,
