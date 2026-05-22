@@ -2,12 +2,14 @@ package ui
 
 import (
 	"log/slog"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -39,6 +41,8 @@ type GUI struct {
 	ConnectedLabel   *widget.Label
 	MatchHistoryData []string
 	MatchHistoryList *widget.List
+	UploadStatus     *widget.Label
+	UploadProgress   *widget.ProgressBar
 
 	EventManager *tools.EventManager
 
@@ -212,6 +216,10 @@ func (g *GUI) createPlayerUI() {
 	g.ConnectedLabel = widget.NewLabel("")
 	g.RefreshConnectedAccount()
 
+	g.UploadStatus = widget.NewLabel(g.lastUploadStatusText())
+	g.UploadProgress = widget.NewProgressBar()
+	g.UploadProgress.Hide()
+
 	g.MatchHistoryData = []string{}
 	g.MatchHistoryList = widget.NewList(
 		func() int {
@@ -239,7 +247,7 @@ func (g *GUI) createPlayerUI() {
 		}, g.window)
 	})
 
-	clearCacheBtn := widget.NewButton("Clear Cache", func() {
+	clearCacheBtn := widget.NewButton("Clear Match History Cache", func() {
 		dialog.ShowConfirm("Clear Match History Cache", "Are you sure you want to delete match history cache ?", func(confirmed bool) {
 			if confirmed {
 				storage := g.appConfig.StorageSettings.Get()
@@ -248,12 +256,18 @@ func (g *GUI) createPlayerUI() {
 					uploadCache := upload.LoadUploadedCache(website.Name, 0)
 					uploadCache.Clear()
 				}
+
+				if g.UploadStatus != nil {
+					g.UploadStatus.SetText(g.lastUploadStatusText())
+				}
 			}
 		}, g.window)
 	})
 
 	matchHistoryAccordion := widget.NewAccordionItem("Match History", g.MatchHistoryList)
 	matchHistoryAccordion.Open = false
+
+	uploadProgressBox := container.NewBorder(nil, nil, g.UploadStatus, nil, g.UploadProgress)
 
 	g.PlayerBox = container.NewBorder(
 		container.NewBorder(
@@ -266,8 +280,53 @@ func (g *GUI) createPlayerUI() {
 		nil,
 		nil,
 		nil,
-		widget.NewAccordion(matchHistoryAccordion),
+		container.NewBorder(uploadProgressBox, nil, nil, nil, widget.NewAccordion(matchHistoryAccordion)),
 	)
+}
+
+func (g *GUI) UpdateUploadProgress(progress float64) {
+	logger.FuncDebug()
+
+	if g.UploadStatus == nil || g.UploadProgress == nil {
+		return
+	}
+
+	if progress == -1 {
+		g.UploadProgress.Hide()
+		g.UploadStatus.SetText("Last upload: " + time.Now().Format("2006-01-02 15:04:05"))
+		return
+	}
+
+	value := float64(max(0, min(progress, 1)))
+	g.UploadProgress.SetValue(value)
+	g.UploadProgress.Show()
+	g.UploadStatus.SetText("Uploading replays... " + strconv.Itoa(int(value*100)) + "%")
+}
+
+func (g *GUI) lastUploadStatusText() string {
+	lastUploadAt, ok := g.lastUploadAt()
+	if !ok {
+		return "Last upload: Never"
+	}
+
+	return "Last upload: " + lastUploadAt.Format("2006-01-02 15:04:05")
+}
+
+func (g *GUI) lastUploadAt() (time.Time, bool) {
+	var lastUploadAt time.Time
+
+	for _, storage := range g.appConfig.StorageSettings.Get() {
+		info, err := os.Stat(constant.UploadedCache + "_" + storage.Name)
+		if err != nil {
+			continue
+		}
+
+		if info.ModTime().After(lastUploadAt) {
+			lastUploadAt = info.ModTime()
+		}
+	}
+
+	return lastUploadAt, !lastUploadAt.IsZero()
 }
 
 func (g *GUI) RefreshConnectedAccount() {
@@ -286,7 +345,7 @@ func (g *GUI) RefreshConnectedAccount() {
 	connectedText := "Connected (" + strconv.Itoa(authenticatedAccount) + "/" + strconv.Itoa(allAccount) + ")"
 
 	if selectedAccount != nil && selectedAccount.IsConnected() {
-		g.ConnectedLabel.SetText(connectedText + ": " + selectedAccount.Player.PlayerName)
+		g.ConnectedLabel.SetText(connectedText + ": " + selectedAccount.AccountName())
 	} else {
 		g.ConnectedLabel.SetText(connectedText)
 	}

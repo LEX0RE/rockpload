@@ -2,7 +2,6 @@ package rocket_network
 
 import (
 	"log/slog"
-	"strconv"
 	"sync"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -21,7 +20,7 @@ type Player struct {
 func NewPlayer(profileId int) *Player {
 	logger.FuncDebug()
 
-	p := &Player{PlayerName: "Player (ID: " + strconv.Itoa(profileId) + ")", Auth: NewAuth(profileId)}
+	p := &Player{PlayerName: "Player", Auth: NewAuth(profileId)}
 
 	return p
 }
@@ -40,13 +39,13 @@ func (p *Player) Connect() {
 }
 
 func (p *Player) SetProfile(profile rlapi.PlayerData) {
-	p.PlayerName = profile.PlayerName + " (ID: " + strconv.Itoa(p.Auth.ProfileId) + ")"
+	p.PlayerName = profile.PlayerName
 }
 
 func (p *Player) Reset() {
 	logger.FuncDebug()
 
-	p.PlayerName = "Player (ID: " + strconv.Itoa(p.Auth.ProfileId) + ")"
+	p.PlayerName = "Player"
 	p.Auth.ClearToken()
 	p.PlayerID = nil
 	p.MatchHistory = nil

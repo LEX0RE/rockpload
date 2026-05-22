@@ -52,3 +52,14 @@ func GetConfigPath() string {
 
 	return dir
 }
+
+func GetHomePath() string {
+	// No logger as some global var use it
+	dir, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+
+	return dir
+
+}

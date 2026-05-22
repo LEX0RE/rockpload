@@ -16,24 +16,28 @@ import (
 )
 
 type StorageInfoContainer struct {
-	titleLabel      *widget.Label
-	urlEntry        *widget.Entry
-	uriParamsEntry  *widget.Entry
-	needTokenCheck  *widget.Check
-	tokenEntry      *widget.Entry
-	sendPingCheck   *widget.Check
-	pingPathEntry   *widget.Entry
-	sendReplayCheck *widget.Check
-	replayPathEntry *widget.Entry
+	titleLabel        *widget.Label
+	urlEntry          *widget.Entry
+	storageTypeSelect *widget.Select
+	uriParamsEntry    *widget.Entry
+	needTokenCheck    *widget.Check
+	tokenEntry        *widget.Entry
+	sendPingCheck     *widget.Check
+	pingPathEntry     *widget.Entry
+	sendReplayCheck   *widget.Check
+	replayPathEntry   *widget.Entry
+	templateNameEntry *widget.Entry
 
-	urlForm        *widget.FormItem
-	uriParamsForm  *widget.FormItem
-	needTokenForm  *widget.FormItem
-	tokenForm      *widget.FormItem
-	sendPingForm   *widget.FormItem
-	pingPathForm   *widget.FormItem
-	sendReplayForm *widget.FormItem
-	replayPathForm *widget.FormItem
+	urlForm          *widget.FormItem
+	storageTypeForm  *widget.FormItem
+	uriParamsForm    *widget.FormItem
+	needTokenForm    *widget.FormItem
+	tokenForm        *widget.FormItem
+	sendPingForm     *widget.FormItem
+	pingPathForm     *widget.FormItem
+	sendReplayForm   *widget.FormItem
+	replayPathForm   *widget.FormItem
+	templateNameForm *widget.FormItem
 }
 
 type StorageSettingsPopup struct {
@@ -113,7 +117,7 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 
 	wsp.SetContent(wsp.split)
 
-	wsp.popup.Resize(fyne.NewSize(400, 350))
+	wsp.popup.Resize(fyne.NewSize(650, 350))
 
 	wsp.onSelected(wsp.appConfig.BehaviorConfig.SelectedStorageId.Get())
 
@@ -136,6 +140,11 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.titleLabel = widget.NewLabelWithStyle("Select a website", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 
 	wsp.infoContainer.urlEntry = widget.NewEntry()
+
+	wsp.infoContainer.storageTypeSelect = widget.NewSelect([]string{"Website", "File System"}, func(val string) {
+		wsp.reload()
+	})
+
 	wsp.infoContainer.uriParamsEntry = widget.NewMultiLineEntry()
 	wsp.infoContainer.uriParamsEntry.SetPlaceHolder("")
 
@@ -148,8 +157,10 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 
 	wsp.infoContainer.sendReplayCheck = widget.NewCheck("", func(bool) { wsp.reload() })
 	wsp.infoContainer.replayPathEntry = widget.NewEntry()
+	wsp.infoContainer.templateNameEntry = widget.NewEntry()
 
 	wsp.infoContainer.urlForm = widget.NewFormItem("URL", wsp.infoContainer.urlEntry)
+	wsp.infoContainer.storageTypeForm = widget.NewFormItem("Storage Type", wsp.infoContainer.storageTypeSelect)
 	wsp.infoContainer.uriParamsForm = widget.NewFormItem("URI Params", wsp.infoContainer.uriParamsEntry)
 	wsp.infoContainer.needTokenForm = widget.NewFormItem("Need Token", wsp.infoContainer.needTokenCheck)
 	wsp.infoContainer.tokenForm = widget.NewFormItem("Token", wsp.infoContainer.tokenEntry)
@@ -157,15 +168,18 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.pingPathForm = widget.NewFormItem("Ping Path", wsp.infoContainer.pingPathEntry)
 	wsp.infoContainer.sendReplayForm = widget.NewFormItem("Send Replay", wsp.infoContainer.sendReplayCheck)
 	wsp.infoContainer.replayPathForm = widget.NewFormItem("Replay Path", wsp.infoContainer.replayPathEntry)
+	wsp.infoContainer.templateNameForm = widget.NewFormItem("Replay Name Template", wsp.infoContainer.templateNameEntry)
 
 	return widget.NewForm(
+		wsp.infoContainer.sendReplayForm,
+		wsp.infoContainer.replayPathForm,
+		wsp.infoContainer.templateNameForm,
 		wsp.infoContainer.urlForm,
+		wsp.infoContainer.storageTypeForm,
 		wsp.infoContainer.needTokenForm,
 		wsp.infoContainer.tokenForm,
 		wsp.infoContainer.sendPingForm,
 		wsp.infoContainer.pingPathForm,
-		wsp.infoContainer.sendReplayForm,
-		wsp.infoContainer.replayPathForm,
 		wsp.infoContainer.uriParamsForm,
 	)
 }
@@ -180,12 +194,23 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 
 	wsp.infoContainer.titleLabel.SetText(site.Name)
 	wsp.infoContainer.urlEntry.SetText(site.URL)
+
+	switch site.StorageType {
+	case config.FileSystemConfig:
+		wsp.infoContainer.storageTypeSelect.SetSelected("File System")
+	default:
+		fallthrough
+	case config.WebsiteConfig:
+		wsp.infoContainer.storageTypeSelect.SetSelected("Website")
+	}
+
 	wsp.infoContainer.needTokenCheck.SetChecked(site.NeedToken)
 	wsp.infoContainer.tokenEntry.SetText(site.Token)
 	wsp.infoContainer.sendPingCheck.SetChecked(site.SendPing)
 	wsp.infoContainer.pingPathEntry.SetText(site.PingPath)
 	wsp.infoContainer.sendReplayCheck.SetChecked(site.SendReplay)
 	wsp.infoContainer.replayPathEntry.SetText(site.ReplayPath)
+	wsp.infoContainer.templateNameEntry.SetText(site.TemplateName)
 
 	if wsp.infoContainer.needTokenCheck.Checked {
 		wsp.infoContainer.tokenEntry.Enable()
@@ -213,10 +238,12 @@ func (wsp *StorageSettingsPopup) reload() {
 			wsp.btnDelete.Disable()
 
 			wsp.infoContainer.urlEntry.Disable()
+			wsp.infoContainer.storageTypeSelect.Disable()
 			wsp.infoContainer.needTokenCheck.Disable()
 			wsp.infoContainer.sendPingCheck.Disable()
 			wsp.infoContainer.pingPathEntry.Disable()
 			wsp.infoContainer.replayPathEntry.Disable()
+			wsp.infoContainer.templateNameEntry.Disable()
 
 			if site.IsPrimary {
 				wsp.btnSave.Disable()
@@ -225,19 +252,32 @@ func (wsp *StorageSettingsPopup) reload() {
 			} else {
 				wsp.btnSave.Enable()
 				wsp.infoContainer.sendReplayCheck.Enable()
-				wsp.infoContainer.uriParamsEntry.Enable()
+				wsp.infoContainer.templateNameEntry.Enable()
+
+				switch site.StorageType {
+				case config.FileSystemConfig:
+					wsp.infoContainer.replayPathEntry.Enable()
+					wsp.infoContainer.uriParamsEntry.Disable()
+				default:
+					fallthrough
+				case config.WebsiteConfig:
+					wsp.infoContainer.replayPathEntry.Disable()
+					wsp.infoContainer.uriParamsEntry.Enable()
+				}
 			}
 		} else {
 			wsp.btnDelete.Enable()
 			wsp.btnSave.Enable()
 
 			wsp.infoContainer.urlEntry.Enable()
+			wsp.infoContainer.storageTypeSelect.Enable()
 			wsp.infoContainer.uriParamsEntry.Enable()
 			wsp.infoContainer.needTokenCheck.Enable()
 			wsp.infoContainer.sendPingCheck.Enable()
 			wsp.infoContainer.pingPathEntry.Enable()
 			wsp.infoContainer.sendReplayCheck.Enable()
 			wsp.infoContainer.replayPathEntry.Enable()
+			wsp.infoContainer.templateNameEntry.Enable()
 		}
 	}
 
@@ -255,8 +295,10 @@ func (wsp *StorageSettingsPopup) reload() {
 
 	if wsp.infoContainer.sendReplayCheck.Checked {
 		wsp.infoContainer.replayPathForm.Widget.Show()
+		wsp.infoContainer.templateNameForm.Widget.Show()
 	} else {
 		wsp.infoContainer.replayPathForm.Widget.Hide()
+		wsp.infoContainer.templateNameForm.Widget.Hide()
 	}
 
 	wsp.editForm.Refresh()
@@ -269,12 +311,14 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	wsp.infoContainer.titleLabel.SetText("Select a website")
 
 	wsp.infoContainer.urlEntry.SetText("")
+	wsp.infoContainer.storageTypeSelect.ClearSelected()
 	wsp.infoContainer.needTokenCheck.SetChecked(false)
 	wsp.infoContainer.tokenEntry.SetText("")
 	wsp.infoContainer.sendPingCheck.SetChecked(false)
 	wsp.infoContainer.pingPathEntry.SetText("")
 	wsp.infoContainer.sendReplayCheck.SetChecked(false)
 	wsp.infoContainer.replayPathEntry.SetText("")
+	wsp.infoContainer.templateNameEntry.SetText("")
 	wsp.infoContainer.uriParamsEntry.SetText("")
 
 	wsp.btnDelete.Disable()
@@ -292,12 +336,23 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	site := wsp.websites[selectedIndex]
 
 	site.URL = wsp.infoContainer.urlEntry.Text
+
+	switch site.StorageType {
+	case config.FileSystemConfig:
+		site.StorageType = config.FileSystemConfig
+	default:
+		fallthrough
+	case config.WebsiteConfig:
+		site.StorageType = config.WebsiteConfig
+	}
+
 	site.NeedToken = wsp.infoContainer.needTokenCheck.Checked
 	site.Token = wsp.infoContainer.tokenEntry.Text
 	site.SendPing = wsp.infoContainer.sendPingCheck.Checked
 	site.PingPath = wsp.infoContainer.pingPathEntry.Text
 	site.SendReplay = wsp.infoContainer.sendReplayCheck.Checked
 	site.ReplayPath = wsp.infoContainer.replayPathEntry.Text
+	site.TemplateName = wsp.infoContainer.templateNameEntry.Text
 
 	newParams := make(map[string]string)
 	lines := strings.Split(wsp.infoContainer.uriParamsEntry.Text, "\n")
@@ -336,6 +391,7 @@ func (wsp *StorageSettingsPopup) onAddWebsiteBtn() {
 				URL:          "",
 				IsPrimary:    false,
 				IsPredefined: false,
+				StorageType:  config.WebsiteConfig,
 				NeedToken:    false,
 				SendPing:     false,
 				SendReplay:   false,

@@ -119,12 +119,11 @@ func (a *App) initPlayers() {
 		fyne.Do(a.gui.UpdateState)
 	}
 
-	uploadPopup := ui.NewUploadingPopup(ui.NewPopup("Uploading Replays...", a.window, a.appConfig, a.accountManager), 0)
 	a.uploader = upload.NewUploader(a.appConfig)
 
 	a.uploader.EventManager.Subscribe(upload.EventUploadProgress, tools.Listener{IsSync: false, Callback: func(data any) {
-		if progress, ok := data.(float64); ok {
-			uploadPopup.UpdateProgress(progress)
+		if progress, ok := data.(float64); ok && a.gui != nil {
+			a.gui.UpdateUploadProgress(progress)
 		}
 	}})
 
