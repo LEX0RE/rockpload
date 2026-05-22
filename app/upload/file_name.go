@@ -31,11 +31,16 @@ func replayUploadFileName(filePath string, template string, replayUpload ReplayU
 	}
 
 	win := replayUpload.playerWon()
-	winLoss := "Loss"
-	wl := "L"
-	if win {
+	winLoss := ""
+	wl := ""
+
+	switch win {
+	case 1:
 		winLoss = "Win"
 		wl = "W"
+	case 0:
+		winLoss = "Loss"
+		wl = "L"
 	}
 
 	replacements := map[string]string{
@@ -79,14 +84,22 @@ func timeFromReplayTimestamp(timestamp int64) time.Time {
 	}
 }
 
-func (ru ReplayUpload) playerWon() bool {
+func (ru ReplayUpload) playerWon() int {
+	if ru.Replay.Match.WinningTeam == -1 {
+		return -1
+	}
+
 	for _, player := range ru.Replay.Match.Players {
 		if player.PlayerID == ru.PlayerID || player.PlayerName == ru.PlayerName {
-			return player.LastTeam == ru.Replay.Match.WinningTeam
+			if player.LastTeam == ru.Replay.Match.WinningTeam {
+				return 1
+			} else {
+				return 0
+			}
 		}
 	}
 
-	return false
+	return -1
 }
 
 func sanitizeFileName(fileName string) string {

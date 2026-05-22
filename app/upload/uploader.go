@@ -22,7 +22,7 @@ const (
 	EventUploadProgress        = "upload_progress"
 	EventReplayUploaded        = "replay_uploaded"
 
-	uploadSleep             = time.Second
+	uploadSleep             = time.Second // Ballchasing PATCH is 2 req/sec max, so don't go below that
 	autoUploadTickerTime    = time.Minute * 45
 	autoUploadJitterMinTime = 0
 	autoUploadJitterMaxTime = time.Minute * 15
