@@ -29,7 +29,7 @@ const (
 )
 
 type UploadStorage interface {
-	UploadReplay(filePath string) error
+	UploadReplay(filePath string, replayUpload ReplayUpload) error
 	Ping() error
 	GetConfig() *config.StorageConfig
 }
@@ -156,7 +156,7 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 		u.EventManager.Notify(EventReplayUploaded, nil)
 	}
 
-	logger.Rlogger.Info("Upload complete", slog.Any("Player", ac.Player.PlayerName))
+	logger.Rlogger.Info("Upload complete", slog.Any("Player", ac.AccountName()))
 
 	u.EventManager.Notify(EventUploadProgress, float64(-1))
 	u.EventManager.Notify(EventUploadPlayerCompleted, nil)
@@ -175,7 +175,7 @@ func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []Up
 	}
 
 	if os.Getenv("FAKE_UPLOAD") == "true" {
-		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.Player.PlayerName), slog.Any("matchGUID", replay.Match.MatchGUID))
+		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.AccountName()), slog.Any("matchGUID", replay.Match.MatchGUID))
 		ac.AddToMatchHistory(replay.Match.MatchGUID)
 		return
 	}
@@ -191,7 +191,17 @@ func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []Up
 
 		logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
 
-		err = storage.UploadReplay(filePath)
+		playerID := ""
+		if ac.Player.PlayerID != nil {
+			playerID = ac.Player.PlayerID.String()
+		}
+
+		err = storage.UploadReplay(filePath, ReplayUpload{
+			PlayerName: ac.Player.PlayerName,
+			PlayerID:   playerID,
+			Replay:     replay,
+			Number:     replayIndex + 1,
+		})
 		if err != nil {
 			logger.Rlogger.Error("Upload error:", slog.Any("err", err))
 		} else {
@@ -201,7 +211,7 @@ func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []Up
 
 		time.Sleep(uploadSleep)
 	} else {
-		logger.Rlogger.Debug("Skipping replay as it was already uploaded")
+		logger.Rlogger.Debug("Skipping replay as it was already uploaded", slog.Any("Storage", storage.GetConfig().Name))
 		ac.AddToMatchHistory(replay.Match.MatchGUID)
 	}
 
@@ -223,9 +233,9 @@ func (u *Uploader) getStorages() []UploadStorage {
 		switch storageConfig.StorageType {
 		case config.FileSystemConfig:
 			backend = NewFileSystem(storageConfig)
-		case config.WebsiteConfig:
-			backend = NewWebsite(storageConfig)
 		default:
+			fallthrough
+		case config.WebsiteConfig:
 			backend = NewWebsite(storageConfig)
 		}
 

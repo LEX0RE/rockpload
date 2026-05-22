@@ -58,6 +58,9 @@ const (
 
 type StorageConfig struct {
 	Name         string            `json:"name"`
+	SendReplay   bool              `json:"send_replay"`
+	ReplayPath   string            `json:"replay_path"`
+	TemplateName string            `json:"template_file"`
 	URL          string            `json:"url"`
 	IsPrimary    bool              `json:"is_primary"`
 	IsPredefined bool              `json:"is_predefined"`
@@ -67,8 +70,6 @@ type StorageConfig struct {
 	Token        string            `json:"token"`
 	SendPing     bool              `json:"send_ping"`
 	PingPath     string            `json:"ping_path"`
-	SendReplay   bool              `json:"send_replay"`
-	ReplayPath   string            `json:"replay_path"`
 	// SendLive   bool // TODO Not implemented yet
 	// LivePath   string // TODO Not implemented yet
 }
@@ -86,6 +87,7 @@ var ROCKY_STORAGE = &StorageConfig{
 	PingPath:     "/",
 	SendReplay:   true,
 	ReplayPath:   "/upload",
+	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	// SendLive:   false, // TODO Not implemented yet
 	// LivePath:   "", // TODO Not implemented yet
 }
@@ -101,8 +103,9 @@ var BALLCHASING_STORAGE = &StorageConfig{
 	Token:        "",
 	SendPing:     true,
 	PingPath:     "/",
-	SendReplay:   true,
+	SendReplay:   false,
 	ReplayPath:   "/v2/upload",
+	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	// SendLive:   false, // TODO Not implemented yet
 	// LivePath:   "", // TODO Not implemented yet
 }
@@ -120,6 +123,7 @@ var LOCALHOST_STORAGE = &StorageConfig{
 	PingPath:     "/",
 	SendReplay:   true,
 	ReplayPath:   "/upload",
+	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	// SendLive:   false, // TODO Not implemented yet
 	// LivePath:   "", // TODO Not implemented yet
 }
@@ -137,6 +141,7 @@ var FILE_SYSTEM_STORAGE = &StorageConfig{
 	PingPath:     "/",
 	SendReplay:   false,
 	ReplayPath:   constant.GetHomePath(),
+	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	// SendLive:   false, // TODO Not implemented yet
 	// LivePath:   "", // TODO Not implemented yet
 }

@@ -286,7 +286,7 @@ func (g *GUI) RefreshConnectedAccount() {
 	connectedText := "Connected (" + strconv.Itoa(authenticatedAccount) + "/" + strconv.Itoa(allAccount) + ")"
 
 	if selectedAccount != nil && selectedAccount.IsConnected() {
-		g.ConnectedLabel.SetText(connectedText + ": " + selectedAccount.Player.PlayerName)
+		g.ConnectedLabel.SetText(connectedText + ": " + selectedAccount.AccountName())
 	} else {
 		g.ConnectedLabel.SetText(connectedText)
 	}

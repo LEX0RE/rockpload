@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"slices"
+	"strconv"
 
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -58,6 +59,23 @@ func (ac *AccountConfig) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+func (ac *AccountConfig) AccountName() string {
+	if ac.Player == nil || ac.Player.Auth == nil {
+		return "Unknown"
+	}
+
+	idName := ""
+	if ac.Player.Auth.ProfileId >= 0 {
+		idName = " (ID: " + strconv.Itoa(ac.Player.Auth.ProfileId) + ")"
+	}
+
+	if ac.Player.PlayerName == "" {
+		return "Player" + idName
+	}
+
+	return ac.Player.PlayerName + " (ID: " + strconv.Itoa(ac.Player.Auth.ProfileId) + ")"
 }
 
 func (ac *AccountConfig) AddToMatchHistory(matchGUID string) {

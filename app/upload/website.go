@@ -7,7 +7,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -21,7 +20,7 @@ func NewWebsite(config *config.StorageConfig) *Website {
 	return &Website{config: config}
 }
 
-func (w *Website) UploadReplay(filePath string) error {
+func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error {
 	logger.FuncDebug()
 
 	if !w.config.SendReplay {
@@ -37,7 +36,8 @@ func (w *Website) UploadReplay(filePath string) error {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 
-	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	fileName := replayUploadFileName(filePath, w.config.TemplateName, replayUpload)
+	part, err := writer.CreateFormFile("file", fileName)
 	if err != nil {
 		return err
 	}

@@ -18,7 +18,7 @@ func NewFileSystem(config *config.StorageConfig) *FileSystem {
 	return &FileSystem{config: config}
 }
 
-func (fs *FileSystem) UploadReplay(filePath string) error {
+func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) error {
 	logger.FuncDebug()
 
 	if !fs.config.SendReplay {
@@ -40,7 +40,7 @@ func (fs *FileSystem) UploadReplay(filePath string) error {
 		return fmt.Errorf("failed to create destination folder: %w", err)
 	}
 
-	fileName := filepath.Base(filePath)
+	fileName := replayUploadFileName(filePath, fs.config.TemplateName, replayUpload)
 	destPath := filepath.Join(destFolder, fileName)
 
 	if _, err := os.Stat(destPath); err == nil {
