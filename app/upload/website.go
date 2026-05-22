@@ -127,3 +127,7 @@ func (w *Website) Ping() error {
 	body, _ := io.ReadAll(resp.Body)
 	return fmt.Errorf("Token is invalid: %s\n%s", resp.Status, string(body))
 }
+
+func (w *Website) GetConfig() *config.StorageConfig {
+	return w.config
+}

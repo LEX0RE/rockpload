@@ -167,14 +167,14 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.replayPathForm = widget.NewFormItem("Replay Path", wsp.infoContainer.replayPathEntry)
 
 	return widget.NewForm(
+		wsp.infoContainer.sendReplayForm,
+		wsp.infoContainer.replayPathForm,
 		wsp.infoContainer.urlForm,
 		wsp.infoContainer.storageTypeForm,
 		wsp.infoContainer.needTokenForm,
 		wsp.infoContainer.tokenForm,
 		wsp.infoContainer.sendPingForm,
 		wsp.infoContainer.pingPathForm,
-		wsp.infoContainer.sendReplayForm,
-		wsp.infoContainer.replayPathForm,
 		wsp.infoContainer.uriParamsForm,
 	)
 }

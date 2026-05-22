@@ -28,6 +28,12 @@ const (
 	autoUploadJitterMaxTime = time.Minute * 15
 )
 
+type UploadStorage interface {
+	UploadReplay(filePath string) error
+	Ping() error
+	GetConfig() *config.StorageConfig
+}
+
 type Uploader struct {
 	lockInUpload     sync.Mutex
 	lockInAutoUpload sync.Mutex
@@ -117,7 +123,7 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 
 	defer u.lockInUpload.Unlock()
 
-	websites := u.getWebsites()
+	storages := u.getStorages()
 
 	for i, replay := range ac.Player.MatchHistory {
 		var filePath string
@@ -139,8 +145,8 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 			return filePath, nil
 		}
 
-		for wi := range websites {
-			u.singleUpload(i, wi, websites, ac, lazyDownload)
+		for wi := range storages {
+			u.singleUpload(i, wi, storages, ac, lazyDownload)
 		}
 
 		if isDownloaded && filePath != "" {
@@ -156,15 +162,15 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 	u.EventManager.Notify(EventUploadPlayerCompleted, nil)
 }
 
-func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*Website, ac *config.AccountConfig, getFilePath func() (string, error)) {
+func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []UploadStorage, ac *config.AccountConfig, getFilePath func() (string, error)) {
 	logger.FuncDebug()
 
-	website := websites[websiteIndex]
+	storage := storages[storageIndex]
 	replay := ac.Player.MatchHistory[replayIndex]
 
-	u.EventManager.Notify(EventUploadProgress, float64((replayIndex*len(websites))+websiteIndex)/float64(len(ac.Player.MatchHistory)*len(websites)))
+	u.EventManager.Notify(EventUploadProgress, float64((replayIndex*len(storages))+storageIndex)/float64(len(ac.Player.MatchHistory)*len(storages)))
 
-	if !website.config.SendReplay {
+	if !storage.GetConfig().SendReplay {
 		return
 	}
 
@@ -174,7 +180,7 @@ func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*W
 		return
 	}
 
-	uploadCache := LoadUploadedCache(website.config.Name, len(u.appConfig.AccountSettings.Get()))
+	uploadCache := LoadUploadedCache(storage.GetConfig().Name, len(u.appConfig.AccountSettings.Get()))
 
 	if !uploadCache.index[replay.Match.MatchGUID] {
 		filePath, err := getFilePath()
@@ -185,7 +191,7 @@ func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*W
 
 		logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
 
-		err = website.UploadReplay(filePath)
+		err = storage.UploadReplay(filePath)
 		if err != nil {
 			logger.Rlogger.Error("Upload error:", slog.Any("err", err))
 		} else {
@@ -202,18 +208,29 @@ func (u *Uploader) singleUpload(replayIndex int, websiteIndex int, websites []*W
 	uploadCache.Save()
 }
 
-func (u *Uploader) getWebsites() []*Website {
+func (u *Uploader) getStorages() []UploadStorage {
 	logger.FuncDebug()
 
-	websites := []*Website{}
-	for _, StorageConfig := range u.appConfig.StorageSettings.Get() {
-		if !StorageConfig.SendReplay {
+	var storages []UploadStorage
+
+	for _, storageConfig := range u.appConfig.StorageSettings.Get() {
+		if !storageConfig.SendReplay {
 			continue
 		}
 
-		website := NewWebsite(StorageConfig)
-		websites = append(websites, website)
+		var backend UploadStorage
+
+		switch storageConfig.StorageType {
+		case config.FileSystemConfig:
+			backend = NewFileSystem(storageConfig)
+		case config.WebsiteConfig:
+			backend = NewWebsite(storageConfig)
+		default:
+			backend = NewWebsite(storageConfig)
+		}
+
+		storages = append(storages, backend)
 	}
 
-	return websites
+	return storages
 }
