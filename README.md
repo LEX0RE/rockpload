@@ -47,6 +47,62 @@ Download the latest release from the [GitHub Releases](https://github.com/LEX0RE
 
 The build script will produce binaries for Linux and Windows in the current directory.
 
+### Build with Nix
+
+This repository also provides a Nix flake for Linux builds and development shells:
+
+```bash
+nix develop
+nix build
+```
+
+The default package builds the Rockpload Linux binary, and the default app runs it:
+
+```bash
+nix run
+```
+
+If you use direnv, allow the checked-in `.envrc` once to enter the same development shell automatically:
+
+```bash
+direnv allow
+```
+
+### NixOS and Home Manager Modules
+
+The flake exposes both NixOS and Home Manager modules:
+
+```nix
+{
+  inputs.rockpload.url = "github:LEX0RE/rockpload";
+
+  outputs = { nixpkgs, rockpload, ... }: {
+    nixosConfigurations.example = nixpkgs.lib.nixosSystem {
+      modules = [
+        rockpload.nixosModules.default
+        {
+          services.rockpload.enable = true;
+        }
+      ];
+    };
+  };
+}
+```
+
+For Home Manager:
+
+```nix
+{
+  imports = [
+    inputs.rockpload.homeManagerModules.default
+  ];
+
+  services.rockpload.enable = true;
+}
+```
+
+Both modules install the package and create a user service tied to `graphical-session.target`.
+
 ## Usage
 
 Run the application:
