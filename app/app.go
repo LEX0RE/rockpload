@@ -119,8 +119,7 @@ func (a *App) initPlayers() {
 		fyne.Do(a.gui.UpdateState)
 	}
 
-	a.uploader = upload.NewUploader(a.appConfig)
-
+	a.uploader = upload.NewUploader(a.appConfig, a.accountManager)
 	a.uploader.EventManager.Subscribe(upload.EventUploadProgress, tools.Listener{IsSync: false, Callback: func(data any) {
 		if progress, ok := data.(float64); ok && a.gui != nil {
 			a.gui.UpdateUploadProgress(progress)
@@ -152,7 +151,7 @@ func (a *App) initPlayers() {
 		a.gui.UpdateState()
 	}})
 
-	refreshSubscription := func(ac *config.AccountConfig) {
+	refreshSubscription := func(ac *rocket_network.Account) {
 		if ac.Player.Auth != nil {
 			ac.Player.Auth.EventManager.UnsubscribeAll(rocket_network.EventUserAuthenticated)
 			ac.Player.Auth.EventManager.Subscribe(rocket_network.EventUserAuthenticated, tools.Listener{IsSync: false, Callback: func(data any) {
@@ -169,7 +168,7 @@ func (a *App) initPlayers() {
 		}
 	}
 
-	a.appConfig.AccountSettings.Bind(func(map[int]*config.AccountConfig) {
+	a.appConfig.AccountSettings.Bind(func(config.AccountMapConfig) {
 		for _, ac := range a.appConfig.AccountSettings.Get() {
 			refreshSubscription(ac)
 		}
@@ -177,12 +176,6 @@ func (a *App) initPlayers() {
 
 	for _, ac := range a.appConfig.AccountSettings.Get() {
 		refreshSubscription(ac)
-	}
-
-	selectedAccount := a.accountManager.GetSelected()
-	if selectedAccount != nil && selectedAccount.IsConnected() {
-		selectedAccount.Player.GetInfo()
-		a.gui.UpdateState()
 	}
 
 	if a.appConfig.BehaviorConfig.AutoUpload.Get() {

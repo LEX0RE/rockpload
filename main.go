@@ -23,7 +23,7 @@ func init() {
 }
 
 func main() {
-	logger.Rlogger.Debug("Starting Rockpload")
+	logger.Rlogger.Info("Starting Rockpload")
 	logger.FuncDebug()
 
 	app := app.NewApp(Version)

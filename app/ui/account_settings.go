@@ -3,7 +3,7 @@ package ui
 import (
 	"slices"
 
-	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
@@ -123,16 +123,16 @@ func (asp *AccountSettingsPopup) Reload() {
 	asp.updateBtnStates()
 }
 
-func (asp *AccountSettingsPopup) getAllAccounts() []*config.AccountConfig {
+func (asp *AccountSettingsPopup) getAllAccounts() []*rocket_network.Account {
 	logger.FuncDebug()
 
 	allAccounts := asp.appConfig.AccountSettings.Get()
-	allAccountsList := make([]*config.AccountConfig, 0, len(allAccounts))
+	allAccountsList := make([]*rocket_network.Account, 0, len(allAccounts))
 	for _, account := range allAccounts {
 		allAccountsList = append(allAccountsList, account)
 	}
 
-	slices.SortFunc(allAccountsList, func(a, b *config.AccountConfig) int {
+	slices.SortFunc(allAccountsList, func(a, b *rocket_network.Account) int {
 		return a.Id() - b.Id()
 	})
 

@@ -37,12 +37,13 @@ type GUI struct {
 	LoginBox  *fyne.Container
 	PlayerBox *fyne.Container
 
-	TokenEntry       *widget.Entry
-	ConnectedLabel   *widget.Label
-	MatchHistoryData []string
-	MatchHistoryList *widget.List
-	UploadStatus     *widget.Label
-	UploadProgress   *widget.ProgressBar
+	TokenEntry         *widget.Entry
+	ConnectedLabel     *widget.Label
+	MatchHistoryData   []string
+	MatchHistoryList   *widget.List
+	UploadStatus       *widget.Label
+	UploadProgress     *widget.ProgressBar
+	RLConnectedWarning *widget.Label
 
 	EventManager *tools.EventManager
 
@@ -101,6 +102,12 @@ func (g *GUI) UpdateState() {
 		g.LoginBox.Hide()
 		g.PlayerBox.Show()
 
+		if selectedAccount.Player.LastCheckOnline && g.appConfig.BehaviorConfig.NoUploadConnected.Get() {
+			g.RLConnectedWarning.Show()
+		} else {
+			g.RLConnectedWarning.Hide()
+		}
+
 		if selectedAccount.Player.MatchHistory != nil {
 			g.MatchHistoryData = []string{}
 
@@ -122,6 +129,10 @@ func (g *GUI) UpdateState() {
 	} else {
 		g.LoginBox.Show()
 		g.PlayerBox.Hide()
+
+		if g.RLConnectedWarning != nil {
+			g.RLConnectedWarning.Hide()
+		}
 
 		g.MatchHistoryData = []string{}
 		g.MatchHistoryList.Refresh()
@@ -220,6 +231,9 @@ func (g *GUI) createPlayerUI() {
 	g.UploadProgress = widget.NewProgressBar()
 	g.UploadProgress.Hide()
 
+	g.RLConnectedWarning = widget.NewLabel("⚠️ The player was connected or unused during the last check. No refresh was performed.")
+	g.RLConnectedWarning.Hide()
+
 	g.MatchHistoryData = []string{}
 	g.MatchHistoryList = widget.NewList(
 		func() int {
@@ -268,6 +282,7 @@ func (g *GUI) createPlayerUI() {
 	matchHistoryAccordion.Open = false
 
 	uploadProgressBox := container.NewBorder(nil, nil, g.UploadStatus, nil, g.UploadProgress)
+	centerTopBox := container.NewVBox(g.RLConnectedWarning, uploadProgressBox)
 
 	g.PlayerBox = container.NewBorder(
 		container.NewBorder(
@@ -280,7 +295,7 @@ func (g *GUI) createPlayerUI() {
 		nil,
 		nil,
 		nil,
-		container.NewBorder(uploadProgressBox, nil, nil, nil, widget.NewAccordion(matchHistoryAccordion)),
+		container.NewBorder(centerTopBox, nil, nil, nil, widget.NewAccordion(matchHistoryAccordion)),
 	)
 }
 
@@ -332,18 +347,11 @@ func (g *GUI) lastUploadAt() (time.Time, bool) {
 func (g *GUI) RefreshConnectedAccount() {
 	logger.FuncDebug()
 
-	selectedAccount := g.accountManager.GetSelected()
 	allAccount := len(g.appConfig.AccountSettings.Get())
-
-	authenticatedAccount := 0
-	for _, ac := range g.appConfig.AccountSettings.Get() {
-		if ac.Player.Auth != nil && ac.Player.Auth.IsAuthenticated() {
-			authenticatedAccount++
-		}
-	}
-
+	authenticatedAccount := len(g.accountManager.GetConnectedAccount())
 	connectedText := "Connected (" + strconv.Itoa(authenticatedAccount) + "/" + strconv.Itoa(allAccount) + ")"
 
+	selectedAccount := g.accountManager.GetSelected()
 	if selectedAccount != nil && selectedAccount.IsConnected() {
 		g.ConnectedLabel.SetText(connectedText + ": " + selectedAccount.AccountName())
 	} else {
