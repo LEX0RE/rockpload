@@ -10,11 +10,14 @@ import (
 )
 
 type Player struct {
-	PlayerName   string             `json:"player_name"`
-	Auth         *Auth              `json:"auth"`
-	PlayerID     *rlapi.PlayerID    `json:"player_id,omitempty"`
-	MatchHistory []rlapi.MatchEntry `json:"-"`
-	mu           sync.Mutex         `json:"-"`
+	PlayerName      string             `json:"player_name"`
+	Auth            *Auth              `json:"auth"`
+	PlayerID        *rlapi.PlayerID    `json:"player_id,omitempty"`
+	MatchHistory    []rlapi.MatchEntry `json:"-"`
+	LastCheckOnline bool               `json:"-"`
+
+	rpcMu  sync.Mutex `json:"-"`
+	authMu sync.Mutex `json:"-"`
 }
 
 func NewPlayer(profileId int) *Player {
@@ -25,19 +28,6 @@ func NewPlayer(profileId int) *Player {
 	return p
 }
 
-func (p *Player) Connect() {
-	logger.FuncDebug()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.Auth.Authenticate()
-
-	if !p.Auth.IsAuthenticated() {
-		p.Reset()
-	}
-}
-
 func (p *Player) SetProfile(profile rlapi.PlayerData) {
 	p.PlayerName = profile.PlayerName
 }
@@ -46,22 +36,23 @@ func (p *Player) Reset() {
 	logger.FuncDebug()
 
 	p.PlayerName = "Player"
-	p.Auth.ClearToken()
 	p.PlayerID = nil
 	p.MatchHistory = nil
+
+	p.Auth.clearToken()
 }
 
 func (p *Player) GetInfo() (err error) {
 	logger.FuncDebug()
 
-	if !p.mu.TryLock() {
+	if !p.rpcMu.TryLock() {
 		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
 		return
 	}
-	defer p.mu.Unlock()
+	defer p.rpcMu.Unlock()
 
 	var rpc *rlapi.PsyNetRPC
-	rpc, playerId, err := GetRPC(p.Auth)
+	rpc, playerId, err := GetRPC(p)
 	if err != nil {
 		return err
 	}
@@ -89,14 +80,14 @@ func (p *Player) GetInfo() (err error) {
 func (p *Player) UpdateProfile() (err error) {
 	logger.FuncDebug()
 
-	if !p.mu.TryLock() {
+	if !p.rpcMu.TryLock() {
 		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
 		return
 	}
-	defer p.mu.Unlock()
+	defer p.rpcMu.Unlock()
 
 	var rpc *rlapi.PsyNetRPC
-	rpc, p.PlayerID, err = GetRPC(p.Auth)
+	rpc, p.PlayerID, err = GetRPC(p)
 	if err != nil {
 		return err
 	}
@@ -116,14 +107,14 @@ func (p *Player) UpdateProfile() (err error) {
 func (p *Player) GetProfiles(players []*Player) []rlapi.PlayerData {
 	logger.FuncDebug()
 
-	if !p.mu.TryLock() {
+	if !p.rpcMu.TryLock() {
 		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
 		return nil
 	}
-	defer p.mu.Unlock()
+	defer p.rpcMu.Unlock()
 
 	var rpc *rlapi.PsyNetRPC
-	rpc, _, err := GetRPC(p.Auth)
+	rpc, _, err := GetRPC(p)
 	if err != nil {
 		return nil
 	}
@@ -144,4 +135,18 @@ func (p *Player) GetProfiles(players []*Player) []rlapi.PlayerData {
 	}
 
 	return profiles
+}
+
+func (p *Player) IsAuthenticated() bool {
+	logger.FuncDebug()
+
+	p.authMu.Lock()
+	defer p.authMu.Unlock()
+
+	if p.Auth != nil || p.Auth.isAuthenticate() {
+		return true
+	}
+
+	p.Reset()
+	return false
 }

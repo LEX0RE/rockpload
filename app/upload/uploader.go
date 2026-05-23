@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/manager"
+	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	rtime "github.com/LEX0RE/rockpload/app/tools/time"
@@ -39,17 +41,18 @@ type Uploader struct {
 	lockInAutoUpload sync.Mutex
 	lockInRunRLAPI   sync.Mutex
 
-	appConfig *config.AppConfig
+	appConfig      *config.AppConfig
+	accountManager *manager.AccountManager
 
 	autoTicker *rtime.Ticker
 
 	EventManager *tools.EventManager
 }
 
-func NewUploader(appConfig *config.AppConfig) *Uploader {
+func NewUploader(appConfig *config.AppConfig, accountManager *manager.AccountManager) *Uploader {
 	logger.FuncDebug()
 
-	u := &Uploader{appConfig: appConfig, EventManager: tools.NewEventManager()}
+	u := &Uploader{appConfig: appConfig, EventManager: tools.NewEventManager(), accountManager: accountManager}
 
 	if appConfig.BehaviorConfig.UploadOnLaunch.Get() {
 		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
@@ -107,14 +110,15 @@ func (u *Uploader) Run() {
 	u.EventManager.Notify(EventUploadProgress, 0)
 
 	go func() {
-		for _, ac := range u.appConfig.AccountSettings.Get() {
+		for _, ac := range u.accountManager.GetAll() {
 			u.upload(ac)
 		}
+
 		u.EventManager.Notify(EventUploadCompleted, nil)
 	}()
 }
 
-func (u *Uploader) upload(ac *config.AccountConfig) {
+func (u *Uploader) upload(ac *rocket_network.Account) {
 	logger.FuncDebug()
 
 	if !u.lockInUpload.TryLock() {
@@ -163,7 +167,7 @@ func (u *Uploader) upload(ac *config.AccountConfig) {
 	u.EventManager.Notify(EventUploadPlayerCompleted, nil)
 }
 
-func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []UploadStorage, ac *config.AccountConfig, getFilePath func() (string, error)) {
+func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []UploadStorage, ac *rocket_network.Account, getFilePath func() (string, error)) {
 	logger.FuncDebug()
 
 	storage := storages[storageIndex]
@@ -178,7 +182,6 @@ func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []Up
 	if os.Getenv("FAKE_UPLOAD") == "true" {
 		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.AccountName()), slog.Any("Storage", storage.GetConfig().Name), slog.Any("matchGUID", replay.Match.MatchGUID))
 		ac.AddToMatchHistory(replay.Match.MatchGUID)
-		time.Sleep(uploadSleep)
 		return
 	}
 

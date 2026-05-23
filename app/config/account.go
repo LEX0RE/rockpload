@@ -2,96 +2,28 @@ package config
 
 import (
 	"encoding/json"
-	"slices"
-	"strconv"
 
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
-type accountMapConfig map[int]*AccountConfig
+type AccountMapConfig map[int]*rocket_network.Account
 
-func (amc *accountMapConfig) UnmarshalJSON(data []byte) error {
+func (amc *AccountMapConfig) UnmarshalJSON(data []byte) error {
 	logger.FuncDebug()
 
-	var temp map[int]*AccountConfig
+	var temp map[int]*rocket_network.Account
 	if err := json.Unmarshal(data, &temp); err != nil {
 		return err
 	}
 
 	if len(temp) == 0 {
-		temp = map[int]*AccountConfig{
-			0: NewAccountConfig(0),
+		temp = map[int]*rocket_network.Account{
+			0: rocket_network.NewAccount(0),
 		}
 	}
 
 	*amc = temp
 
 	return nil
-}
-
-type AccountConfig struct {
-	Player        *rocket_network.Player `json:"player"`
-	IsUnused      bool                   `json:"is_unused,omitempty"`
-	HistorySended []string               `json:"-"`
-}
-
-// TODO Delete uploaded file when account is deleted
-func NewAccountConfig(profileId int) *AccountConfig {
-	logger.FuncDebug()
-
-	ac := &AccountConfig{IsUnused: false, Player: rocket_network.NewPlayer(profileId)}
-	return ac
-}
-
-func (ac *AccountConfig) UnmarshalJSON(data []byte) error {
-	logger.FuncDebug()
-
-	type Alias AccountConfig
-	aux := (*Alias)(ac)
-
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	if ac.HistorySended == nil {
-		ac.HistorySended = make([]string, 0)
-	}
-
-	return nil
-}
-
-func (ac *AccountConfig) AccountName() string {
-	if ac.Player == nil || ac.Player.Auth == nil {
-		return "Unknown"
-	}
-
-	idName := ""
-	if ac.Player.Auth.ProfileId >= 0 {
-		idName = " (ID: " + strconv.Itoa(ac.Player.Auth.ProfileId) + ")"
-	}
-
-	if ac.Player.PlayerName == "" {
-		return "Player" + idName
-	}
-
-	return ac.Player.PlayerName + " (ID: " + strconv.Itoa(ac.Player.Auth.ProfileId) + ")"
-}
-
-func (ac *AccountConfig) AddToMatchHistory(matchGUID string) {
-	logger.FuncDebug()
-
-	if !slices.Contains(ac.HistorySended, matchGUID) {
-		ac.HistorySended = append(ac.HistorySended, matchGUID)
-	}
-}
-
-func (ac *AccountConfig) IsConnected() bool {
-	return ac.Player.Auth != nil && ac.Player.Auth.IsAuthenticated()
-}
-
-func (ac *AccountConfig) Id() int {
-	logger.FuncDebug()
-
-	return ac.Player.Auth.ProfileId
 }

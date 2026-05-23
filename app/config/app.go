@@ -13,7 +13,7 @@ import (
 type AppConfig struct {
 	BehaviorConfig  BehaviorConfig
 	StorageSettings Setting[storageListConfig]
-	AccountSettings Setting[map[int]*AccountConfig]
+	AccountSettings Setting[AccountMapConfig]
 }
 
 func NewAppConfig() *AppConfig {
@@ -37,7 +37,7 @@ func NewAppConfig() *AppConfig {
 	cfg.BehaviorConfig.SelectedStorageId = NewSetting(0, saveHook)
 
 	cfg.StorageSettings = NewSetting(storageListConfig{}, saveHook)
-	cfg.AccountSettings = NewSetting(make(map[int]*AccountConfig), saveHook)
+	cfg.AccountSettings = NewSetting(make(AccountMapConfig), saveHook)
 
 	return cfg
 }
