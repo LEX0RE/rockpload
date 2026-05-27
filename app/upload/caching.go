@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -106,6 +107,27 @@ func (c *UploadCache) Clear() error {
 
 	err := os.Remove(c.cachePath())
 	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
+}
+
+func (c *UploadCache) Touch() error {
+	logger.FuncDebug()
+
+	currentTime := time.Now()
+	err := os.Chtimes(c.cachePath(), currentTime, currentTime)
+	if err != nil {
+		if os.IsNotExist(err) {
+			file, createErr := os.Create(c.cachePath())
+			if createErr != nil {
+				return createErr
+			}
+
+			file.Close()
+			return nil
+		}
 		return err
 	}
 

@@ -38,6 +38,7 @@ type App struct {
 
 	uploader       *upload.Uploader
 	accountManager *manager.AccountManager
+	rlSupervisor   *rocket_network.RLSupervisor
 }
 
 func NewApp(version string) *App {
@@ -56,6 +57,7 @@ func NewApp(version string) *App {
 
 	a.appConfig.BehaviorConfig.AutoStart.Bind(a.SetAutoStart)
 	a.appConfig.BehaviorConfig.AutoUpload.Bind(a.SetAutoUpload)
+	a.appConfig.BehaviorConfig.UploadOnRLClose.Bind(a.SetUploadOnRLClose)
 
 	a.accountManager = manager.NewAccountManager(a.appConfig)
 
@@ -101,7 +103,10 @@ func (a *App) Run() {
 	defer a.duplicateLock.Unlock()
 
 	a.setupAppUpdate()
-	a.initPlayers()
+
+	a.initManager()
+	a.initEvents()
+	a.startManager()
 
 	a.window.Resize(fyne.NewSize(450, 400))
 
@@ -112,14 +117,25 @@ func (a *App) Run() {
 	}
 }
 
-func (a *App) initPlayers() {
+func (a *App) initManager() {
+	logger.FuncDebug()
+
+	a.uploader = upload.NewUploader(a.appConfig, a.accountManager)
+
+	var err error
+	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.app.Clipboard)
+	if err != nil {
+		logger.Rlogger.Error("Failed to initialize GUI:", slog.Any("err", err))
+	}
+}
+
+func (a *App) initEvents() {
 	logger.FuncDebug()
 
 	onUpdateState := func() {
 		fyne.Do(a.gui.UpdateState)
 	}
 
-	a.uploader = upload.NewUploader(a.appConfig, a.accountManager)
 	a.uploader.EventManager.Subscribe(upload.EventUploadProgress, tools.Listener{IsSync: false, Callback: func(data any) {
 		if progress, ok := data.(float64); ok && a.gui != nil {
 			a.gui.UpdateUploadProgress(progress)
@@ -135,12 +151,6 @@ func (a *App) initPlayers() {
 		a.accountManager.RefreshInfo()
 		a.appConfig.Save()
 	}})
-
-	var err error
-	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.app.Clipboard)
-	if err != nil {
-		logger.Rlogger.Error("Failed to initialize GUI:", slog.Any("err", err))
-	}
 
 	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD, tools.Listener{IsSync: false, Callback: func(data any) {
 		a.uploader.Run()
@@ -177,6 +187,10 @@ func (a *App) initPlayers() {
 	for _, ac := range a.appConfig.AccountSettings.Get() {
 		refreshSubscription(ac)
 	}
+}
+
+func (a *App) startManager() {
+	logger.FuncDebug()
 
 	if a.appConfig.BehaviorConfig.AutoUpload.Get() {
 		a.uploader.Start()
@@ -198,7 +212,6 @@ func (a *App) setupAppUpdate() {
 	a.updateInfo = updater.UpdateInfo
 
 	if needUpdate && skipUpdate != "true" {
-		// TODO Make auto update without ask setting to not annoy people
 		updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig, a.accountManager), a.updateInfo.Version, func() {
 			err := updater.ApplyUpdate()
 			if err != nil {
@@ -255,6 +268,14 @@ func (a *App) SetAutoUpload(value bool) {
 
 	if a.uploader != nil {
 		a.uploader.Toggle(value)
+	}
+}
+
+func (a *App) SetUploadOnRLClose(value bool) {
+	logger.FuncDebug()
+
+	if a.rlSupervisor != nil {
+		a.rlSupervisor.Toggle(value)
 	}
 }
 

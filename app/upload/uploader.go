@@ -1,7 +1,6 @@
 package upload
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
 	"sync"
@@ -12,9 +11,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
-	rtime "github.com/LEX0RE/rockpload/app/tools/time"
-
-	"fyne.io/fyne/v2"
+	"github.com/LEX0RE/rockpload/app/tools/rtime"
 )
 
 const (
@@ -37,14 +34,14 @@ type UploadStorage interface {
 }
 
 type Uploader struct {
+	*rtime.Looper
+
 	lockInUpload     sync.Mutex
 	lockInAutoUpload sync.Mutex
 	lockInRunRLAPI   sync.Mutex
 
 	appConfig      *config.AppConfig
 	accountManager *manager.AccountManager
-
-	autoTicker *rtime.Ticker
 
 	EventManager *tools.EventManager
 }
@@ -55,46 +52,12 @@ func NewUploader(appConfig *config.AppConfig, accountManager *manager.AccountMan
 	u := &Uploader{appConfig: appConfig, EventManager: tools.NewEventManager(), accountManager: accountManager}
 
 	if appConfig.BehaviorConfig.UploadOnLaunch.Get() {
-		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
+		u.Looper = rtime.NewLooper(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
 	} else {
-		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, nil, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
+		u.Looper = rtime.NewLooper(autoUploadTickerTime, u.Run, nil, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
 	}
 
 	return u
-}
-
-func (u *Uploader) Toggle(value bool) {
-	logger.FuncDebug()
-	if value {
-		u.Start()
-	} else {
-		u.Stop()
-	}
-}
-
-func (u *Uploader) Start() {
-	logger.FuncDebug()
-
-	fyne.Do(func() {
-		if !u.lockInAutoUpload.TryLock() {
-			logger.Rlogger.Debug("Duplicate auto upload at the same time, skipping")
-			return
-		}
-		defer u.lockInAutoUpload.Unlock()
-
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Println("Recovered from panic:", r)
-			}
-		}()
-
-		u.autoTicker.Start()
-	})
-}
-
-func (u *Uploader) Stop() {
-	logger.FuncDebug()
-	u.autoTicker.Stop()
 }
 
 func (u *Uploader) Run() {
@@ -179,13 +142,17 @@ func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []Up
 		return
 	}
 
+	uploadCache := LoadUploadedCache(storage.GetConfig().Name, len(u.appConfig.AccountSettings.Get()))
+	if err := uploadCache.Touch(); err != nil {
+		logger.Rlogger.Error("Error while updating the upload cache file:", slog.Any("err", err))
+		return
+	}
+
 	if os.Getenv("FAKE_UPLOAD") == "true" {
 		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.AccountName()), slog.Any("Storage", storage.GetConfig().Name), slog.Any("matchGUID", replay.Match.MatchGUID))
 		ac.AddToMatchHistory(replay.Match.MatchGUID)
 		return
 	}
-
-	uploadCache := LoadUploadedCache(storage.GetConfig().Name, len(u.appConfig.AccountSettings.Get()))
 
 	if !uploadCache.index[replay.Match.MatchGUID] {
 		filePath, err := getFilePath()
