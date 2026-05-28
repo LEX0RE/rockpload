@@ -42,7 +42,7 @@ Download the latest release from the [GitHub Releases](https://github.com/LEX0RE
 
 **Build:**
 ```bash
-./build.sh
+scripts/build.sh
 ```
 
 The build script will produce binaries for Linux and Windows in `releases/`.

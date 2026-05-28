@@ -1,10 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-RELEASE_PATH="releases"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RELEASE_PATH="$ROOT_DIR/releases"
 ARCH="amd64"
 PACKAGE_NAME="rockpload"
-VERSION_FILE="VERSION"
+VERSION_FILE="$ROOT_DIR/VERSION"
 
 rm -rf "$RELEASE_PATH"
 mkdir -p "$RELEASE_PATH"
@@ -31,7 +32,7 @@ FILE="$RELEASE_PATH/$OUTPUT"
 
 echo "Building $OUTPUT..."
 
-CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -trimpath -o "$FILE" -ldflags "-s -w -X main.Version=$VERSION_CLEAN"
+CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -C "$ROOT_DIR" -trimpath -o "$FILE" -ldflags "-s -w -X main.Version=$VERSION_CLEAN"
 
 #################
 # BUILD WINDOWS #
@@ -44,7 +45,7 @@ FILE="$RELEASE_PATH/$OUTPUT"
 
 echo "Building $OUTPUT..."
 
-CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -trimpath -o "$FILE" -ldflags "-s -w -X main.Version=$VERSION_CLEAN -H windowsgui"
+CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -C "$ROOT_DIR" -trimpath -o "$FILE" -ldflags "-s -w -X main.Version=$VERSION_CLEAN -H windowsgui"
 
 #############
 # BUILD MAC # (CURRENTLY NOT SUPPORTED)

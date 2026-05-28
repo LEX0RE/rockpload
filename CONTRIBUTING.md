@@ -37,7 +37,7 @@ By default, `EPIC_AUTH_MODE=launcher` is recommended.
 ## Build
 
 ```bash
-./build.sh
+scripts/build.sh
 ```
 
 Current support target:
