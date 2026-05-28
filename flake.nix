@@ -20,7 +20,9 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          rockploadVersion = "1.2.2";
+          rockploadVersion = builtins.replaceStrings [ "\n" "\r" " " "\t" ] [ "" "" "" "" ] (
+            builtins.readFile ./VERSION
+          );
 
           runtimeLibraries = with pkgs; [
             libglvnd

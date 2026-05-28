@@ -45,7 +45,25 @@ Download the latest release from the [GitHub Releases](https://github.com/LEX0RE
 ./build.sh
 ```
 
-The build script will produce binaries for Linux and Windows in the current directory.
+The build script will produce binaries for Linux and Windows in `releases/`.
+It uses the version from `VERSION` by default, or `ROCKPLOAD_VERSION` when set.
+
+### Update the Project Version
+
+Use the helper script to update the release version shared by Go builds and Nix:
+
+```bash
+scripts/set-version.sh 1.3.0
+scripts/set-version.sh 1.3.0-rc.1
+scripts/set-version.sh --check
+```
+
+The script accepts an optional leading `v`, but stores the canonical version without it.
+Release tags should keep the `v` prefix:
+
+```bash
+git tag "$(scripts/set-version.sh --print-tag)"
+```
 
 ### Build with Nix
 

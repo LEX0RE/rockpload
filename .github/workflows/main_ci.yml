@@ -60,6 +60,9 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Check project version
+        run: bash ./scripts/set-version.sh --check
+
       - name: Install Build Dependencies
         run: |
           sudo apt-get update

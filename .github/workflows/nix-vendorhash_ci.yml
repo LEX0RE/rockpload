@@ -1,0 +1,46 @@
+name: NIX-VENDORHASH_CI
+
+on:
+  pull_request:
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+
+jobs:
+  update-hash:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }} 
+
+      - name: Set up Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Calculate and update vendorHash
+        run: |
+          echo "Clearing current hash..."
+          sed -i 's/vendorHash = ".*";/vendorHash = "";/' flake.nix
+          
+          echo "Attempting build to retrieve the new hash..."
+          OUTPUT=$(nix build . 2>&1 || true)
+          
+          NEW_HASH=$(echo "$OUTPUT" | grep -oP 'got:\s+\Ksha256-[a-zA-Z0-9+/=]+' || true)
+          
+          if [ ! -z "$NEW_HASH" ]; then
+            echo "New hash detected: $NEW_HASH"
+            sed -i "s/vendorHash = \"\";/vendorHash = \"$NEW_HASH\";/" flake.nix
+          else
+            echo "Error: No new hash found."
+            exit 1
+          fi
+
+      - name: Commit changes back to PR
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(nix): auto-update vendorHash for new Go dependencies"
+          file_pattern: flake.nix

@@ -1,14 +1,24 @@
 #!/bin/bash
+set -euo pipefail
 
 RELEASE_PATH="releases"
 ARCH="amd64"
 PACKAGE_NAME="rockpload"
+VERSION_FILE="VERSION"
 
-rm -rf $RELEASE_PATH
-mkdir -p $RELEASE_PATH
+rm -rf "$RELEASE_PATH"
+mkdir -p "$RELEASE_PATH"
 
-VERSION=${ROCKPLOAD_VERSION:-"1.2.2"}
-VERSION_CLEAN=$(echo $VERSION | sed 's/\//-/g')
+if [ -n "${ROCKPLOAD_VERSION:-}" ]; then
+    VERSION="$ROCKPLOAD_VERSION"
+elif [ -f "$VERSION_FILE" ]; then
+    VERSION=$(tr -d '[:space:]' < "$VERSION_FILE")
+else
+    VERSION="dev"
+fi
+
+VERSION="${VERSION#v}"
+VERSION_CLEAN=$(echo "$VERSION" | sed 's/\//-/g')
 echo "Building version $VERSION_CLEAN"
 
 ###############
