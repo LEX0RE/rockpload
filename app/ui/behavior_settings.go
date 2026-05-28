@@ -36,7 +36,7 @@ func NewBehaviorSettingPopup(p *Popup) *BehaviorSettingPopup {
 		}
 	}
 
-	sp.optionCheckGroup = widget.NewCheckGroup(optionTextList, sp.onCheckGroupChange)
+	sp.optionCheckGroup = widget.NewCheckGroup(optionTextList, sp.reload)
 
 	for key, value := range config.BehaviorSettingVisualMapping {
 		sp.optionNameMapping[value.Name] = key
@@ -84,6 +84,21 @@ func (sp *BehaviorSettingPopup) Show() {
 	logger.FuncDebug()
 
 	sp.Popup.Show()
+}
+
+func (sp *BehaviorSettingPopup) reload(nextSelection []string) {
+	var optionTextList []string
+	for i := range len(config.BehaviorSettingVisualMapping) {
+		for _, value := range config.BehaviorSettingVisualMapping {
+			if value.Position == i {
+				optionTextList = append(optionTextList, value.Name)
+				break
+			}
+		}
+	}
+
+	sp.optionCheckGroup.Options = optionTextList
+	sp.onCheckGroupChange(nextSelection)
 }
 
 func (sp *BehaviorSettingPopup) onCheckGroupChange(nextSelection []string) {
