@@ -1,9 +1,9 @@
 package upload
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -12,23 +12,33 @@ import (
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
-	rtime "github.com/LEX0RE/rockpload/app/tools/time"
-
-	"fyne.io/fyne/v2"
+	"github.com/LEX0RE/rockpload/app/tools/rtime"
+	"github.com/dank/rlapi"
 )
 
 const (
-	EventUploadStarted         = "upload_started"
-	EventUploadCompleted       = "upload_completed"
-	EventUploadPlayerCompleted = "upload_player_completed"
-	EventUploadProgress        = "upload_progress"
-	EventReplayUploaded        = "replay_uploaded"
+	EventUploadStarted         tools.EventType = "upload_started"
+	EventUploadCompleted       tools.EventType = "upload_completed"
+	EventUploadPlayerCompleted tools.EventType = "upload_player_completed"
+	EventUploadProgress        tools.EventType = "upload_progress"
+	EventReplayUploaded        tools.EventType = "replay_uploaded"
 
 	uploadSleep             = time.Second // Ballchasing PATCH is 2 req/sec max, so don't go below that
 	autoUploadTickerTime    = time.Minute * 45
 	autoUploadJitterMinTime = 0
 	autoUploadJitterMaxTime = time.Minute * 15
 )
+
+type uploadCtx struct {
+	matchIndex            int
+	matchList             []rlapi.MatchEntry
+	accountIndex          int
+	accountList           []*rocket_network.Account
+	storageIndex          int
+	storageList           []UploadStorage
+	currentAllReplayIndex int
+	allReplaysLength      int
+}
 
 type UploadStorage interface {
 	UploadReplay(filePath string, replayUpload ReplayUpload) error
@@ -37,14 +47,14 @@ type UploadStorage interface {
 }
 
 type Uploader struct {
+	*rtime.Looper
+
 	lockInUpload     sync.Mutex
 	lockInAutoUpload sync.Mutex
 	lockInRunRLAPI   sync.Mutex
 
 	appConfig      *config.AppConfig
 	accountManager *manager.AccountManager
-
-	autoTicker *rtime.Ticker
 
 	EventManager *tools.EventManager
 }
@@ -55,46 +65,12 @@ func NewUploader(appConfig *config.AppConfig, accountManager *manager.AccountMan
 	u := &Uploader{appConfig: appConfig, EventManager: tools.NewEventManager(), accountManager: accountManager}
 
 	if appConfig.BehaviorConfig.UploadOnLaunch.Get() {
-		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
+		u.Looper = rtime.NewLooper(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
 	} else {
-		u.autoTicker = rtime.NewTicker(autoUploadTickerTime, u.Run, nil, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
+		u.Looper = rtime.NewLooper(autoUploadTickerTime, u.Run, nil, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
 	}
 
 	return u
-}
-
-func (u *Uploader) Toggle(value bool) {
-	logger.FuncDebug()
-	if value {
-		u.Start()
-	} else {
-		u.Stop()
-	}
-}
-
-func (u *Uploader) Start() {
-	logger.FuncDebug()
-
-	fyne.Do(func() {
-		if !u.lockInAutoUpload.TryLock() {
-			logger.Rlogger.Debug("Duplicate auto upload at the same time, skipping")
-			return
-		}
-		defer u.lockInAutoUpload.Unlock()
-
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Println("Recovered from panic:", r)
-			}
-		}()
-
-		u.autoTicker.Start()
-	})
-}
-
-func (u *Uploader) Stop() {
-	logger.FuncDebug()
-	u.autoTicker.Stop()
 }
 
 func (u *Uploader) Run() {
@@ -110,15 +86,32 @@ func (u *Uploader) Run() {
 	u.EventManager.Notify(EventUploadProgress, 0)
 
 	go func() {
-		for _, ac := range u.accountManager.GetAll() {
-			u.upload(ac)
+		accountList := u.accountManager.GetAll()
+
+		allReplaysLength := 0
+		for _, ac := range accountList {
+			allReplaysLength += len(ac.Player.MatchHistory)
+		}
+
+		uploadCtx := &uploadCtx{
+			matchIndex:            -1,
+			matchList:             nil,
+			accountIndex:          -1,
+			accountList:           accountList,
+			currentAllReplayIndex: 0,
+			allReplaysLength:      allReplaysLength,
+		}
+
+		for i := range accountList {
+			uploadCtx.accountIndex = i
+			u.upload(uploadCtx)
 		}
 
 		u.EventManager.Notify(EventUploadCompleted, nil)
 	}()
 }
 
-func (u *Uploader) upload(ac *rocket_network.Account) {
+func (u *Uploader) upload(uploadCtx *uploadCtx) {
 	logger.FuncDebug()
 
 	if !u.lockInUpload.TryLock() {
@@ -128,11 +121,31 @@ func (u *Uploader) upload(ac *rocket_network.Account) {
 
 	defer u.lockInUpload.Unlock()
 
-	storages := u.getStorages()
+	uploadCtx.storageList = u.getStorages()
 
-	for i, replay := range ac.Player.MatchHistory {
+	ac := uploadCtx.accountList[uploadCtx.accountIndex]
+
+	matchHistoryOrdered := []rlapi.MatchEntry{}
+	for _, replay := range ac.Player.MatchHistory {
+		matchHistoryOrdered = append(matchHistoryOrdered, replay)
+	}
+
+	sort.Slice(matchHistoryOrdered, func(i, j int) bool {
+		if u.appConfig.BehaviorConfig.UploadOlderFirst.Get() {
+			return matchHistoryOrdered[i].Match.RecordStartTimestamp < matchHistoryOrdered[j].Match.RecordStartTimestamp
+		} else {
+			return matchHistoryOrdered[i].Match.RecordStartTimestamp > matchHistoryOrdered[j].Match.RecordStartTimestamp
+		}
+	})
+
+	uploadCtx.matchList = matchHistoryOrdered
+
+	for i, replay := range uploadCtx.matchList {
 		var filePath string
 		var isDownloaded bool
+
+		uploadCtx.matchIndex = i
+		uploadCtx.currentAllReplayIndex += 1
 
 		lazyDownload := func() (string, error) {
 			if isDownloaded {
@@ -150,8 +163,9 @@ func (u *Uploader) upload(ac *rocket_network.Account) {
 			return filePath, nil
 		}
 
-		for wi := range storages {
-			u.singleUpload(i, wi, storages, ac, lazyDownload)
+		for wi := range uploadCtx.storageList {
+			uploadCtx.storageIndex = wi
+			u.singleUpload(uploadCtx, lazyDownload)
 		}
 
 		if isDownloaded && filePath != "" {
@@ -167,34 +181,42 @@ func (u *Uploader) upload(ac *rocket_network.Account) {
 	u.EventManager.Notify(EventUploadPlayerCompleted, nil)
 }
 
-func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []UploadStorage, ac *rocket_network.Account, getFilePath func() (string, error)) {
+func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string, error)) {
 	logger.FuncDebug()
 
-	storage := storages[storageIndex]
-	replay := ac.Player.MatchHistory[replayIndex]
+	storage := uploadCtx.storageList[uploadCtx.storageIndex]
+	ac := uploadCtx.accountList[uploadCtx.accountIndex]
+	match := uploadCtx.matchList[uploadCtx.matchIndex]
 
-	u.EventManager.Notify(EventUploadProgress, float64((replayIndex*len(storages))+storageIndex)/float64(len(ac.Player.MatchHistory)*len(storages)))
+	currentProgress := float64((uploadCtx.currentAllReplayIndex * len(uploadCtx.storageList)) + uploadCtx.storageIndex)
+	maxProgress := float64(uploadCtx.allReplaysLength * len(uploadCtx.storageList))
+
+	u.EventManager.Notify(EventUploadProgress, currentProgress/maxProgress)
 
 	if !storage.GetConfig().SendReplay {
 		return
 	}
 
-	if os.Getenv("FAKE_UPLOAD") == "true" {
-		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.AccountName()), slog.Any("Storage", storage.GetConfig().Name), slog.Any("matchGUID", replay.Match.MatchGUID))
-		ac.AddToMatchHistory(replay.Match.MatchGUID)
+	uploadCache := LoadUploadedCache(storage.GetConfig().Name, len(u.appConfig.AccountSettings.Get()))
+	if err := uploadCache.Touch(); err != nil {
+		logger.Rlogger.Error("Error while updating the upload cache file:", slog.Any("err", err))
 		return
 	}
 
-	uploadCache := LoadUploadedCache(storage.GetConfig().Name, len(u.appConfig.AccountSettings.Get()))
+	if os.Getenv("FAKE_UPLOAD") == "true" {
+		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.AccountName()), slog.Any("Storage", storage.GetConfig().Name), slog.Any("matchGUID", match.Match.MatchGUID))
+		ac.AddToMatchHistory(match.Match.MatchGUID)
+		return
+	}
 
-	if !uploadCache.index[replay.Match.MatchGUID] {
+	if !uploadCache.index[match.Match.MatchGUID] {
 		filePath, err := getFilePath()
 		if err != nil {
 			logger.Rlogger.Error("Download error before upload:", slog.Any("err", err))
 			return
 		}
 
-		logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", replay.Match.MatchGUID), slog.Any("filePath", filePath))
+		logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", match.Match.MatchGUID), slog.Any("filePath", filePath))
 
 		playerID := ""
 		if ac.Player.PlayerID != nil {
@@ -204,20 +226,19 @@ func (u *Uploader) singleUpload(replayIndex int, storageIndex int, storages []Up
 		err = storage.UploadReplay(filePath, ReplayUpload{
 			PlayerName: ac.Player.PlayerName,
 			PlayerID:   playerID,
-			Replay:     replay,
-			Number:     replayIndex + 1,
+			Replay:     match,
 		})
 		if err != nil {
 			logger.Rlogger.Error("Upload error:", slog.Any("err", err))
 		} else {
-			uploadCache.Add(replay.Match.MatchGUID)
-			ac.AddToMatchHistory(replay.Match.MatchGUID)
+			uploadCache.Add(match.Match.MatchGUID)
+			ac.AddToMatchHistory(match.Match.MatchGUID)
 		}
 
 		time.Sleep(uploadSleep)
 	} else {
 		logger.Rlogger.Debug("Skipping replay as it was already uploaded", slog.Any("Storage", storage.GetConfig().Name))
-		ac.AddToMatchHistory(replay.Match.MatchGUID)
+		ac.AddToMatchHistory(match.Match.MatchGUID)
 	}
 
 	uploadCache.Save()

@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	EVENT_CLICK_UPLOAD       = "click_upload"
-	WAIT_BEFORE_OPEN_BROWSER = 5 * time.Second
+	EVENT_CLICK_UPLOAD tools.EventType = "click_upload"
+
+	waitBeforeOpenBrowser = 5 * time.Second
 )
 
 type GUI struct {
@@ -102,7 +103,7 @@ func (g *GUI) UpdateState() {
 		g.LoginBox.Hide()
 		g.PlayerBox.Show()
 
-		if selectedAccount.Player.LastCheckOnline && g.appConfig.BehaviorConfig.NoUploadConnected.Get() {
+		if selectedAccount.Player.LastCheckOnline && g.appConfig.BehaviorConfig.NoUploadOnline.Get() {
 			g.RLConnectedWarning.Show()
 		} else {
 			g.RLConnectedWarning.Hide()
@@ -170,7 +171,7 @@ func (g *GUI) createLoginUI() {
 		copyBtn.Show()
 
 		go func() {
-			time.Sleep(WAIT_BEFORE_OPEN_BROWSER)
+			time.Sleep(waitBeforeOpenBrowser)
 			selectedAccount := g.accountManager.GetSelected()
 			selectedAccount.Player.Auth.OpenDeviceAuth()
 
@@ -231,7 +232,7 @@ func (g *GUI) createPlayerUI() {
 	g.UploadProgress = widget.NewProgressBar()
 	g.UploadProgress.Hide()
 
-	g.RLConnectedWarning = widget.NewLabel("⚠️ The player was connected or unused during the last check. No refresh was performed.")
+	g.RLConnectedWarning = widget.NewLabel("⚠️ The player could be connected or unused during the last check. No refresh will be done while 'No Upload if Online' is checked.")
 	g.RLConnectedWarning.Hide()
 
 	g.MatchHistoryData = []string{}
@@ -315,7 +316,7 @@ func (g *GUI) UpdateUploadProgress(progress float64) {
 	value := float64(max(0, min(progress, 1)))
 	g.UploadProgress.SetValue(value)
 	g.UploadProgress.Show()
-	g.UploadStatus.SetText("Uploading replays... " + strconv.Itoa(int(value*100)) + "%")
+	g.UploadStatus.SetText("Uploading replays...")
 }
 
 func (g *GUI) lastUploadStatusText() string {

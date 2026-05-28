@@ -43,7 +43,8 @@ type StorageInfoContainer struct {
 type StorageSettingsPopup struct {
 	*Popup
 
-	websites      []*config.StorageConfig
+	currentWebsite config.StorageConfig
+
 	infoContainer StorageInfoContainer
 	btnDelete     *widget.Button
 	btnSave       *widget.Button
@@ -59,13 +60,11 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 
 	wsp := &StorageSettingsPopup{Popup: p, infoContainer: StorageInfoContainer{}}
 
-	wsp.websites = wsp.appConfig.StorageSettings.Get()
-
 	wsp.btnSave = widget.NewButtonWithIcon("Save Changes", theme.DocumentSaveIcon(), wsp.onSaveBtn)
 	wsp.btnSave.Importance = widget.HighImportance
 	wsp.btnSave.Disable()
 
-	wsp.btnDelete = widget.NewButtonWithIcon("Delete this website", theme.DeleteIcon(), wsp.onDeleteWebsiteBtn)
+	wsp.btnDelete = widget.NewButtonWithIcon("Delete this storage", theme.DeleteIcon(), wsp.onDeleteStorageBtn)
 	wsp.btnDelete.Importance = widget.DangerImportance
 	wsp.btnDelete.Disable()
 
@@ -81,13 +80,13 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	)
 
 	wsp.list = widget.NewList(
-		func() int { return len(wsp.websites) },
+		func() int { return len(wsp.appConfig.StorageSettings.Get()) },
 		func() fyne.CanvasObject {
 			return widget.NewRichTextWithText("")
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
 			rt := o.(*widget.RichText)
-			site := wsp.websites[i]
+			site := wsp.appConfig.StorageSettings.Get()[i]
 
 			style := widget.RichTextStyleInline
 			if !site.SendReplay {
@@ -109,7 +108,7 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	wsp.list.OnSelected = wsp.onSelected
 	wsp.list.OnUnselected = wsp.onUnselected
 
-	btnAdd := widget.NewButtonWithIcon("Add a website", theme.ContentAddIcon(), wsp.onAddWebsiteBtn)
+	btnAdd := widget.NewButtonWithIcon("Add a storage", theme.ContentAddIcon(), wsp.onAddStorageBtn)
 
 	wsp.leftPanel = container.NewBorder(nil, btnAdd, nil, nil, wsp.list)
 	wsp.split = container.NewHSplit(wsp.leftPanel, wsp.detailPanel)
@@ -127,7 +126,6 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 func (wsp *StorageSettingsPopup) Show() {
 	logger.FuncDebug()
 
-	wsp.websites = wsp.appConfig.StorageSettings.Get()
 	wsp.list.Refresh()
 	wsp.reload()
 
@@ -137,25 +135,45 @@ func (wsp *StorageSettingsPopup) Show() {
 func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	logger.FuncDebug()
 
-	wsp.infoContainer.titleLabel = widget.NewLabelWithStyle("Select a website", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	wsp.infoContainer.titleLabel = widget.NewLabelWithStyle("Select a storage", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 
 	wsp.infoContainer.urlEntry = widget.NewEntry()
 
-	wsp.infoContainer.storageTypeSelect = widget.NewSelect([]string{"Website", "File System"}, func(val string) {
+	wsp.infoContainer.storageTypeSelect = widget.NewSelect([]string{"Website", "File System"}, func(v string) {
+		switch v {
+		case "File System":
+			wsp.currentWebsite.StorageType = config.FileSystemConfig
+		default:
+			fallthrough
+		case "Website":
+			wsp.currentWebsite.StorageType = config.WebsiteConfig
+		}
+
 		wsp.reload()
 	})
 
 	wsp.infoContainer.uriParamsEntry = widget.NewMultiLineEntry()
 	wsp.infoContainer.uriParamsEntry.SetPlaceHolder("")
 
-	wsp.infoContainer.needTokenCheck = widget.NewCheck("", func(bool) { wsp.reload() })
+	wsp.infoContainer.needTokenCheck = widget.NewCheck("", func(v bool) {
+		wsp.currentWebsite.NeedToken = v
+		wsp.reload()
+	})
+
 	wsp.infoContainer.tokenEntry = widget.NewPasswordEntry()
 	wsp.infoContainer.tokenEntry.SetPlaceHolder("")
 
-	wsp.infoContainer.sendPingCheck = widget.NewCheck("", func(bool) { wsp.reload() })
+	wsp.infoContainer.sendPingCheck = widget.NewCheck("", func(v bool) {
+		wsp.currentWebsite.SendPing = v
+		wsp.reload()
+	})
 	wsp.infoContainer.pingPathEntry = widget.NewEntry()
 
-	wsp.infoContainer.sendReplayCheck = widget.NewCheck("", func(bool) { wsp.reload() })
+	wsp.infoContainer.sendReplayCheck = widget.NewCheck("", func(v bool) {
+		wsp.currentWebsite.SendReplay = v
+		wsp.reload()
+	})
+
 	wsp.infoContainer.replayPathEntry = widget.NewEntry()
 	wsp.infoContainer.templateNameEntry = widget.NewEntry()
 
@@ -187,15 +205,22 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	logger.FuncDebug()
 
+	if id == -1 {
+		wsp.onUnselected(id)
+		return
+	}
+
 	wsp.appConfig.BehaviorConfig.SelectedStorageId.Set(id)
-	site := wsp.websites[id]
+
+	storages := wsp.appConfig.StorageSettings.Get()
+	wsp.currentWebsite = *storages[id]
 
 	wsp.list.Select(id)
 
-	wsp.infoContainer.titleLabel.SetText(site.Name)
-	wsp.infoContainer.urlEntry.SetText(site.URL)
+	wsp.infoContainer.titleLabel.SetText(wsp.currentWebsite.Name)
+	wsp.infoContainer.urlEntry.SetText(wsp.currentWebsite.URL)
 
-	switch site.StorageType {
+	switch wsp.currentWebsite.StorageType {
 	case config.FileSystemConfig:
 		wsp.infoContainer.storageTypeSelect.SetSelected("File System")
 	default:
@@ -204,22 +229,16 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 		wsp.infoContainer.storageTypeSelect.SetSelected("Website")
 	}
 
-	wsp.infoContainer.needTokenCheck.SetChecked(site.NeedToken)
-	wsp.infoContainer.tokenEntry.SetText(site.Token)
-	wsp.infoContainer.sendPingCheck.SetChecked(site.SendPing)
-	wsp.infoContainer.pingPathEntry.SetText(site.PingPath)
-	wsp.infoContainer.sendReplayCheck.SetChecked(site.SendReplay)
-	wsp.infoContainer.replayPathEntry.SetText(site.ReplayPath)
-	wsp.infoContainer.templateNameEntry.SetText(site.TemplateName)
-
-	if wsp.infoContainer.needTokenCheck.Checked {
-		wsp.infoContainer.tokenEntry.Enable()
-	} else {
-		wsp.infoContainer.tokenEntry.Disable()
-	}
+	wsp.infoContainer.needTokenCheck.SetChecked(wsp.currentWebsite.NeedToken)
+	wsp.infoContainer.tokenEntry.SetText(wsp.currentWebsite.Token)
+	wsp.infoContainer.sendPingCheck.SetChecked(wsp.currentWebsite.SendPing)
+	wsp.infoContainer.pingPathEntry.SetText(wsp.currentWebsite.PingPath)
+	wsp.infoContainer.sendReplayCheck.SetChecked(wsp.currentWebsite.SendReplay)
+	wsp.infoContainer.replayPathEntry.SetText(wsp.currentWebsite.ReplayPath)
+	wsp.infoContainer.templateNameEntry.SetText(wsp.currentWebsite.TemplateName)
 
 	var paramsStr string
-	for k, v := range site.URIParams {
+	for k, v := range wsp.currentWebsite.URIParams {
 		paramsStr += fmt.Sprintf("%s=%s\n", k, v)
 	}
 	wsp.infoContainer.uriParamsEntry.SetText(strings.TrimSpace(paramsStr))
@@ -230,85 +249,125 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 func (wsp *StorageSettingsPopup) reload() {
 	logger.FuncDebug()
 
-	selectedIndex := wsp.appConfig.BehaviorConfig.SelectedStorageId.Get()
-	if selectedIndex < len(wsp.websites) && selectedIndex >= 0 {
-		site := wsp.websites[selectedIndex]
+	wsp.reloadShow()
+	wsp.reloadEnable()
 
-		if site.IsPredefined {
-			wsp.btnDelete.Disable()
+	wsp.editForm.Refresh()
+}
 
-			wsp.infoContainer.urlEntry.Disable()
-			wsp.infoContainer.storageTypeSelect.Disable()
-			wsp.infoContainer.needTokenCheck.Disable()
-			wsp.infoContainer.sendPingCheck.Disable()
-			wsp.infoContainer.pingPathEntry.Disable()
-			wsp.infoContainer.replayPathEntry.Disable()
-			wsp.infoContainer.templateNameEntry.Disable()
+func (wsp *StorageSettingsPopup) reloadShow() {
+	logger.FuncDebug()
 
-			if site.IsPrimary {
-				wsp.btnSave.Disable()
-				wsp.infoContainer.sendReplayCheck.Disable()
-				wsp.infoContainer.uriParamsEntry.Disable()
-			} else {
-				wsp.btnSave.Enable()
-				wsp.infoContainer.sendReplayCheck.Enable()
-				wsp.infoContainer.templateNameEntry.Enable()
+	wsp.infoContainer.urlForm.Widget.Show()
+	wsp.infoContainer.storageTypeForm.Widget.Show()
+	wsp.infoContainer.uriParamsForm.Widget.Show()
+	wsp.infoContainer.needTokenForm.Widget.Show()
+	wsp.infoContainer.tokenForm.Widget.Show()
+	wsp.infoContainer.sendPingForm.Widget.Show()
+	wsp.infoContainer.pingPathForm.Widget.Show()
+	wsp.infoContainer.sendReplayForm.Widget.Show()
+	wsp.infoContainer.replayPathForm.Widget.Show()
+	wsp.infoContainer.templateNameForm.Widget.Show()
 
-				switch site.StorageType {
-				case config.FileSystemConfig:
-					wsp.infoContainer.replayPathEntry.Enable()
-					wsp.infoContainer.uriParamsEntry.Disable()
-				default:
-					fallthrough
-				case config.WebsiteConfig:
-					wsp.infoContainer.replayPathEntry.Disable()
-					wsp.infoContainer.uriParamsEntry.Enable()
-				}
-			}
-		} else {
-			wsp.btnDelete.Enable()
-			wsp.btnSave.Enable()
-
-			wsp.infoContainer.urlEntry.Enable()
-			wsp.infoContainer.storageTypeSelect.Enable()
-			wsp.infoContainer.uriParamsEntry.Enable()
-			wsp.infoContainer.needTokenCheck.Enable()
-			wsp.infoContainer.sendPingCheck.Enable()
-			wsp.infoContainer.pingPathEntry.Enable()
-			wsp.infoContainer.sendReplayCheck.Enable()
-			wsp.infoContainer.replayPathEntry.Enable()
-			wsp.infoContainer.templateNameEntry.Enable()
-		}
-	}
-
-	if wsp.infoContainer.needTokenCheck.Checked {
-		wsp.infoContainer.tokenForm.Widget.Show()
-	} else {
+	if !wsp.infoContainer.needTokenCheck.Checked {
 		wsp.infoContainer.tokenForm.Widget.Hide()
 	}
 
-	if wsp.infoContainer.sendPingCheck.Checked {
-		wsp.infoContainer.pingPathForm.Widget.Show()
-	} else {
+	if !wsp.infoContainer.sendPingCheck.Checked {
 		wsp.infoContainer.pingPathForm.Widget.Hide()
 	}
 
-	if wsp.infoContainer.sendReplayCheck.Checked {
-		wsp.infoContainer.replayPathForm.Widget.Show()
-		wsp.infoContainer.templateNameForm.Widget.Show()
-	} else {
+	if !wsp.infoContainer.sendReplayCheck.Checked {
 		wsp.infoContainer.replayPathForm.Widget.Hide()
 		wsp.infoContainer.templateNameForm.Widget.Hide()
 	}
 
-	wsp.editForm.Refresh()
+	switch wsp.currentWebsite.StorageType {
+	case config.FileSystemConfig:
+		wsp.infoContainer.urlForm.Widget.Hide()
+		wsp.infoContainer.uriParamsForm.Widget.Hide()
+		wsp.infoContainer.needTokenForm.Widget.Hide()
+		wsp.infoContainer.tokenForm.Widget.Hide()
+		wsp.infoContainer.sendPingForm.Widget.Hide()
+		wsp.infoContainer.pingPathForm.Widget.Hide()
+	default:
+		fallthrough
+	case config.WebsiteConfig:
+	}
+
+	if wsp.currentWebsite.IsPredefined {
+		if wsp.currentWebsite.IsPrimary {
+			wsp.infoContainer.templateNameForm.Widget.Hide()
+		}
+	}
+}
+
+func (wsp *StorageSettingsPopup) reloadEnable() {
+	logger.FuncDebug()
+
+	wsp.btnSave.Enable()
+	wsp.btnDelete.Enable()
+
+	wsp.infoContainer.urlEntry.Enable()
+	wsp.infoContainer.storageTypeSelect.Enable()
+	wsp.infoContainer.uriParamsEntry.Enable()
+	wsp.infoContainer.needTokenCheck.Enable()
+	wsp.infoContainer.tokenEntry.Enable()
+	wsp.infoContainer.sendPingCheck.Enable()
+	wsp.infoContainer.pingPathEntry.Enable()
+	wsp.infoContainer.sendReplayCheck.Enable()
+	wsp.infoContainer.replayPathEntry.Enable()
+	wsp.infoContainer.templateNameEntry.Enable()
+
+	switch wsp.currentWebsite.StorageType {
+	case config.FileSystemConfig:
+		wsp.infoContainer.urlEntry.Disable()
+		wsp.infoContainer.uriParamsEntry.Disable()
+		wsp.infoContainer.needTokenCheck.Disable()
+		wsp.infoContainer.tokenEntry.Disable()
+		wsp.infoContainer.sendPingCheck.Disable()
+		wsp.infoContainer.pingPathEntry.Disable()
+	default:
+		fallthrough
+	case config.WebsiteConfig:
+	}
+
+	if wsp.currentWebsite.IsPredefined {
+		wsp.btnDelete.Disable()
+
+		wsp.infoContainer.urlEntry.Disable()
+		wsp.infoContainer.storageTypeSelect.Disable()
+		wsp.infoContainer.needTokenCheck.Disable()
+		wsp.infoContainer.sendPingCheck.Disable()
+		wsp.infoContainer.pingPathEntry.Disable()
+
+		if wsp.currentWebsite.IsPrimary {
+			wsp.btnSave.Disable()
+			wsp.infoContainer.sendReplayCheck.Disable()
+			wsp.infoContainer.uriParamsEntry.Disable()
+			wsp.infoContainer.tokenEntry.Disable()
+			wsp.infoContainer.templateNameEntry.Disable()
+			wsp.infoContainer.replayPathEntry.Disable()
+		} else {
+			switch wsp.currentWebsite.StorageType {
+			case config.FileSystemConfig:
+				wsp.infoContainer.uriParamsEntry.Disable()
+			default:
+				fallthrough
+			case config.WebsiteConfig:
+				wsp.infoContainer.replayPathEntry.Disable()
+			}
+		}
+	}
 }
 
 func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	logger.FuncDebug()
 
 	wsp.appConfig.BehaviorConfig.SelectedStorageId.Set(-1)
-	wsp.infoContainer.titleLabel.SetText("Select a website")
+	wsp.infoContainer.titleLabel.SetText("Select a storage")
+
+	wsp.currentWebsite = config.StorageConfig{}
 
 	wsp.infoContainer.urlEntry.SetText("")
 	wsp.infoContainer.storageTypeSelect.ClearSelected()
@@ -333,16 +392,17 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 		return
 	}
 
-	site := wsp.websites[selectedIndex]
+	storages := wsp.appConfig.StorageSettings.Get()
+	site := storages[selectedIndex]
 
 	site.URL = wsp.infoContainer.urlEntry.Text
 
-	switch site.StorageType {
-	case config.FileSystemConfig:
+	switch wsp.infoContainer.storageTypeSelect.Selected {
+	case "File System":
 		site.StorageType = config.FileSystemConfig
 	default:
 		fallthrough
-	case config.WebsiteConfig:
+	case "Website":
 		site.StorageType = config.WebsiteConfig
 	}
 
@@ -368,7 +428,8 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	}
 	site.URIParams = newParams
 
-	wsp.appConfig.StorageSettings.Set(wsp.websites)
+	wsp.appConfig.StorageSettings.Set(storages)
+	wsp.currentWebsite = *wsp.appConfig.StorageSettings.Get()[selectedIndex]
 
 	wsp.reload()
 	wsp.list.Refresh()
@@ -376,7 +437,7 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	dialog.ShowInformation("Success", "Settings saved successfully!", wsp.parentWindow)
 }
 
-func (wsp *StorageSettingsPopup) onAddWebsiteBtn() {
+func (wsp *StorageSettingsPopup) onAddStorageBtn() {
 	logger.FuncDebug()
 
 	nameEntry := widget.NewEntry()
@@ -384,7 +445,7 @@ func (wsp *StorageSettingsPopup) onAddWebsiteBtn() {
 		widget.NewFormItem("Name", nameEntry),
 	}
 
-	dialog.ShowForm("New Website", "Add", "Cancel", items, func(valide bool) {
+	dialog.ShowForm("New Storage", "Add", "Cancel", items, func(valide bool) {
 		if valide && nameEntry.Text != "" {
 			newSite := &config.StorageConfig{
 				Name:         nameEntry.Text,
@@ -398,38 +459,42 @@ func (wsp *StorageSettingsPopup) onAddWebsiteBtn() {
 				URIParams:    make(map[string]string),
 			}
 
-			for _, StorageConfig := range wsp.websites {
+			storages := wsp.appConfig.StorageSettings.Get()
+
+			for _, StorageConfig := range storages {
 				if StorageConfig.Name == newSite.Name {
 					return
 				}
 			}
 
-			wsp.websites = append(wsp.websites, newSite)
-			wsp.appConfig.StorageSettings.Set(wsp.websites)
+			storages = append(storages, newSite)
+			wsp.appConfig.StorageSettings.Set(storages)
 
-			wsp.onSelected(len(wsp.websites) - 1)
+			wsp.onSelected(len(storages) - 1)
 			wsp.list.Refresh()
 		}
 	}, wsp.parentWindow)
 }
 
-func (wsp *StorageSettingsPopup) onDeleteWebsiteBtn() {
+func (wsp *StorageSettingsPopup) onDeleteStorageBtn() {
 	logger.FuncDebug()
 
+	storages := wsp.appConfig.StorageSettings.Get()
+
 	selectedIndex := wsp.appConfig.BehaviorConfig.SelectedStorageId.Get()
-	if selectedIndex < 0 || selectedIndex >= len(wsp.websites) {
+	if selectedIndex < 0 || selectedIndex >= len(storages) {
 		return
 	}
 
-	siteToDelete := wsp.websites[selectedIndex]
+	storageToDelete := storages[selectedIndex]
 
-	dialog.ShowConfirm("Delete", "Are you sure you want to delete the website '"+siteToDelete.Name+"' ?", func(confirmed bool) {
+	dialog.ShowConfirm("Delete", "Are you sure you want to delete the storage '"+storageToDelete.Name+"' ?", func(confirmed bool) {
 		if confirmed {
-			wsp.websites = append(wsp.websites[:selectedIndex], wsp.websites[selectedIndex+1:]...)
+			storages = append(storages[:selectedIndex], storages[selectedIndex+1:]...)
 
-			wsp.appConfig.StorageSettings.Set(wsp.websites)
+			wsp.appConfig.StorageSettings.Set(storages)
 
-			wsp.onSelected(len(wsp.websites) - 1)
+			wsp.onSelected(len(storages) - 1)
 			wsp.list.Refresh()
 		}
 	}, wsp.parentWindow)

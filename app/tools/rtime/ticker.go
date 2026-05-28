@@ -1,4 +1,4 @@
-package time
+package rtime
 
 import (
 	"math/rand"
@@ -8,7 +8,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
-type Ticker struct {
+type ticker struct {
 	channel   chan struct{}
 	duration  time.Duration
 	onTick    func()
@@ -20,14 +20,14 @@ type Ticker struct {
 	startMu   sync.Mutex
 }
 
-func NewTicker(duration time.Duration, onTick func(), onStart func(), onStop func(), jMin time.Duration, jMax time.Duration) *Ticker {
+func newTicker(duration time.Duration, onTick func(), onStart func(), onStop func(), jMin time.Duration, jMax time.Duration) *ticker {
 	logger.FuncDebug()
 
 	if jMin < -duration {
 		jMin = 0
 	}
 
-	return &Ticker{
+	return &ticker{
 		duration:  duration,
 		onTick:    onTick,
 		onStart:   onStart,
@@ -37,7 +37,7 @@ func NewTicker(duration time.Duration, onTick func(), onStart func(), onStop fun
 	}
 }
 
-func (t *Ticker) Stop() {
+func (t *ticker) Stop() {
 	logger.FuncDebug()
 
 	t.stopMu.Lock()
@@ -51,7 +51,7 @@ func (t *Ticker) Stop() {
 	t.channel = nil
 }
 
-func (t *Ticker) Start() {
+func (t *ticker) Start() {
 	logger.FuncDebug()
 
 	t.startMu.Lock()
@@ -65,7 +65,7 @@ func (t *Ticker) Start() {
 	go t.run()
 }
 
-func (t *Ticker) Set(value bool) {
+func (t *ticker) Set(value bool) {
 	logger.FuncDebug()
 
 	if value {
@@ -75,7 +75,7 @@ func (t *Ticker) Set(value bool) {
 	}
 }
 
-func (t *Ticker) run() {
+func (t *ticker) run() {
 	logger.FuncDebug()
 
 	ticker := time.NewTimer(t.fuzzyDuration())
@@ -83,6 +83,11 @@ func (t *Ticker) run() {
 
 	if t.onStart != nil {
 		t.onStart()
+	}
+
+	if t.onTick == nil {
+		t.onStop()
+		return
 	}
 
 	for {
@@ -104,7 +109,7 @@ func (t *Ticker) run() {
 	}
 }
 
-func (t *Ticker) fuzzyDuration() time.Duration {
+func (t *ticker) fuzzyDuration() time.Duration {
 	logger.FuncDebug()
 	delay := t.duration
 

@@ -76,7 +76,5 @@ func GetShops(rpc *rlapi.PsyNetRPC) (shops *rlapi.GetStandardShopsResponse, err 
 		return nil, err
 	}
 
-	logger.Rlogger.Debug("Retrieved standard shops with ", slog.Any("shops", shops))
-
 	return shops, nil
 }

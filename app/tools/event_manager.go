@@ -8,13 +8,15 @@ import (
 	"fyne.io/fyne/v2"
 )
 
+type EventType string
+
 type Listener struct {
 	Callback func(data any)
 	IsSync   bool
 }
 
 type EventManager struct {
-	listeners map[string][]Listener
+	listeners map[EventType][]Listener
 	lock      sync.Mutex
 }
 
@@ -22,11 +24,11 @@ func NewEventManager() *EventManager {
 	logger.FuncDebug()
 
 	return &EventManager{
-		listeners: make(map[string][]Listener),
+		listeners: make(map[EventType][]Listener),
 	}
 }
 
-func (n *EventManager) Subscribe(event string, listener Listener) {
+func (n *EventManager) Subscribe(event EventType, listener Listener) {
 	logger.FuncDebug()
 
 	n.lock.Lock()
@@ -35,7 +37,7 @@ func (n *EventManager) Subscribe(event string, listener Listener) {
 	n.listeners[event] = append(n.listeners[event], listener)
 }
 
-func (n *EventManager) MultiSubscribe(events []string, listener Listener) {
+func (n *EventManager) MultiSubscribe(events []EventType, listener Listener) {
 	logger.FuncDebug()
 
 	n.lock.Lock()
@@ -46,7 +48,7 @@ func (n *EventManager) MultiSubscribe(events []string, listener Listener) {
 	}
 }
 
-func (n *EventManager) Notify(event string, data any) {
+func (n *EventManager) Notify(event EventType, data any) {
 	logger.FuncDebug()
 
 	n.lock.Lock()
@@ -68,7 +70,7 @@ func (n *EventManager) Notify(event string, data any) {
 	}
 }
 
-func (n *EventManager) UnsubscribeAll(event string) {
+func (n *EventManager) UnsubscribeAll(event EventType) {
 	logger.FuncDebug()
 
 	n.lock.Lock()
