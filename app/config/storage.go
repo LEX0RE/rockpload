@@ -34,11 +34,19 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 	ballchasingIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == BALLCHASING_NAME })
 	if ballchasingIndex == -1 {
 		temp = append(temp, BALLCHASING_STORAGE)
+	} else {
+		temp[ballchasingIndex].IsPrimary = BALLCHASING_STORAGE.IsPrimary
+		temp[ballchasingIndex].IsPredefined = BALLCHASING_STORAGE.IsPredefined
+		temp[ballchasingIndex].StorageType = BALLCHASING_STORAGE.StorageType
 	}
 
 	fileSystemIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == FILE_SYSTEM_NAME })
 	if fileSystemIndex == -1 {
 		temp = append(temp, FILE_SYSTEM_STORAGE)
+	} else {
+		temp[fileSystemIndex].IsPrimary = FILE_SYSTEM_STORAGE.IsPrimary
+		temp[fileSystemIndex].IsPredefined = FILE_SYSTEM_STORAGE.IsPredefined
+		temp[fileSystemIndex].StorageType = FILE_SYSTEM_STORAGE.StorageType
 	}
 
 	if os.Getenv("ADD_LOCALHOST") == "true" {
