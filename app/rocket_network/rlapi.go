@@ -11,15 +11,18 @@ import (
 	"github.com/dank/rlapi"
 )
 
-func GetRPC(a *Auth) (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
+func GetRPC(p *Player) (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
 	logger.FuncDebug()
-	if !a.IsAuthenticated() {
+
+	if !p.IsAuthenticated() {
 		logger.Rlogger.Error("No valid authentication token found. Please retrieve a new token.")
+		p.Reset()
+
 		return nil, nil, fmt.Errorf("no valid authentication token")
 	}
 
 	psyNet := rlapi.NewPsyNet()
-	eosToken := a.GetValidToken()
+	eosToken := p.Auth.getValidToken()
 	if eosToken == nil {
 		return nil, nil, fmt.Errorf("failed to get any valid token")
 	}
@@ -72,8 +75,6 @@ func GetShops(rpc *rlapi.PsyNetRPC) (shops *rlapi.GetStandardShopsResponse, err 
 		logger.Rlogger.Error("Failed to get shops", slog.Any("error", err))
 		return nil, err
 	}
-
-	logger.Rlogger.Debug("Retrieved standard shops with ", slog.Any("shops", shops))
 
 	return shops, nil
 }

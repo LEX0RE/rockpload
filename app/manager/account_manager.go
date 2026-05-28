@@ -1,6 +1,11 @@
 package manager
 
 import (
+	"cmp"
+	"log/slog"
+	"slices"
+	"strings"
+
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools"
@@ -9,10 +14,10 @@ import (
 )
 
 const (
-	EVENT_SELECT_ACCOUNT = "select_account"
-	EVENT_UNUSED_ACCOUNT = "unused_account"
-	EVENT_ADD_ACCOUNT    = "add_account"
-	EVENT_DELETE_ACCOUNT = "delete_account"
+	EVENT_SELECT_ACCOUNT tools.EventType = "select_account"
+	EVENT_UNUSED_ACCOUNT tools.EventType = "unused_account"
+	EVENT_ADD_ACCOUNT    tools.EventType = "add_account"
+	EVENT_DELETE_ACCOUNT tools.EventType = "delete_account"
 )
 
 type AccountManager struct {
@@ -26,12 +31,38 @@ func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 
 	am := &AccountManager{appConfig: appConfig, EventManager: tools.NewEventManager()}
 
-	am.ConnectAll()
+	am.RefreshProfile()
 
 	return am
 }
 
-func (am *AccountManager) GetSelected() *config.AccountConfig {
+func (am *AccountManager) GetByPlayerName(playerName string) *rocket_network.Account {
+	logger.FuncDebug()
+
+	allAccount := am.GetAll()
+	for _, a := range allAccount {
+		if a.Player.PlayerName == playerName {
+			return a
+		}
+	}
+
+	return nil
+}
+
+func (am *AccountManager) GetByPlayerID(playerID string) *rocket_network.Account {
+	logger.FuncDebug()
+
+	allAccount := am.GetAll()
+	for _, a := range allAccount {
+		if strings.EqualFold(a.Player.PlayerID.String(), playerID) {
+			return a
+		}
+	}
+
+	return nil
+}
+
+func (am *AccountManager) GetSelected() *rocket_network.Account {
 	logger.FuncDebug()
 
 	if ac, ok := am.appConfig.AccountSettings.Get()[am.appConfig.BehaviorConfig.SelectedAccountId.Get()]; ok {
@@ -48,7 +79,7 @@ func (am *AccountManager) GetSelected() *config.AccountConfig {
 	}
 }
 
-func (am *AccountManager) GetUnused() *config.AccountConfig {
+func (am *AccountManager) GetUnused() *rocket_network.Account {
 	logger.FuncDebug()
 
 	for _, ac := range am.appConfig.AccountSettings.Get() {
@@ -77,6 +108,10 @@ func (am *AccountManager) SetUnused(accountId int) {
 	logger.FuncDebug()
 
 	for _, ac := range am.appConfig.AccountSettings.Get() {
+		if ac.IsUnused {
+			ac.Player.LastCheckOnline = false
+		}
+
 		ac.IsUnused = false
 	}
 
@@ -94,10 +129,10 @@ func (am *AccountManager) SetUnused(accountId int) {
 	am.appConfig.Save()
 }
 
-func (am *AccountManager) GetActives() []*config.AccountConfig {
+func (am *AccountManager) GetActives() []*rocket_network.Account {
 	logger.FuncDebug()
 
-	actives := make([]*config.AccountConfig, 0, len(am.appConfig.AccountSettings.Get()))
+	actives := make([]*rocket_network.Account, 0, len(am.appConfig.AccountSettings.Get()))
 	for _, ac := range am.appConfig.AccountSettings.Get() {
 		if ac.IsUnused {
 			continue
@@ -109,13 +144,41 @@ func (am *AccountManager) GetActives() []*config.AccountConfig {
 	return actives
 }
 
-func (am *AccountManager) Add() *config.AccountConfig {
+func (am *AccountManager) GetConnectedAccount() []*rocket_network.Account {
+	logger.FuncDebug()
+
+	connected := make([]*rocket_network.Account, 0, len(am.appConfig.AccountSettings.Get()))
+	for _, ac := range am.appConfig.AccountSettings.Get() {
+		if ac.IsConnected() {
+			connected = append(connected, ac)
+		}
+	}
+
+	return connected
+}
+
+func (am *AccountManager) GetAll() []*rocket_network.Account {
+	logger.FuncDebug()
+
+	all := make([]*rocket_network.Account, 0, len(am.appConfig.AccountSettings.Get()))
+	for _, ac := range am.appConfig.AccountSettings.Get() {
+		all = append(all, ac)
+	}
+
+	slices.SortFunc(all, func(a, b *rocket_network.Account) int {
+		return cmp.Compare(a.Id(), b.Id())
+	})
+
+	return all
+}
+
+func (am *AccountManager) Add() *rocket_network.Account {
 	logger.FuncDebug()
 
 	for i := 0; ; i++ {
 		if _, ok := am.appConfig.AccountSettings.Get()[i]; !ok {
 			temp := am.appConfig.AccountSettings.Get()
-			temp[i] = config.NewAccountConfig(i)
+			temp[i] = rocket_network.NewAccount(i)
 			am.appConfig.AccountSettings.Set(temp)
 
 			am.EventManager.Notify(EVENT_ADD_ACCOUNT, temp[i].Id())
@@ -148,56 +211,10 @@ func (am *AccountManager) Delete(accountId int) {
 	}
 }
 
-func (am *AccountManager) ConnectAll() {
-	logger.FuncDebug()
-
-	for _, ac := range am.appConfig.AccountSettings.Get() {
-		ac.Player.Connect()
-	}
-}
-
 func (am *AccountManager) RefreshInfo() {
 	logger.FuncDebug()
 
-	playerList := []*rocket_network.Player{}
-	uploadActiveMap := make(map[int]bool)
-	playersMap := make(map[int]*rocket_network.Player)
-
-	for _, ac := range am.GetActives() {
-		playerList = append(playerList, ac.Player)
-		uploadActiveMap[ac.Id()] = true
-		playersMap[ac.Id()] = ac.Player
-	}
-
-	unusedAccount := am.GetUnused()
-	if unusedAccount != nil && am.appConfig.BehaviorConfig.NoUploadConnected.Get() {
-		profiles := unusedAccount.Player.GetProfiles(playerList)
-
-		onlineStatus := make(map[rlapi.PlayerID]bool)
-		for _, player := range playerList {
-			if player.PlayerID == nil {
-				continue
-			}
-
-			for _, profile := range profiles {
-				if profile.PlayerID == player.PlayerID.String() {
-					player.SetProfile(profile)
-
-					onlineStatus[*player.PlayerID] = profile.PresenceState != "Online"
-					break
-				}
-			}
-		}
-
-		for pid := range uploadActiveMap {
-			if playersMap[pid].PlayerID != nil {
-				if value, ok := onlineStatus[*playersMap[pid].PlayerID]; ok && !value {
-					uploadActiveMap[pid] = false
-				}
-			}
-		}
-	}
-
+	uploadActiveMap := am.uploadStatusMap()
 	for _, ac := range am.appConfig.AccountSettings.Get() {
 		if !uploadActiveMap[ac.Id()] {
 			continue
@@ -216,26 +233,79 @@ func (am *AccountManager) RefreshProfile() {
 	}
 
 	unusedAccount := am.GetUnused()
-	if am.appConfig.BehaviorConfig.NoUploadConnected.Get() || unusedAccount != nil {
+	if unusedAccount != nil || am.appConfig.BehaviorConfig.NoUploadOnline.Get() {
 		if unusedAccount != nil {
-			profiles := unusedAccount.Player.GetProfiles(playerList)
-
-			for _, player := range playerList {
-				if player.PlayerID == nil {
-					continue
-				}
-
-				for _, profile := range profiles {
-					if profile.PlayerID == player.PlayerID.String() {
-						player.SetProfile(profile)
-						break
-					}
-				}
-			}
+			am.onlineStatusFromAccount(unusedAccount)
 		}
 	} else {
 		for _, ac := range am.appConfig.AccountSettings.Get() {
 			ac.Player.UpdateProfile()
 		}
 	}
+}
+
+func (am *AccountManager) uploadStatusMap() map[int]bool {
+	logger.FuncDebug()
+
+	uploadActiveMap := make(map[int]bool)
+	accountMap := make(map[int]*rocket_network.Account)
+
+	for _, ac := range am.GetActives() {
+		uploadActiveMap[ac.Id()] = true
+		accountMap[ac.Id()] = ac
+	}
+
+	if am.appConfig.BehaviorConfig.NoUploadOnline.Get() {
+		unusedAccount := am.GetUnused()
+		if unusedAccount != nil {
+			am.onlineStatusFromAccount(unusedAccount)
+		}
+
+		for pid := range uploadActiveMap {
+			currentAccount := accountMap[pid]
+
+			if currentAccount.Player.PlayerID != nil && currentAccount.Player.LastCheckOnline {
+				logger.Rlogger.Debug("Account could be connected, upload is skipped", slog.Any("Account", currentAccount.AccountName()))
+				uploadActiveMap[pid] = false
+			}
+		}
+	}
+
+	return uploadActiveMap
+}
+
+func (am *AccountManager) onlineStatusFromAccount(account *rocket_network.Account) map[rlapi.PlayerID]bool {
+	logger.FuncDebug()
+
+	onlineStatus := make(map[rlapi.PlayerID]bool)
+	if account == nil || account.Player == nil {
+		logger.Rlogger.Debug("Invalid Account for getting Online Status", slog.Any("Account", account))
+		return onlineStatus
+	}
+
+	logger.Rlogger.Debug("Account is being used to get Online Status", slog.Any("Account", account.AccountName()))
+
+	playerList := []*rocket_network.Player{}
+	for _, ac := range am.GetAll() {
+		playerList = append(playerList, ac.Player)
+	}
+
+	profiles := account.Player.GetProfiles(playerList)
+
+	for _, player := range playerList {
+		if player.PlayerID == nil {
+			continue
+		}
+
+		for _, profile := range profiles {
+			if profile.PlayerID == player.PlayerID.String() {
+				player.SetProfile(profile)
+				player.LastCheckOnline = profile.PresenceState == "Online"
+				onlineStatus[*player.PlayerID] = player.LastCheckOnline
+				break
+			}
+		}
+	}
+
+	return onlineStatus
 }

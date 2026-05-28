@@ -28,6 +28,7 @@ type EpicAuthResponse struct {
 
 func OpenBrowser(url string) {
 	logger.FuncDebug()
+
 	var cmd string
 	var args []string
 
@@ -50,7 +51,7 @@ func OpenAutoChromiumBrowser(url string, profileId int) (authCode string, err er
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", false), // TODO Check when profile folder exist and make it headless so user dont see navigator
 		chromedp.Flag("user-data-dir", constant.BrowserSession),
-		chromedp.Flag("profile-directory", BrowserProfilePrefix+strconv.Itoa(profileId)),
+		chromedp.Flag("profile-directory", getBrowserProfilePath(profileId)),
 		chromedp.Flag("disable-restore-session-state", true),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 	)
@@ -123,16 +124,22 @@ func OpenAutoChromiumBrowser(url string, profileId int) (authCode string, err er
 
 func ClearBrowserSession() {
 	logger.FuncDebug()
+
 	err := os.RemoveAll(constant.BrowserSession)
+	if err != nil {
+		logger.Rlogger.Error("Failed to clear browser session", slog.Any("err", err))
+	}
+}
+
+func ClearBrowserProfile(profileId int) {
+	logger.FuncDebug()
+
+	err := os.RemoveAll(getBrowserProfilePath(profileId))
 	if err != nil {
 		logger.Rlogger.Error("Failed to clear browser profile", slog.Any("err", err))
 	}
 }
 
-func ClearTokenFile(tokenPath string) {
-	logger.FuncDebug()
-	err := os.Remove(tokenPath)
-	if err != nil {
-		logger.Rlogger.Error("Failed to clear token file", slog.Any("err", err))
-	}
+func getBrowserProfilePath(profileId int) string {
+	return BrowserProfilePrefix + strconv.Itoa(profileId)
 }

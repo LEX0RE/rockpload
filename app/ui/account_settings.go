@@ -3,7 +3,7 @@ package ui
 import (
 	"slices"
 
-	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
@@ -78,7 +78,7 @@ func NewAccountSettingsPopup(p *Popup) *AccountSettingsPopup {
 		func() fyne.CanvasObject { return widget.NewLabel("Template...") },
 		func(i widget.ListItemID, o fyne.CanvasObject) {
 			allAccounts := asp.getAllAccounts()
-			name := allAccounts[i].Player.PlayerName
+			name := allAccounts[i].AccountName()
 			suffix := ""
 
 			if asp.accountManager.GetSelected() == allAccounts[i] && asp.accountManager.GetUnused() == allAccounts[i] {
@@ -123,16 +123,16 @@ func (asp *AccountSettingsPopup) Reload() {
 	asp.updateBtnStates()
 }
 
-func (asp *AccountSettingsPopup) getAllAccounts() []*config.AccountConfig {
+func (asp *AccountSettingsPopup) getAllAccounts() []*rocket_network.Account {
 	logger.FuncDebug()
 
 	allAccounts := asp.appConfig.AccountSettings.Get()
-	allAccountsList := make([]*config.AccountConfig, 0, len(allAccounts))
+	allAccountsList := make([]*rocket_network.Account, 0, len(allAccounts))
 	for _, account := range allAccounts {
 		allAccountsList = append(allAccountsList, account)
 	}
 
-	slices.SortFunc(allAccountsList, func(a, b *config.AccountConfig) int {
+	slices.SortFunc(allAccountsList, func(a, b *rocket_network.Account) int {
 		return a.Id() - b.Id()
 	})
 
@@ -145,13 +145,13 @@ func (asp *AccountSettingsPopup) updateLabels() {
 	if asp.accountManager.GetSelected() == nil {
 		asp.currentSelectedLabel.SetText("Selected Account: None")
 	} else {
-		asp.currentSelectedLabel.SetText("Selected Account: " + asp.accountManager.GetSelected().Player.PlayerName)
+		asp.currentSelectedLabel.SetText("Selected Account: " + asp.accountManager.GetSelected().AccountName())
 	}
 
 	if asp.accountManager.GetUnused() == nil {
 		asp.currentUnusedLabel.SetText("Unused Account: None")
 	} else {
-		asp.currentUnusedLabel.SetText("Unused Account: " + asp.accountManager.GetUnused().Player.PlayerName)
+		asp.currentUnusedLabel.SetText("Unused Account: " + asp.accountManager.GetUnused().AccountName())
 	}
 }
 
@@ -277,7 +277,7 @@ func (asp *AccountSettingsPopup) onDeleteAccountBtn() {
 	}
 
 	accountToDelete := allAccounts[asp.selectedIndex]
-	dialog.ShowConfirm("Delete", "Are you sure you want to delete the account '"+accountToDelete.Player.PlayerName+"'?", func(confirmed bool) {
+	dialog.ShowConfirm("Delete", "Are you sure you want to delete the account '"+accountToDelete.AccountName()+"'?", func(confirmed bool) {
 		if confirmed {
 			asp.accountManager.Delete(accountToDelete.Id())
 
