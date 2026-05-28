@@ -28,6 +28,16 @@ A desktop companion app for Rocket League that watches your replay history and a
 - **Windows** (amd64)
 - **macOS**: Not supported yet
 
+
+## Screenshots
+
+![Main Menu](images/main-menu.png)
+
+![Account Settings](images/account-settings.png)
+
+![Storage Settings](images/storage-settings.png)
+
+
 ## Installation
 
 ### Download Pre-built Binary
@@ -159,6 +169,10 @@ Setup:
 **Local State:**
 - Config: `~/.cache/rockpload/` (Linux) or `%LOCALAPPDATA%\rockpload\` (Windows)
 - Cache: `~/.cache/rockpload/`
+
+**Logs file:**
+- Linux: `/home/.cache/rockpload/rockpload.log`
+- Windows: `C:\Users\<Username>\AppData\Local\rockpload\rockpload.log` (Replace `<Username>` with your Windows username) 
 
 **Note:** If you run the program on multiple devices, each device will need to authenticate separately. Only one device per account can maintain a valid token at a time.
 
