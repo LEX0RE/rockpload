@@ -41,7 +41,7 @@
             version = rockploadVersion;
 
             src = self;
-            vendorHash = "sha256-c4oEnk0snB2rEbHEr6usHQVMpyiqV2yreNyZNtd0nA8=";
+            vendorHash = "sha256-tq4TUYcHE10w9BpSZIWCJ94FepWgN6GFbBcz4JzKsi8=";
 
             go = pkgs.go_1_26;
 
