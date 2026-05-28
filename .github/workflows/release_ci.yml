@@ -23,6 +23,15 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Verify release tag matches project version
+        run: |
+          bash ./scripts/set-version.sh --check
+          expected_tag="$(bash ./scripts/set-version.sh --print-tag)"
+          if [ "$expected_tag" != "$GITHUB_REF_NAME" ]; then
+            echo "Release tag $GITHUB_REF_NAME does not match VERSION tag $expected_tag"
+            exit 1
+          fi
+
       - name: Install Build Dependencies
         run: |
           sudo apt-get update

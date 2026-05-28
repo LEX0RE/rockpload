@@ -60,6 +60,9 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Check project version
+        run: bash ./scripts/set-version.sh --check
+
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
@@ -80,3 +83,24 @@ jobs:
         run: |
           ls -lh releases/
           [ "$(ls -A releases/)" ] || (echo "Error: No generated file" && exit 1)
+
+  nix-build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Set up Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Check Nix flake validity
+        run: nix flake check
+
+      - name: Build project
+        run: nix build .
+
+      - name: Run Go tests
+        run: nix develop --command go test ./...
