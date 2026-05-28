@@ -11,7 +11,7 @@ require (
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf
 	github.com/mitchellh/go-ps v1.0.0
 	golang.org/x/mod v0.36.0
-	golang.org/x/sys v0.44.0
+	golang.org/x/sys v0.45.0
 )
 
 require (
