@@ -81,6 +81,12 @@ To install the latest stable GitHub release into your Nix profile:
 nix profile install github:LEX0RE/rockpload/stable
 ```
 
+To try the latest pre-release or beta build:
+
+```bash
+nix run github:LEX0RE/rockpload/prerelease
+```
+
 For local development from a checkout:
 
 ```bash
