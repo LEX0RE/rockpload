@@ -69,6 +69,22 @@ git tag "$(scripts/set-version.sh --print-tag)"
 
 This repository also provides a Nix flake for Linux builds and development shells:
 
+To run the latest stable GitHub release, excluding pre-releases:
+
+```bash
+latest_tag="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/LEX0RE/rockpload/releases/latest | sed 's#.*/tag/##')"
+nix run "github:LEX0RE/rockpload/${latest_tag}"
+```
+
+To install the latest stable GitHub release into your Nix profile:
+
+```bash
+latest_tag="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/LEX0RE/rockpload/releases/latest | sed 's#.*/tag/##')"
+nix profile install "github:LEX0RE/rockpload/${latest_tag}"
+```
+
+For local development from a checkout:
+
 ```bash
 nix develop
 nix build
