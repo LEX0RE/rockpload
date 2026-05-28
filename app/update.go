@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/LEX0RE/rockpload/app/tools/logger"
-	"github.com/rogpeppe/go-internal/semver"
+	"golang.org/x/mod/semver"
 
+	"github.com/LEX0RE/rockpload/app/tools/logger"
 	"github.com/inconshreveable/go-update"
 )
 
@@ -50,8 +50,6 @@ func (u *Updater) CheckForUpdate(currentVersion string) (bool, error) {
 		return false, err
 	}
 
-	logger.Rlogger.Debug("Current version", slog.Any("current", currentVersion), slog.Any("latest", info.Version))
-
 	if info.Version == "" {
 		logger.Rlogger.Info("No update available")
 		return false, nil
@@ -65,7 +63,7 @@ func (u *Updater) CheckForUpdate(currentVersion string) (bool, error) {
 	}
 
 	if semver.Compare(formatVersion(info.Version), formatVersion(currentVersion)) == 1 {
-		logger.Rlogger.Info("New version available: " + info.Version)
+		logger.Rlogger.Info("New version available: "+info.Version, slog.Any("current", currentVersion))
 		u.UpdateInfo = &info
 		return true, nil
 	}

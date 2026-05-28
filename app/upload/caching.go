@@ -2,8 +2,10 @@ package upload
 
 import (
 	"bufio"
+	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -48,6 +50,10 @@ func LoadUploadedCache(indexName string, nAccount int) *UploadCache {
 
 		c.items = append(c.items, id)
 		c.index[id] = true
+	}
+
+	if err := scanner.Err(); err != nil {
+		logger.Rlogger.Error("Error while loading uploaded cache file", slog.Any("err", err))
 	}
 
 	return c
@@ -106,6 +112,27 @@ func (c *UploadCache) Clear() error {
 
 	err := os.Remove(c.cachePath())
 	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
+}
+
+func (c *UploadCache) Touch() error {
+	logger.FuncDebug()
+
+	currentTime := time.Now()
+	err := os.Chtimes(c.cachePath(), currentTime, currentTime)
+	if err != nil {
+		if os.IsNotExist(err) {
+			file, createErr := os.Create(c.cachePath())
+			if createErr != nil {
+				return createErr
+			}
+
+			file.Close()
+			return nil
+		}
 		return err
 	}
 

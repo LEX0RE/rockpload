@@ -62,11 +62,14 @@ func LoadJSONFilePath(filePath string, data any, errNotFound bool) error {
 }
 
 // Wait a bit if file is not found
-func WaitFileBoot(filePath string) {
+func WaitFileBoot(filesPath []string) {
 	for range FOUND_FILE_BOOT_LOOP {
-		if _, err := os.Stat(filePath); err == nil {
-			break
+		for _, filePath := range filesPath {
+			if _, err := os.Stat(filePath); err == nil {
+				return
+			}
 		}
+
 		time.Sleep(FOUND_FILE_BOOT_WAIT)
 	}
 }
