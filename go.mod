@@ -7,6 +7,7 @@ require (
 	github.com/chromedp/chromedp v0.15.1
 	github.com/dank/rlapi v0.1.16
 	github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/gofrs/flock v0.13.0
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf
 	github.com/mitchellh/go-ps v1.0.0
@@ -21,7 +22,6 @@ require (
 	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fredbi/uri v1.1.1 // indirect
-	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fyne-io/gl-js v0.2.0 // indirect
 	github.com/fyne-io/glfw-js v0.3.0 // indirect
 	github.com/fyne-io/image v0.1.1 // indirect
