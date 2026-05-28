@@ -72,15 +72,13 @@ This repository also provides a Nix flake for Linux builds and development shell
 To run the latest stable GitHub release, excluding pre-releases:
 
 ```bash
-latest_tag="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/LEX0RE/rockpload/releases/latest | sed 's#.*/tag/##')"
-nix run "github:LEX0RE/rockpload/${latest_tag}"
+nix run github:LEX0RE/rockpload/stable
 ```
 
 To install the latest stable GitHub release into your Nix profile:
 
 ```bash
-latest_tag="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/LEX0RE/rockpload/releases/latest | sed 's#.*/tag/##')"
-nix profile install "github:LEX0RE/rockpload/${latest_tag}"
+nix profile install github:LEX0RE/rockpload/stable
 ```
 
 For local development from a checkout:

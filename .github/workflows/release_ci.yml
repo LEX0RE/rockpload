@@ -55,3 +55,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             releases/rockpload_*
+
+      - name: Update stable branch
+        if: ${{ !contains(github.ref_name, '-') }}
+        run: git push origin HEAD:refs/heads/stable --force
