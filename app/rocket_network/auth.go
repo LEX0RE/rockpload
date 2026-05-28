@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	EventUserAuthenticated = "user_authenticated"
+	EventUserAuthenticated tools.EventType = "user_authenticated"
 
 	TokenFilePrefix = "token_profile_"
 
@@ -156,11 +156,11 @@ func (a *Auth) isAuthenticate() bool {
 	logger.FuncDebug()
 
 	if a.getValidToken() != nil {
-		a.clearToken()
-		return false
+		return true
 	}
 
-	return true
+	a.clearToken()
+	return false
 }
 
 func (a *Auth) clearToken() {
@@ -177,6 +177,8 @@ func (a *Auth) clearToken() {
 	if err := os.Remove(tokenPath.EOS); err != nil && !os.IsNotExist(err) {
 		a.logger.Error("Failed to clear EOS token file", slog.Any("err", err))
 	}
+
+	tools.ClearBrowserProfile(a.ProfileId)
 }
 
 func (a *Auth) getValidToken() *rlapi.EOSTokenResponse {
@@ -189,7 +191,7 @@ func (a *Auth) getValidToken() *rlapi.EOSTokenResponse {
 		a.readTokens()
 
 		if a.eosToken == nil && a.egsToken == nil {
-			a.logger.Debug("None Token available to authenticate")
+			a.logger.Debug("No Token available to authenticate")
 			return nil
 		}
 	}

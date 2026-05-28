@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"slices"
 
@@ -22,7 +23,10 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 
 	var temp []*StorageConfig
 	if err := json.Unmarshal(data, &temp); err != nil {
-		return err
+		var syntaxErr *json.SyntaxError
+		if !errors.As(err, &syntaxErr) || syntaxErr.Offset != 0 {
+			return err
+		}
 	}
 
 	temp = append([]*StorageConfig{ROCKY_STORAGE}, temp...)

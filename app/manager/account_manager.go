@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
@@ -13,10 +14,10 @@ import (
 )
 
 const (
-	EVENT_SELECT_ACCOUNT = "select_account"
-	EVENT_UNUSED_ACCOUNT = "unused_account"
-	EVENT_ADD_ACCOUNT    = "add_account"
-	EVENT_DELETE_ACCOUNT = "delete_account"
+	EVENT_SELECT_ACCOUNT tools.EventType = "select_account"
+	EVENT_UNUSED_ACCOUNT tools.EventType = "unused_account"
+	EVENT_ADD_ACCOUNT    tools.EventType = "add_account"
+	EVENT_DELETE_ACCOUNT tools.EventType = "delete_account"
 )
 
 type AccountManager struct {
@@ -33,6 +34,32 @@ func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 	am.RefreshProfile()
 
 	return am
+}
+
+func (am *AccountManager) GetByPlayerName(playerName string) *rocket_network.Account {
+	logger.FuncDebug()
+
+	allAccount := am.GetAll()
+	for _, a := range allAccount {
+		if a.Player.PlayerName == playerName {
+			return a
+		}
+	}
+
+	return nil
+}
+
+func (am *AccountManager) GetByPlayerID(playerID string) *rocket_network.Account {
+	logger.FuncDebug()
+
+	allAccount := am.GetAll()
+	for _, a := range allAccount {
+		if strings.EqualFold(a.Player.PlayerID.String(), playerID) {
+			return a
+		}
+	}
+
+	return nil
 }
 
 func (am *AccountManager) GetSelected() *rocket_network.Account {
@@ -81,6 +108,10 @@ func (am *AccountManager) SetUnused(accountId int) {
 	logger.FuncDebug()
 
 	for _, ac := range am.appConfig.AccountSettings.Get() {
+		if ac.IsUnused {
+			ac.Player.LastCheckOnline = false
+		}
+
 		ac.IsUnused = false
 	}
 
@@ -202,9 +233,9 @@ func (am *AccountManager) RefreshProfile() {
 	}
 
 	unusedAccount := am.GetUnused()
-	if unusedAccount != nil || am.appConfig.BehaviorConfig.NoUploadConnected.Get() {
+	if unusedAccount != nil || am.appConfig.BehaviorConfig.NoUploadOnline.Get() {
 		if unusedAccount != nil {
-			_ = am.onlineStatusFromAccount(unusedAccount)
+			am.onlineStatusFromAccount(unusedAccount)
 		}
 	} else {
 		for _, ac := range am.appConfig.AccountSettings.Get() {
@@ -224,18 +255,18 @@ func (am *AccountManager) uploadStatusMap() map[int]bool {
 		accountMap[ac.Id()] = ac
 	}
 
-	unusedAccount := am.GetUnused()
-	if unusedAccount != nil && am.appConfig.BehaviorConfig.NoUploadConnected.Get() {
-		onlineStatus := am.onlineStatusFromAccount(unusedAccount)
+	if am.appConfig.BehaviorConfig.NoUploadOnline.Get() {
+		unusedAccount := am.GetUnused()
+		if unusedAccount != nil {
+			am.onlineStatusFromAccount(unusedAccount)
+		}
 
 		for pid := range uploadActiveMap {
 			currentAccount := accountMap[pid]
 
-			if currentAccount.Player.PlayerID != nil {
-				if value, ok := onlineStatus[*currentAccount.Player.PlayerID]; ok && value {
-					logger.Rlogger.Debug("Account is connected, upload is skipped", slog.Any("Account", currentAccount.AccountName()))
-					uploadActiveMap[pid] = false
-				}
+			if currentAccount.Player.PlayerID != nil && currentAccount.Player.LastCheckOnline {
+				logger.Rlogger.Debug("Account could be connected, upload is skipped", slog.Any("Account", currentAccount.AccountName()))
+				uploadActiveMap[pid] = false
 			}
 		}
 	}

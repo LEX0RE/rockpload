@@ -85,6 +85,11 @@ func (t *ticker) run() {
 		t.onStart()
 	}
 
+	if t.onTick == nil {
+		t.onStop()
+		return
+	}
+
 	for {
 		select {
 		case <-ticker.C:

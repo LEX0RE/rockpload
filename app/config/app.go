@@ -27,12 +27,13 @@ func NewAppConfig() *AppConfig {
 
 	cfg.BehaviorConfig.AutoUpload = NewSetting(true, saveHook)
 	cfg.BehaviorConfig.ExitInTray = NewSetting(true, saveHook)
-	cfg.BehaviorConfig.NoUploadConnected = NewSetting(true, saveHook)
+	cfg.BehaviorConfig.NoUploadOnline = NewSetting(true, saveHook)
 	cfg.BehaviorConfig.UploadOnRLClose = NewSetting(true, saveHook)
 
 	cfg.BehaviorConfig.AutoStart = NewSetting(false, saveHook)
 	cfg.BehaviorConfig.StartInTray = NewSetting(false, saveHook)
 	cfg.BehaviorConfig.UploadOnLaunch = NewSetting(false, saveHook)
+	cfg.BehaviorConfig.UploadOlderFirst = NewSetting(false, saveHook)
 
 	cfg.BehaviorConfig.SelectedAccountId = NewSetting(0, saveHook)
 	cfg.BehaviorConfig.SelectedStorageId = NewSetting(0, saveHook)
@@ -47,7 +48,7 @@ func NewAppConfig() *AppConfig {
 func (a *AppConfig) Load(prefs fyne.Preferences) error {
 	logger.FuncDebug()
 
-	tools.WaitFileBoot(constant.BehaviorSettingsFile)
+	tools.WaitFileBoot([]string{constant.BehaviorSettingsFile, constant.AppLog})
 
 	if err := tools.LoadJSONFilePath(constant.BehaviorSettingsFile, &a.BehaviorConfig, false); err != nil {
 		return err
@@ -57,8 +58,16 @@ func (a *AppConfig) Load(prefs fyne.Preferences) error {
 		return err
 	}
 
+	if len(a.StorageSettings.value) == 0 {
+		a.StorageSettings.value.UnmarshalJSON([]byte{})
+	}
+
 	if err := tools.LoadJSONFilePath(constant.AccountSettingsFile, &a.AccountSettings.value, false); err != nil {
 		return err
+	}
+
+	if len(a.AccountSettings.value) == 0 {
+		a.AccountSettings.value.UnmarshalJSON([]byte{})
 	}
 
 	// TODO Deprecated, Fyne Pref will be removed in future version

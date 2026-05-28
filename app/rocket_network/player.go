@@ -2,6 +2,7 @@ package rocket_network
 
 import (
 	"log/slog"
+	"sort"
 	"sync"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -74,6 +75,10 @@ func (p *Player) GetInfo() (err error) {
 		return err
 	}
 
+	sort.Slice(p.MatchHistory, func(i, j int) bool {
+		return p.MatchHistory[i].Match.RecordStartTimestamp > p.MatchHistory[j].Match.RecordStartTimestamp
+	})
+
 	return nil
 }
 
@@ -143,7 +148,7 @@ func (p *Player) IsAuthenticated() bool {
 	p.authMu.Lock()
 	defer p.authMu.Unlock()
 
-	if p.Auth != nil || p.Auth.isAuthenticate() {
+	if p.Auth != nil && p.Auth.isAuthenticate() {
 		return true
 	}
 

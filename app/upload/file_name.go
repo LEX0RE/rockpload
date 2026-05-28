@@ -13,17 +13,20 @@ import (
 
 const DefaultReplayNameTemplate = "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}"
 
+var replayUploadSequenceIndex = -1
+
 type ReplayUpload struct {
 	PlayerName string
 	PlayerID   string
 	Replay     rlapi.MatchEntry
-	Number     int
 }
 
 func replayUploadFileName(filePath string, template string, replayUpload ReplayUpload) string {
 	if strings.TrimSpace(template) == "" {
 		return filepath.Base(filePath)
 	}
+
+	replayUploadSequenceIndex += 1
 
 	replayTime := time.Now()
 	if replayUpload.Replay.Match.RecordStartTimestamp > 0 {
@@ -46,7 +49,7 @@ func replayUploadFileName(filePath string, template string, replayUpload ReplayU
 	replacements := map[string]string{
 		"{PLAYER}":  replayUpload.PlayerName,
 		"{MODE}":    playlistName(replayUpload.Replay.Match.Playlist),
-		"{NUM}":     strconv.Itoa(replayUpload.Number),
+		"{NUM}":     strconv.Itoa(replayUploadSequenceIndex),
 		"{YEAR}":    strconv.Itoa(replayTime.Year()),
 		"{MONTH}":   fmt.Sprintf("%02d", replayTime.Month()),
 		"{DAY}":     fmt.Sprintf("%02d", replayTime.Day()),

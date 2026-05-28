@@ -38,7 +38,7 @@ type App struct {
 
 	uploader       *upload.Uploader
 	accountManager *manager.AccountManager
-	rlSupervisor   *rocket_network.RLSupervisor
+	rlSupervisor   *manager.RLSupervisor
 }
 
 func NewApp(version string) *App {
@@ -59,6 +59,7 @@ func NewApp(version string) *App {
 	a.appConfig.BehaviorConfig.AutoUpload.Bind(a.SetAutoUpload)
 	a.appConfig.BehaviorConfig.UploadOnRLClose.Bind(a.SetUploadOnRLClose)
 
+	// Needed in Popup (so update popup will take it), so we need to init before all
 	a.accountManager = manager.NewAccountManager(a.appConfig)
 
 	icon := fyne.NewStaticResource("logo.png", logoBytes)
@@ -121,6 +122,7 @@ func (a *App) initManager() {
 	logger.FuncDebug()
 
 	a.uploader = upload.NewUploader(a.appConfig, a.accountManager)
+	a.rlSupervisor = manager.NewRLSupervisor(a.appConfig, a.accountManager)
 
 	var err error
 	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.app.Clipboard)
@@ -142,7 +144,7 @@ func (a *App) initEvents() {
 		}
 	}})
 
-	guiUploaderEventList := []string{upload.EventReplayUploaded, upload.EventUploadCompleted, upload.EventReplayUploaded}
+	guiUploaderEventList := []tools.EventType{upload.EventReplayUploaded, upload.EventUploadCompleted, upload.EventReplayUploaded}
 	a.uploader.EventManager.MultiSubscribe(guiUploaderEventList, tools.Listener{IsSync: false, Callback: func(data any) {
 		onUpdateState()
 	}})
@@ -156,7 +158,7 @@ func (a *App) initEvents() {
 		a.uploader.Run()
 	}})
 
-	guiAccountManagerEventList := []string{manager.EVENT_SELECT_ACCOUNT, manager.EVENT_ADD_ACCOUNT, manager.EVENT_DELETE_ACCOUNT}
+	guiAccountManagerEventList := []tools.EventType{manager.EVENT_SELECT_ACCOUNT, manager.EVENT_ADD_ACCOUNT, manager.EVENT_DELETE_ACCOUNT}
 	a.accountManager.EventManager.MultiSubscribe(guiAccountManagerEventList, tools.Listener{IsSync: false, Callback: func(data any) {
 		a.gui.UpdateState()
 	}})
@@ -187,6 +189,16 @@ func (a *App) initEvents() {
 	for _, ac := range a.appConfig.AccountSettings.Get() {
 		refreshSubscription(ac)
 	}
+
+	a.rlSupervisor.EventManager.Subscribe(manager.EVENT_ON_RL_PLAYER_DETECTED, tools.Listener{IsSync: false, Callback: func(data any) {
+		onUpdateState()
+	}})
+
+	a.rlSupervisor.EventManager.Subscribe(manager.EVENT_ON_RL_CLOSED, tools.Listener{IsSync: false, Callback: func(data any) {
+		if a.appConfig.BehaviorConfig.UploadOnRLClose.Get() {
+			a.uploader.Run()
+		}
+	}})
 }
 
 func (a *App) startManager() {
@@ -195,6 +207,8 @@ func (a *App) startManager() {
 	if a.appConfig.BehaviorConfig.AutoUpload.Get() {
 		a.uploader.Start()
 	}
+
+	a.rlSupervisor.Start()
 }
 
 func (a *App) setupAppUpdate() {

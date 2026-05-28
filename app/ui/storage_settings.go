@@ -43,7 +43,6 @@ type StorageInfoContainer struct {
 type StorageSettingsPopup struct {
 	*Popup
 
-	websites      []*config.StorageConfig
 	infoContainer StorageInfoContainer
 	btnDelete     *widget.Button
 	btnSave       *widget.Button
@@ -58,8 +57,6 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	logger.FuncDebug()
 
 	wsp := &StorageSettingsPopup{Popup: p, infoContainer: StorageInfoContainer{}}
-
-	wsp.websites = wsp.appConfig.StorageSettings.Get()
 
 	wsp.btnSave = widget.NewButtonWithIcon("Save Changes", theme.DocumentSaveIcon(), wsp.onSaveBtn)
 	wsp.btnSave.Importance = widget.HighImportance
@@ -81,13 +78,13 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	)
 
 	wsp.list = widget.NewList(
-		func() int { return len(wsp.websites) },
+		func() int { return len(wsp.appConfig.StorageSettings.Get()) },
 		func() fyne.CanvasObject {
 			return widget.NewRichTextWithText("")
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
 			rt := o.(*widget.RichText)
-			site := wsp.websites[i]
+			site := wsp.appConfig.StorageSettings.Get()[i]
 
 			style := widget.RichTextStyleInline
 			if !site.SendReplay {
@@ -127,7 +124,6 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 func (wsp *StorageSettingsPopup) Show() {
 	logger.FuncDebug()
 
-	wsp.websites = wsp.appConfig.StorageSettings.Get()
 	wsp.list.Refresh()
 	wsp.reload()
 
@@ -188,7 +184,9 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	logger.FuncDebug()
 
 	wsp.appConfig.BehaviorConfig.SelectedStorageId.Set(id)
-	site := wsp.websites[id]
+
+	websites := wsp.appConfig.StorageSettings.Get()
+	site := websites[id]
 
 	wsp.list.Select(id)
 
@@ -230,9 +228,11 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 func (wsp *StorageSettingsPopup) reload() {
 	logger.FuncDebug()
 
+	websites := wsp.appConfig.StorageSettings.Get()
+
 	selectedIndex := wsp.appConfig.BehaviorConfig.SelectedStorageId.Get()
-	if selectedIndex < len(wsp.websites) && selectedIndex >= 0 {
-		site := wsp.websites[selectedIndex]
+	if selectedIndex < len(websites) && selectedIndex >= 0 {
+		site := websites[selectedIndex]
 
 		if site.IsPredefined {
 			wsp.btnDelete.Disable()
@@ -333,7 +333,8 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 		return
 	}
 
-	site := wsp.websites[selectedIndex]
+	websites := wsp.appConfig.StorageSettings.Get()
+	site := websites[selectedIndex]
 
 	site.URL = wsp.infoContainer.urlEntry.Text
 
@@ -368,7 +369,7 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	}
 	site.URIParams = newParams
 
-	wsp.appConfig.StorageSettings.Set(wsp.websites)
+	wsp.appConfig.StorageSettings.Set(websites)
 
 	wsp.reload()
 	wsp.list.Refresh()
@@ -398,16 +399,18 @@ func (wsp *StorageSettingsPopup) onAddWebsiteBtn() {
 				URIParams:    make(map[string]string),
 			}
 
-			for _, StorageConfig := range wsp.websites {
+			websites := wsp.appConfig.StorageSettings.Get()
+
+			for _, StorageConfig := range websites {
 				if StorageConfig.Name == newSite.Name {
 					return
 				}
 			}
 
-			wsp.websites = append(wsp.websites, newSite)
-			wsp.appConfig.StorageSettings.Set(wsp.websites)
+			websites = append(websites, newSite)
+			wsp.appConfig.StorageSettings.Set(websites)
 
-			wsp.onSelected(len(wsp.websites) - 1)
+			wsp.onSelected(len(websites) - 1)
 			wsp.list.Refresh()
 		}
 	}, wsp.parentWindow)
@@ -416,20 +419,22 @@ func (wsp *StorageSettingsPopup) onAddWebsiteBtn() {
 func (wsp *StorageSettingsPopup) onDeleteWebsiteBtn() {
 	logger.FuncDebug()
 
+	websites := wsp.appConfig.StorageSettings.Get()
+
 	selectedIndex := wsp.appConfig.BehaviorConfig.SelectedStorageId.Get()
-	if selectedIndex < 0 || selectedIndex >= len(wsp.websites) {
+	if selectedIndex < 0 || selectedIndex >= len(websites) {
 		return
 	}
 
-	siteToDelete := wsp.websites[selectedIndex]
+	siteToDelete := websites[selectedIndex]
 
 	dialog.ShowConfirm("Delete", "Are you sure you want to delete the website '"+siteToDelete.Name+"' ?", func(confirmed bool) {
 		if confirmed {
-			wsp.websites = append(wsp.websites[:selectedIndex], wsp.websites[selectedIndex+1:]...)
+			websites = append(websites[:selectedIndex], websites[selectedIndex+1:]...)
 
-			wsp.appConfig.StorageSettings.Set(wsp.websites)
+			wsp.appConfig.StorageSettings.Set(websites)
 
-			wsp.onSelected(len(wsp.websites) - 1)
+			wsp.onSelected(len(websites) - 1)
 			wsp.list.Refresh()
 		}
 	}, wsp.parentWindow)

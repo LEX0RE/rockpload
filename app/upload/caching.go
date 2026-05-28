@@ -2,6 +2,7 @@ package upload
 
 import (
 	"bufio"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -49,6 +50,10 @@ func LoadUploadedCache(indexName string, nAccount int) *UploadCache {
 
 		c.items = append(c.items, id)
 		c.index[id] = true
+	}
+
+	if err := scanner.Err(); err != nil {
+		logger.Rlogger.Error("Error while loading uploaded cache file", slog.Any("err", err))
 	}
 
 	return c
