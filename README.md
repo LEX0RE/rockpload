@@ -42,7 +42,7 @@ Download the latest release from the [GitHub Releases](https://github.com/LEX0RE
 
 **Build:**
 ```bash
-./build.sh
+scripts/build.sh
 ```
 
 The build script will produce binaries for Linux and Windows in `releases/`.
@@ -68,6 +68,26 @@ git tag "$(scripts/set-version.sh --print-tag)"
 ### Build with Nix
 
 This repository also provides a Nix flake for Linux builds and development shells:
+
+To run the latest stable GitHub release, excluding pre-releases:
+
+```bash
+nix run github:LEX0RE/rockpload/stable
+```
+
+To install the latest stable GitHub release into your Nix profile:
+
+```bash
+nix profile install github:LEX0RE/rockpload/stable
+```
+
+To try the latest pre-release or beta build:
+
+```bash
+nix run github:LEX0RE/rockpload/prerelease
+```
+
+For local development from a checkout:
 
 ```bash
 nix develop

@@ -49,7 +49,7 @@ check_version_files() {
     version="$(read_version)"
     validate_version "$version"
 
-    if grep -En 'rockploadVersion = "[0-9]|VERSION=\$\{ROCKPLOAD_VERSION:-"[0-9]' "$ROOT_DIR/flake.nix" "$ROOT_DIR/build.sh"; then
+    if grep -En 'rockploadVersion = "[0-9]|VERSION=\$\{ROCKPLOAD_VERSION:-"[0-9]' "$ROOT_DIR/flake.nix" "$ROOT_DIR/scripts/build.sh"; then
         echo "Found a hardcoded release version outside VERSION." >&2
         exit 1
     fi
