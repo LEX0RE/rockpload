@@ -40,7 +40,7 @@ jobs:
           fi
 
       - name: Commit changes back to PR
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(nix): auto-update vendorHash for new Go dependencies"
           file_pattern: flake.nix
