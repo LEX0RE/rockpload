@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image/color"
 	"log/slog"
 	"os"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"github.com/dank/rlapi"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
@@ -34,6 +36,7 @@ type GUI struct {
 	window         fyne.Window
 	appConfig      *config.AppConfig
 	accountManager *manager.AccountManager
+	rlSupervisor   *manager.RLSupervisor
 
 	LoginBox  *fyne.Container
 	PlayerBox *fyne.Container
@@ -44,16 +47,24 @@ type GUI struct {
 	MatchHistoryList   *widget.List
 	UploadStatus       *widget.Label
 	UploadProgress     *widget.ProgressBar
-	RLConnectedWarning *widget.Label
+	RLDetectedLabel    *fyne.Container
+	RLConnectedWarning *fyne.Container
 
 	EventManager *tools.EventManager
 
 	Clipboard func() fyne.Clipboard
 }
 
-func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager, clipboard func() fyne.Clipboard) (g *GUI, err error) {
+func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager, rlSupervisor *manager.RLSupervisor, clipboard func() fyne.Clipboard) (g *GUI, err error) {
 	logger.FuncDebug()
-	g = &GUI{window: window, appConfig: appConfig, accountManager: accountManager, EventManager: tools.NewEventManager(), Clipboard: clipboard}
+	g = &GUI{
+		window:         window,
+		appConfig:      appConfig,
+		accountManager: accountManager,
+		rlSupervisor:   rlSupervisor,
+		EventManager:   tools.NewEventManager(),
+		Clipboard:      clipboard,
+	}
 
 	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Welcome to Rockpload! ("+version+")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
 
@@ -69,6 +80,11 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { behaviorSettingsPopup.Show() })
 	settingsBtn.Importance = widget.LowImportance
 
+	warningRLDetectedLabel := container.NewCenter(widget.NewLabel("⚠️ Rocket League instance detected"))
+	warningBackground := canvas.NewRectangle(color.RGBA{R: 200, G: 100, B: 0, A: 255})
+	g.RLDetectedLabel = container.NewStack(warningBackground, warningRLDetectedLabel)
+	g.RLDetectedLabel.Hide()
+
 	rightAlignedBtn := container.NewHBox(layout.NewSpacer(), accountBtn, storageSettingsBtn, settingsBtn)
 
 	header := container.NewStack(centeredLabel, rightAlignedBtn)
@@ -77,6 +93,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 		header,
 		widget.NewLabel("This program will fetch your Rocket League match history and upload replays to any website you want."),
 		widget.NewSeparator(),
+		g.RLDetectedLabel,
 	)
 
 	g.createLoginUI()
@@ -98,6 +115,12 @@ func (g *GUI) UpdateState() {
 	selectedAccount := g.accountManager.GetSelected()
 
 	g.RefreshConnectedAccount()
+
+	if g.RLDetectedLabel != nil && g.rlSupervisor.LastRLRunningState {
+		g.RLDetectedLabel.Show()
+	} else {
+		g.RLDetectedLabel.Hide()
+	}
 
 	if selectedAccount != nil && selectedAccount.IsConnected() {
 		g.LoginBox.Hide()
@@ -232,7 +255,9 @@ func (g *GUI) createPlayerUI() {
 	g.UploadProgress = widget.NewProgressBar()
 	g.UploadProgress.Hide()
 
-	g.RLConnectedWarning = widget.NewLabel("⚠️ The player could be connected or unused during the last check. No refresh will be done while 'No Upload if Online' is checked.")
+	warningRLConnectedLabel := container.NewCenter(widget.NewLabel("⚠️ The player could be connected or unused during the last check.\nNo refresh will be done for this player while 'No Upload if Online' is checked."))
+	warningBackground := canvas.NewRectangle(color.RGBA{R: 200, G: 100, B: 0, A: 255})
+	g.RLConnectedWarning = container.NewStack(warningBackground, warningRLConnectedLabel)
 	g.RLConnectedWarning.Hide()
 
 	g.MatchHistoryData = []string{}
