@@ -14,6 +14,8 @@ import (
 func GetRPC(p *Player) (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
 	logger.FuncDebug()
 
+	logger.Rlogger.Info("Log in to player account", slog.Any("PlayerName", p.PlayerName), slog.Any("PlayerID", p.PlayerID), slog.Any("Online", p.LastCheckOnline))
+
 	if !p.IsAuthenticated() {
 		logger.Rlogger.Error("No valid authentication token found. Please retrieve a new token.")
 		p.Reset()

@@ -69,7 +69,7 @@ const (
 )
 
 type StorageConfig struct {
-	Name         string            `json:"name"`
+	Name         string            `json:"name" secret_id:"true"`
 	SendReplay   bool              `json:"send_replay"`
 	ReplayPath   string            `json:"replay_path"`
 	TemplateName string            `json:"template_file"`
@@ -79,7 +79,7 @@ type StorageConfig struct {
 	StorageType  StorageConfigType `json:"storage_type"`
 	URIParams    map[string]string `json:"uri_params"`
 	NeedToken    bool              `json:"need_token"`
-	Token        string            `json:"token"`
+	Token        string            `json:"token,omitempty" secret:"true"`
 	SendPing     bool              `json:"send_ping"`
 	PingPath     string            `json:"ping_path"`
 	// SendLive   bool // TODO Not implemented yet

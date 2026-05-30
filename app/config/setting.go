@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"reflect"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
@@ -57,4 +58,8 @@ func (s *Setting[T]) Bind(callback func(T)) {
 	logger.FuncDebug()
 
 	s.onChange = callback
+}
+
+func (s *Setting[T]) secretValue() reflect.Value {
+	return reflect.ValueOf(&s.value).Elem()
 }
