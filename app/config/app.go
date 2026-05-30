@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 
 	"fyne.io/fyne/v2"
 	"github.com/LEX0RE/rockpload/app/constant"
@@ -73,7 +74,18 @@ func (a *AppConfig) Load(prefs fyne.Preferences) error {
 	// TODO Deprecated, Fyne Pref will be removed in future version
 	a.importFynePreferences(prefs)
 
+	logger.Rlogger.Debug("Application configuration loaded", slog.String("config", a.loggableConfig()))
+
 	return nil
+}
+
+func (a *AppConfig) loggableConfig() string {
+	data, err := json.Marshal(a)
+	if err != nil {
+		return "failed to marshal app config: " + err.Error()
+	}
+
+	return string(data)
 }
 
 func (a *AppConfig) Save() error {

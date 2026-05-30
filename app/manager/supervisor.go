@@ -113,6 +113,8 @@ func (rls *RLSupervisor) Supervise() {
 
 func (rls *RLSupervisor) onRLDetected() {
 	if !rls.LastRLRunningState {
+		logger.Rlogger.Debug("Rocket League program detected", slog.Any("time", time.Now()))
+
 		rls.EventManager.Notify(EVENT_ON_RL_DETECTED, nil)
 	}
 }
@@ -123,6 +125,8 @@ func (rls *RLSupervisor) onRLPlayerDetected(account *rocket_network.Account, log
 	}
 
 	rls.PlayerLogDetected = logPlayer
+
+	logger.Rlogger.Debug("Rocket League Player Account Online detected", slog.Any("playerName", logPlayer), slog.Any("time", time.Now()))
 
 	if !account.Player.LastCheckOnline {
 		account.Player.LastCheckOnline = true
