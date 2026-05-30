@@ -21,6 +21,7 @@ var (
 	AccountSettingsFile  = filepath.Join(SettingsFolder, "account.json")
 	StorageSettingsFile  = filepath.Join(SettingsFolder, "storage.json")
 	BehaviorSettingsFile = filepath.Join(SettingsFolder, "behavior.json")
+	SecretSettingsFile   = filepath.Join(SettingsFolder, ".secrets.json")
 )
 
 func GetCachePath() string {

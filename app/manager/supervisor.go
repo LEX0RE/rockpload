@@ -33,7 +33,7 @@ type RLSupervisor struct {
 
 	LastRLRunningState bool
 	EventManager       *tools.EventManager
-	PlayerLogDetected  *LogPlayerInfo
+	RLLogInfo          *RLLogInfo
 
 	appConfig      *config.AppConfig
 	accountManager *AccountManager
@@ -43,7 +43,13 @@ type RLSupervisor struct {
 	positionLogMutex    sync.Mutex
 }
 
-type LogPlayerInfo struct {
+type RLLogInfo struct {
+	GameVersion string
+
+	Player *RLPlayerLogInfo
+}
+
+type RLPlayerLogInfo struct {
 	Name      string
 	ID        string
 	IsPrimary bool
@@ -55,7 +61,7 @@ func NewRLSupervisor(appConfig *config.AppConfig, accountManager *AccountManager
 	rls := &RLSupervisor{
 		LastRLRunningState:  false,
 		EventManager:        tools.NewEventManager(),
-		PlayerLogDetected:   nil,
+		RLLogInfo:           &RLLogInfo{},
 		appConfig:           appConfig,
 		accountManager:      accountManager,
 		rlLogsFolder:        []string{},
@@ -112,17 +118,25 @@ func (rls *RLSupervisor) Supervise() {
 }
 
 func (rls *RLSupervisor) onRLDetected() {
+	logger.FuncDebug()
+
 	if !rls.LastRLRunningState {
+		logger.Rlogger.Debug("Rocket League program detected")
+
 		rls.EventManager.Notify(EVENT_ON_RL_DETECTED, nil)
 	}
 }
 
-func (rls *RLSupervisor) onRLPlayerDetected(account *rocket_network.Account, logPlayer *LogPlayerInfo) {
+func (rls *RLSupervisor) onRLPlayerDetected(account *rocket_network.Account, rlPlayerLogInfo *RLPlayerLogInfo) {
+	logger.FuncDebug()
+
 	if account == nil || !rls.LastRLRunningState {
 		return
 	}
 
-	rls.PlayerLogDetected = logPlayer
+	rls.RLLogInfo.Player = rlPlayerLogInfo
+
+	logger.Rlogger.Debug("Rocket League Player Account Online detected", slog.Any("Player", rlPlayerLogInfo))
 
 	if !account.Player.LastCheckOnline {
 		account.Player.LastCheckOnline = true
@@ -132,11 +146,13 @@ func (rls *RLSupervisor) onRLPlayerDetected(account *rocket_network.Account, log
 }
 
 func (rls *RLSupervisor) onRLClose() {
+	logger.FuncDebug()
+
 	if rls.LastRLRunningState {
-		if rls.PlayerLogDetected != nil {
-			if byIDFound := rls.accountManager.GetByPlayerID(rls.PlayerLogDetected.ID); byIDFound != nil {
+		if rls.RLLogInfo.Player != nil {
+			if byIDFound := rls.accountManager.GetByPlayerID(rls.RLLogInfo.Player.ID); byIDFound != nil {
 				byIDFound.Player.LastCheckOnline = false
-			} else if byNameFound := rls.accountManager.GetByPlayerName(rls.PlayerLogDetected.Name); byNameFound != nil {
+			} else if byNameFound := rls.accountManager.GetByPlayerName(rls.RLLogInfo.Player.Name); byNameFound != nil {
 				byNameFound.Player.LastCheckOnline = false
 			}
 		}
@@ -193,8 +209,10 @@ func (rls *RLSupervisor) superviseLog() {
 }
 
 func (rls *RLSupervisor) resetMemory() {
+	logger.FuncDebug()
+
 	rls.lastLogReadPosition = 0
-	rls.PlayerLogDetected = nil
+	rls.RLLogInfo = &RLLogInfo{}
 }
 
 func (rls *RLSupervisor) updateRLLogsFolder() {
@@ -277,18 +295,22 @@ func (rls *RLSupervisor) processLogFile(filePath string) {
 func (rls *RLSupervisor) analyzeLogLine(line string) {
 	logger.FuncDebug()
 
+	if strings.Contains(line, "GPsyonixBuildID") {
+		rls.updateRLStatusInfo(line)
+	}
+
 	if strings.Contains(line, "HandleLocalPlayerLoginStatusChanged") && strings.Contains(line, "LS_LoggedIn") {
 		rls.updateLoginPlayerInfo(line)
-		return
 	}
 
 	if strings.Contains(line, "Connect login result") && strings.Contains(line, "EOS_Success") {
 		rls.updateEpicLoginPlayerInfo(line)
-		return
 	}
 }
 
 func (rls *RLSupervisor) updateEpicLoginPlayerInfo(logLine string) {
+	logger.FuncDebug()
+
 	marker := "'EOS_Success' for player '"
 
 	_, after, ok := strings.Cut(logLine, marker)
@@ -301,7 +323,7 @@ func (rls *RLSupervisor) updateEpicLoginPlayerInfo(logLine string) {
 		return
 	}
 
-	logInfo := &LogPlayerInfo{
+	logInfo := &RLPlayerLogInfo{
 		ID: "Epic|" + playerID + "|0",
 	}
 
@@ -311,11 +333,13 @@ func (rls *RLSupervisor) updateEpicLoginPlayerInfo(logLine string) {
 }
 
 func (rls *RLSupervisor) updateLoginPlayerInfo(logLine string) {
+	logger.FuncDebug()
+
 	if !strings.Contains(logLine, "PlayerName=") {
 		return
 	}
 
-	logInfo := &LogPlayerInfo{}
+	logInfo := &RLPlayerLogInfo{}
 
 	words := strings.FieldsSeq(logLine)
 	for word := range words {
@@ -343,4 +367,18 @@ func (rls *RLSupervisor) updateLoginPlayerInfo(logLine string) {
 	if byIDFound := rls.accountManager.GetByPlayerID(logInfo.ID); byIDFound != nil {
 		rls.onRLPlayerDetected(byIDFound, logInfo)
 	}
+}
+
+func (rls *RLSupervisor) updateRLStatusInfo(logLine string) {
+	logger.FuncDebug()
+
+	splitted := strings.Split(logLine, " ")
+
+	if len(splitted) != 3 || splitted[1] != "GPsyonixBuildID" {
+		return
+	}
+
+	rls.RLLogInfo.GameVersion = splitted[2]
+
+	logger.Rlogger.Debug("Rocket League Game Version detected", slog.Any("Version", rls.RLLogInfo.GameVersion))
 }

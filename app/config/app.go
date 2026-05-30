@@ -3,6 +3,8 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"reflect"
 
 	"fyne.io/fyne/v2"
 	"github.com/LEX0RE/rockpload/app/constant"
@@ -25,6 +27,7 @@ func NewAppConfig() *AppConfig {
 		cfg.Save()
 	}
 
+	// TODO Find a way to make this in Unmarshal instead
 	cfg.BehaviorConfig.AutoUpload = NewSetting(true, saveHook)
 	cfg.BehaviorConfig.ExitInTray = NewSetting(true, saveHook)
 	cfg.BehaviorConfig.NoUploadOnline = NewSetting(true, saveHook)
@@ -70,15 +73,58 @@ func (a *AppConfig) Load(prefs fyne.Preferences) error {
 		a.AccountSettings.value.UnmarshalJSON([]byte{})
 	}
 
-	// TODO Deprecated, Fyne Pref will be removed in future version
+	if err := a.loadSecretSettings(); err != nil {
+		return err
+	}
+
+	//  --- MIGRATION SECTION ---
+
+	// TODO Deprecated, Fyne Pref will be removed
 	a.importFynePreferences(prefs)
 
+	// TODO Deprecated, there won't have any migration of previous config
+	if err := a.migrateSecretSettings(); err != nil {
+		return err
+	}
+
+	// --- END OF MIGRATION SECTION ---
+
+	logger.Rlogger.Debug("Application configuration loaded", slog.String("config", a.loggableConfig()))
+
 	return nil
+}
+
+func (a *AppConfig) loggableConfig() string {
+	restoreSecretSettings, err := extractSecretSettings(reflect.ValueOf(a), nil, secretSettings{})
+	if err != nil {
+		return "failed to prepare app config for logging: " + err.Error()
+	}
+	defer restoreSecretSettings()
+
+	data, err := json.Marshal(a)
+	if err != nil {
+		return "failed to marshal app config: " + err.Error()
+	}
+
+	return string(data)
 }
 
 func (a *AppConfig) Save() error {
 	logger.FuncDebug()
 
+	restoreSecretSettings, secretErr := a.saveSecretSettings()
+	defer restoreSecretSettings()
+
+	accountErr, storageErr, behaviorErr := a.savePublicSettings()
+
+	if accountErr == nil && storageErr == nil && behaviorErr == nil && secretErr == nil {
+		return nil
+	}
+
+	return errors.New("Failed to save settings: " + errors.Join(accountErr, storageErr, behaviorErr, secretErr).Error())
+}
+
+func (a *AppConfig) savePublicSettings() (error, error, error) {
 	originalWebsites := a.StorageSettings.value
 
 	filteredWebsites := storageListConfig{}
@@ -96,59 +142,63 @@ func (a *AppConfig) Save() error {
 
 	a.StorageSettings.value = originalWebsites
 
-	if accountErr == nil && storageErr == nil && behaviorErr == nil {
-		return nil
-	}
-
-	return errors.New("Failed to save settings: " + errors.Join(accountErr, storageErr, behaviorErr).Error())
+	return accountErr, storageErr, behaviorErr
 }
 
-// TODO Deprecated, Fyne Pref will be removed in future version
+// TODO Deprecated, Fyne Pref will be removed
 func (a *AppConfig) importFynePreferences(prefs fyne.Preferences) {
 	logger.FuncDebug()
 
-	savedAndRemove := func(key string) {
-		if a.Save() == nil {
-			prefs.RemoveValue(key)
+	modified := false
+
+	importBool := func(key string, target *bool) {
+		newVal := prefs.BoolWithFallback(key, *target)
+
+		if newVal != *target {
+			*target = newVal
+			modified = true
 		}
+
+		prefs.RemoveValue(key)
 	}
 
-	a.BehaviorConfig.AutoUpload.value = prefs.BoolWithFallback("rockpload_autoUpload", a.BehaviorConfig.AutoUpload.value)
-	savedAndRemove("rockpload_autoUpload")
-	a.BehaviorConfig.ExitInTray.value = prefs.BoolWithFallback("rockpload_exitInTray", a.BehaviorConfig.ExitInTray.value)
-	savedAndRemove("rockpload_exitInTray")
+	importBool("rockpload_autoUpload", &a.BehaviorConfig.AutoUpload.value)
+	importBool("rockpload_exitInTray", &a.BehaviorConfig.ExitInTray.value)
+	importBool("rockpload_autoStart", &a.BehaviorConfig.AutoStart.value)
+	importBool("rockpload_startInTray", &a.BehaviorConfig.StartInTray.value)
+	importBool("rockpload_uploadOnLaunch", &a.BehaviorConfig.UploadOnLaunch.value)
 
-	a.BehaviorConfig.AutoStart.value = prefs.BoolWithFallback("rockpload_autoStart", a.BehaviorConfig.AutoStart.value)
-	savedAndRemove("rockpload_autoStart")
-	a.BehaviorConfig.StartInTray.value = prefs.BoolWithFallback("rockpload_startInTray", a.BehaviorConfig.StartInTray.value)
-	savedAndRemove("rockpload_startInTray")
-	a.BehaviorConfig.UploadOnLaunch.value = prefs.BoolWithFallback("rockpload_uploadOnLaunch", a.BehaviorConfig.UploadOnLaunch.value)
-	savedAndRemove("rockpload_uploadOnLaunch")
+	jsonData := prefs.StringWithFallback("rockpload_websiteSettings", "")
 
-	jsonData := prefs.StringWithFallback("rockpload_websiteSettings", "[]")
-	var websites []*StorageConfig
-	json.Unmarshal([]byte(jsonData), &websites)
+	if jsonData != "" && jsonData != "[]" {
+		var websites []*StorageConfig
 
-	for _, importedSite := range websites {
-		found := false
+		if err := json.Unmarshal([]byte(jsonData), &websites); err == nil {
+			for _, importedSite := range websites {
+				found := false
 
-		for _, configSite := range a.StorageSettings.Get() {
-			if configSite.Name == importedSite.Name {
-				found = true
-				break
-			}
-		}
+				for i, configSite := range a.StorageSettings.Get() {
+					if configSite.Name == importedSite.Name {
+						found = true
 
-		if !found {
-			a.StorageSettings.value = append(a.StorageSettings.value, importedSite)
-		} else if importedSite.IsPredefined && !importedSite.IsPrimary {
-			for i, configSite := range a.StorageSettings.Get() {
-				if configSite.Name == importedSite.Name {
-					a.StorageSettings.value[i] = importedSite
+						if importedSite.IsPredefined && !importedSite.IsPrimary {
+							a.StorageSettings.value[i] = importedSite
+							modified = true
+						}
+						break
+					}
+				}
+
+				if !found {
+					a.StorageSettings.value = append(a.StorageSettings.value, importedSite)
+					modified = true
 				}
 			}
 		}
 	}
+	prefs.RemoveValue("rockpload_websiteSettings")
 
-	savedAndRemove("rockpload_websiteSettings")
+	if modified {
+		a.Save()
+	}
 }
