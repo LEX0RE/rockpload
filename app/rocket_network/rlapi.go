@@ -41,6 +41,7 @@ func GetRPC(p *Player) (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
 
 func GetReplays(rpc *rlapi.PsyNetRPC) (matchHistory []rlapi.MatchEntry, err error) {
 	logger.FuncDebug()
+
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer apiCancel()
 
@@ -55,6 +56,7 @@ func GetReplays(rpc *rlapi.PsyNetRPC) (matchHistory []rlapi.MatchEntry, err erro
 
 func GetProfiles(rpc *rlapi.PsyNetRPC, playerIDs []rlapi.PlayerID) (profiles []rlapi.PlayerData, err error) {
 	logger.FuncDebug()
+
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer apiCancel()
 
@@ -69,6 +71,7 @@ func GetProfiles(rpc *rlapi.PsyNetRPC, playerIDs []rlapi.PlayerID) (profiles []r
 
 func GetShops(rpc *rlapi.PsyNetRPC) (shops *rlapi.GetStandardShopsResponse, err error) {
 	logger.FuncDebug()
+
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer apiCancel()
 

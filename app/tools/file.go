@@ -47,7 +47,7 @@ func SaveFilePath(filePath string, data []byte) error {
 func LoadJSONFilePath(filePath string, data any, errNotFound bool) error {
 	logger.FuncDebug()
 
-	logger.Rlogger.Info("Loading JSON File", slog.Any("Path", filePath))
+	logger.Rlogger.Debug("Loading JSON File", slog.Any("Path", filePath))
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		if errNotFound {
@@ -66,8 +66,10 @@ func LoadJSONFilePath(filePath string, data any, errNotFound bool) error {
 	return decoder.Decode(data)
 }
 
-// Wait a bit if file is not found
+// Wait a bit if some files are not found
 func WaitFileBoot(filesPath []string) {
+	logger.FuncDebug()
+
 	for range FOUND_FILE_BOOT_LOOP {
 		for _, filePath := range filesPath {
 			if _, err := os.Stat(filePath); err == nil {
