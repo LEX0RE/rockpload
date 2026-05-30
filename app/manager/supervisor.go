@@ -25,15 +25,17 @@ const (
 	EVENT_ON_RL_PLAYER_DETECTED tools.EventType = "rl_player_detected"
 	EVENT_ON_RL_CLOSED          tools.EventType = "rl_closed"
 
-	ProcessSupervisorCheckTime = time.Second * 30
+	ProcessSupervisorCheckTime = time.Second * 5
+	MinFlickerSameState        = 3
 )
 
 type RLSupervisor struct {
 	*rtime.Looper
 
 	LastRLRunningState bool
-	EventManager       *tools.EventManager
-	RLLogInfo          *RLLogInfo
+
+	EventManager *tools.EventManager
+	RLLogInfo    *RLLogInfo
 
 	appConfig      *config.AppConfig
 	accountManager *AccountManager
@@ -41,6 +43,8 @@ type RLSupervisor struct {
 	rlLogsFolder        []string
 	lastLogReadPosition int64
 	positionLogMutex    sync.Mutex
+
+	stateFlickerCount int
 }
 
 type RLLogInfo struct {
@@ -108,23 +112,55 @@ func (rls *RLSupervisor) Supervise() {
 
 	running := rls.isRLRunning()
 
-	if running {
-		rls.onRLDetected()
+	if running != rls.LastRLRunningState {
+		rls.stateFlickerCount++
+
+		if rls.stateFlickerCount >= MinFlickerSameState {
+			rls.LastRLRunningState = running
+			rls.stateFlickerCount = 0
+
+			if running {
+				rls.onRLDetected()
+			} else {
+				rls.onRLClose()
+			}
+		}
 	} else {
-		rls.onRLClose()
+		rls.stateFlickerCount = 0
 	}
 
-	rls.LastRLRunningState = running
+	if rls.LastRLRunningState {
+		rls.checkLogsFallback()
+	}
+}
+
+func (rls *RLSupervisor) checkLogsFallback() {
+	if len(rls.rlLogsFolder) == 0 {
+		return
+	}
+
+	for _, logFolder := range rls.rlLogsFolder {
+		filePath := filepath.Join(logFolder, "Launch.log")
+		stat, err := os.Stat(filePath)
+
+		if err == nil {
+			rls.positionLogMutex.Lock()
+			lastPos := rls.lastLogReadPosition
+			rls.positionLogMutex.Unlock()
+
+			if stat.Size() != lastPos {
+				logger.Rlogger.Debug("Fallback triggered: Missed log write detected")
+				rls.processLogFile(filePath)
+			}
+		}
+	}
 }
 
 func (rls *RLSupervisor) onRLDetected() {
 	logger.FuncDebug()
 
-	if !rls.LastRLRunningState {
-		logger.Rlogger.Debug("Rocket League program detected")
-
-		rls.EventManager.Notify(EVENT_ON_RL_DETECTED, nil)
-	}
+	logger.Rlogger.Debug("Rocket League program detected")
+	rls.EventManager.Notify(EVENT_ON_RL_DETECTED, nil)
 }
 
 func (rls *RLSupervisor) onRLPlayerDetected(account *rocket_network.Account, rlPlayerLogInfo *RLPlayerLogInfo) {
@@ -148,19 +184,16 @@ func (rls *RLSupervisor) onRLPlayerDetected(account *rocket_network.Account, rlP
 func (rls *RLSupervisor) onRLClose() {
 	logger.FuncDebug()
 
-	if rls.LastRLRunningState {
-		if rls.RLLogInfo.Player != nil {
-			if byIDFound := rls.accountManager.GetByPlayerID(rls.RLLogInfo.Player.ID); byIDFound != nil {
-				byIDFound.Player.LastCheckOnline = false
-			} else if byNameFound := rls.accountManager.GetByPlayerName(rls.RLLogInfo.Player.Name); byNameFound != nil {
-				byNameFound.Player.LastCheckOnline = false
-			}
+	if rls.RLLogInfo.Player != nil {
+		if byIDFound := rls.accountManager.GetByPlayerID(rls.RLLogInfo.Player.ID); byIDFound != nil {
+			byIDFound.Player.LastCheckOnline = false
+		} else if byNameFound := rls.accountManager.GetByPlayerName(rls.RLLogInfo.Player.Name); byNameFound != nil {
+			byNameFound.Player.LastCheckOnline = false
 		}
-
-		rls.resetMemory()
-
-		rls.EventManager.Notify(EVENT_ON_RL_CLOSED, nil)
 	}
+
+	rls.resetMemory()
+	rls.EventManager.Notify(EVENT_ON_RL_CLOSED, nil)
 }
 
 func (rls *RLSupervisor) superviseLog() {
@@ -192,7 +225,7 @@ func (rls *RLSupervisor) superviseLog() {
 			}
 
 			if strings.Contains(event.Name, "Launch.log") {
-				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
+				if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Chmod) != 0 {
 					rls.processLogFile(event.Name)
 				}
 			}

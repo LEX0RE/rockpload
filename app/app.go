@@ -125,7 +125,7 @@ func (a *App) initManager() {
 	a.rlSupervisor = manager.NewRLSupervisor(a.appConfig, a.accountManager)
 
 	var err error
-	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.app.Clipboard)
+	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.rlSupervisor, a.app.Clipboard)
 	if err != nil {
 		logger.Rlogger.Error("Failed to initialize GUI:", slog.Any("err", err))
 	}
@@ -190,7 +190,8 @@ func (a *App) initEvents() {
 		refreshSubscription(ac)
 	}
 
-	a.rlSupervisor.EventManager.Subscribe(manager.EVENT_ON_RL_PLAYER_DETECTED, tools.Listener{IsSync: false, Callback: func(data any) {
+	updateGUIFromSupervisorEvent := []tools.EventType{manager.EVENT_ON_RL_DETECTED, manager.EVENT_ON_RL_PLAYER_DETECTED, manager.EVENT_ON_RL_CLOSED}
+	a.rlSupervisor.EventManager.MultiSubscribe(updateGUIFromSupervisorEvent, tools.Listener{IsSync: false, Callback: func(data any) {
 		onUpdateState()
 	}})
 
