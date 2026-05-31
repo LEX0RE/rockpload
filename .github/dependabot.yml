@@ -1,11 +1,30 @@
 version: 2
 updates:
-  - package-ecosystem: gomod
-    directory: "/"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
   - package-ecosystem: "github-actions"
     directory: "/"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    open-pull-requests-limit: 5
     schedule:
       interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/"
+    labels:
+      - "dependencies"
+      - "go"
+    open-pull-requests-limit: 5
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "nix"
+    directory: "/"
+    labels:
+      - "dependencies"
+      - "nix"
+    open-pull-requests-limit: 5
+    schedule:
+      interval: "weekly"
+    groups:
+      nix:
+        patterns:
+          - "*"
