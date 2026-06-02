@@ -23,8 +23,6 @@ jobs:
 
       - name: Check formatting
         run: |
-          - name: Check formatting
-        run: |
           go fmt ./...
           git diff --exit-code || (echo "❌ Code is not formatted. Please run 'go fmt ./...' locally before committing." && exit 1)
 
