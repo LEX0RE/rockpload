@@ -23,12 +23,10 @@ jobs:
 
       - name: Check formatting
         run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "These files are not gofmt-formatted:"
-            echo "$unformatted"
-            exit 1
-          fi
+          - name: Check formatting
+        run: |
+          go fmt ./...
+          git diff --exit-code || (echo "❌ Code is not formatted. Please run 'go fmt ./...' locally before committing." && exit 1)
 
       - name: Install Build Dependencies
         run: |
