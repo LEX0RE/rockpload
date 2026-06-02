@@ -24,7 +24,7 @@ jobs:
       - name: Calculate and update vendorHash
         run: |
           echo "Clearing current hash..."
-          sed -i 's/vendorHash = ".*";/vendorHash = "";/' flake.nix
+          sed -i 's@vendorHash = ".*";@vendorHash = "";@' flake.nix
           
           echo "Attempting build to retrieve the new hash..."
           OUTPUT=$(nix build . 2>&1 || true)
@@ -33,7 +33,7 @@ jobs:
           
           if [ ! -z "$NEW_HASH" ]; then
             echo "New hash detected: $NEW_HASH"
-            sed -i "s/vendorHash = \"\";/vendorHash = \"$NEW_HASH\";/" flake.nix
+            sed -i "s@vendorHash = \"\";@vendorHash = \"$NEW_HASH\";@" flake.nix
           else
             echo "Error: No new hash found."
             exit 1
