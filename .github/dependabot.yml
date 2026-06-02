@@ -7,7 +7,7 @@ updates:
       - "github-actions"
     open-pull-requests-limit: 5
     schedule:
-      interval: "daily"
+      interval: "weekly"
   - package-ecosystem: "gomod"
     directory: "/"
     labels:
@@ -15,7 +15,7 @@ updates:
       - "go"
     open-pull-requests-limit: 5
     schedule:
-      interval: "weekly"
+      interval: "daily"
   - package-ecosystem: "nix"
     directory: "/"
     labels:
