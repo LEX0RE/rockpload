@@ -32,7 +32,7 @@ FILE="$RELEASE_PATH/$OUTPUT"
 
 echo "Building $OUTPUT..."
 
-CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -C "$ROOT_DIR" -trimpath -o "$FILE" -ldflags "-s -w -X main.Version=$VERSION_CLEAN"
+CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -C "$ROOT_DIR" -mod=vendor -trimpath -o "$FILE" -ldflags "-s -w -X main.Version=$VERSION_CLEAN"
 
 #################
 # BUILD WINDOWS #
@@ -45,7 +45,7 @@ FILE="$RELEASE_PATH/$OUTPUT"
 
 echo "Building $OUTPUT..."
 
-CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -C "$ROOT_DIR" -trimpath -o "$FILE" -ldflags "-s -w -X main.Version=$VERSION_CLEAN -H windowsgui"
+CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH go build -C "$ROOT_DIR" -mod=vendor -trimpath -o "$FILE" -ldflags "-s -w -X main.Version=$VERSION_CLEAN -H windowsgui"
 
 #############
 # BUILD MAC # (CURRENTLY NOT SUPPORTED)
