@@ -21,9 +21,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Download dependencies
-        run: go mod download
-
       - name: Check formatting
         run: |
           unformatted=$(gofmt -l .)
@@ -43,7 +40,7 @@ jobs:
             gcc-mingw-w64-x86-64
 
       - name: Vet
-        run: go vet ./...
+        run: go vet -mod=vendor ./...
 
   build:
     runs-on: ubuntu-latest
@@ -56,9 +53,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Download dependencies
-        run: go mod download
 
       - name: Check project version
         run: bash ./scripts/set-version.sh --check
@@ -103,4 +97,4 @@ jobs:
         run: nix build .
 
       - name: Run Go tests
-        run: nix develop --command go test ./...
+        run: nix develop --command go test -mod=vendor ./...
