@@ -40,17 +40,21 @@ type RLSupervisor struct {
 	appConfig      *config.AppConfig
 	accountManager *AccountManager
 
-	rlLogsFolder        []string
-	lastLogReadPosition int64
-	positionLogMutex    sync.Mutex
+	rlLogsFolder     []string
+	rlLogReader      map[string]*rlLogReader
+	positionLogMutex sync.Mutex
 
 	stateFlickerCount int
 }
 
 type RLLogInfo struct {
-	GameVersion string
+	GameVersion  string
+	AccountFound *rocket_network.Account
+}
 
-	Player *RLPlayerLogInfo
+type rlLogReader struct {
+	lastReadPosition int64
+	isInit           bool
 }
 
 type RLPlayerLogInfo struct {
@@ -63,14 +67,14 @@ func NewRLSupervisor(appConfig *config.AppConfig, accountManager *AccountManager
 	logger.FuncDebug()
 
 	rls := &RLSupervisor{
-		LastRLRunningState:  false,
-		EventManager:        tools.NewEventManager(),
-		RLLogInfo:           &RLLogInfo{},
-		appConfig:           appConfig,
-		accountManager:      accountManager,
-		rlLogsFolder:        []string{},
-		lastLogReadPosition: 0,
-		positionLogMutex:    sync.Mutex{},
+		LastRLRunningState: false,
+		EventManager:       tools.NewEventManager(),
+		RLLogInfo:          &RLLogInfo{},
+		appConfig:          appConfig,
+		accountManager:     accountManager,
+		rlLogsFolder:       []string{},
+		rlLogReader:        make(map[string]*rlLogReader),
+		positionLogMutex:   sync.Mutex{},
 	}
 
 	rls.Looper = rtime.NewLooper(ProcessSupervisorCheckTime, rls.Supervise, rls.Supervise, nil, 0, 0)
@@ -145,7 +149,7 @@ func (rls *RLSupervisor) checkLogsFallback() {
 
 		if err == nil {
 			rls.positionLogMutex.Lock()
-			lastPos := rls.lastLogReadPosition
+			lastPos := rls.rlLogReader[filePath].lastReadPosition
 			rls.positionLogMutex.Unlock()
 
 			if stat.Size() != lastPos {
@@ -163,33 +167,34 @@ func (rls *RLSupervisor) onRLDetected() {
 	rls.EventManager.Notify(EVENT_ON_RL_DETECTED, nil)
 }
 
-func (rls *RLSupervisor) onRLPlayerDetected(account *rocket_network.Account, rlPlayerLogInfo *RLPlayerLogInfo) {
+func (rls *RLSupervisor) verifyRLPlayerDetected(logInfo *RLPlayerLogInfo) {
 	logger.FuncDebug()
 
-	if account == nil || !rls.LastRLRunningState {
+	if byIDFound := rls.accountManager.GetByPlayerID(logInfo.ID); byIDFound != nil {
+		if rls.RLLogInfo.AccountFound != nil && rls.RLLogInfo.AccountFound.Id() != byIDFound.Id() {
+			rls.RLLogInfo.AccountFound.Player.LastCheckOnline = false
+		}
+
+		rls.RLLogInfo.AccountFound = byIDFound
+	}
+
+	if rls.RLLogInfo.AccountFound == nil || !rls.LastRLRunningState {
 		return
 	}
 
-	rls.RLLogInfo.Player = rlPlayerLogInfo
+	if !rls.RLLogInfo.AccountFound.Player.LastCheckOnline {
+		rls.RLLogInfo.AccountFound.Player.LastCheckOnline = true
 
-	logger.Rlogger.Debug("Rocket League Player Account Online detected", slog.Any("Player", rlPlayerLogInfo))
-
-	if !account.Player.LastCheckOnline {
-		account.Player.LastCheckOnline = true
-
-		rls.EventManager.Notify(EVENT_ON_RL_PLAYER_DETECTED, account)
+		logger.Rlogger.Debug("Rocket League Player Account Online detected", slog.Any("Player", rls.RLLogInfo.AccountFound.AccountName()))
+		rls.EventManager.Notify(EVENT_ON_RL_PLAYER_DETECTED, rls.RLLogInfo.AccountFound)
 	}
 }
 
 func (rls *RLSupervisor) onRLClose() {
 	logger.FuncDebug()
 
-	if rls.RLLogInfo.Player != nil {
-		if byIDFound := rls.accountManager.GetByPlayerID(rls.RLLogInfo.Player.ID); byIDFound != nil {
-			byIDFound.Player.LastCheckOnline = false
-		} else if byNameFound := rls.accountManager.GetByPlayerName(rls.RLLogInfo.Player.Name); byNameFound != nil {
-			byNameFound.Player.LastCheckOnline = false
-		}
+	if rls.RLLogInfo.AccountFound != nil {
+		rls.RLLogInfo.AccountFound.Player.LastCheckOnline = false
 	}
 
 	rls.resetMemory()
@@ -244,7 +249,11 @@ func (rls *RLSupervisor) superviseLog() {
 func (rls *RLSupervisor) resetMemory() {
 	logger.FuncDebug()
 
-	rls.lastLogReadPosition = 0
+	for key := range rls.rlLogReader {
+		rls.rlLogReader[key].lastReadPosition = -1
+		rls.rlLogReader[key].isInit = false
+	}
+
 	rls.RLLogInfo = &RLLogInfo{}
 }
 
@@ -275,6 +284,7 @@ func (rls *RLSupervisor) updateRLLogsFolder() {
 
 		if err == nil && info.IsDir() {
 			rls.rlLogsFolder = append(rls.rlLogsFolder, path)
+			rls.rlLogReader[filepath.Join(path, "Launch.log")] = &rlLogReader{lastReadPosition: -1, isInit: false}
 		}
 	}
 
@@ -300,11 +310,22 @@ func (rls *RLSupervisor) processLogFile(filePath string) {
 		return
 	}
 
-	if stat.Size() < rls.lastLogReadPosition {
-		rls.lastLogReadPosition = 0
+	doAnalyze := true
+	if rls.rlLogReader[filePath].lastReadPosition < 0 {
+		rls.rlLogReader[filePath].lastReadPosition = 0
+		doAnalyze = false
 	}
 
-	_, err = file.Seek(rls.lastLogReadPosition, io.SeekStart)
+	if stat.Size() < rls.rlLogReader[filePath].lastReadPosition {
+		rls.rlLogReader[filePath].lastReadPosition = 0
+	}
+
+	if !rls.rlLogReader[filePath].isInit && doAnalyze {
+		rls.rlLogReader[filePath].isInit = true
+		rls.rlLogReader[filePath].lastReadPosition = 0
+	}
+
+	_, err = file.Seek(rls.rlLogReader[filePath].lastReadPosition, io.SeekStart)
 	if err != nil {
 		return
 	}
@@ -313,7 +334,9 @@ func (rls *RLSupervisor) processLogFile(filePath string) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		rls.analyzeLogLine(line)
+		if doAnalyze {
+			rls.analyzeLogLine(line)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -321,7 +344,7 @@ func (rls *RLSupervisor) processLogFile(filePath string) {
 	}
 
 	if newPos, err := file.Seek(0, io.SeekCurrent); err == nil {
-		rls.lastLogReadPosition = newPos
+		rls.rlLogReader[filePath].lastReadPosition = newPos
 	}
 }
 
@@ -360,9 +383,7 @@ func (rls *RLSupervisor) updateEpicLoginPlayerInfo(logLine string) {
 		ID: "Epic|" + playerID + "|0",
 	}
 
-	if byIDFound := rls.accountManager.GetByPlayerID(logInfo.ID); byIDFound != nil {
-		rls.onRLPlayerDetected(byIDFound, logInfo)
-	}
+	rls.verifyRLPlayerDetected(logInfo)
 }
 
 func (rls *RLSupervisor) updateLoginPlayerInfo(logLine string) {
@@ -397,9 +418,7 @@ func (rls *RLSupervisor) updateLoginPlayerInfo(logLine string) {
 		return
 	}
 
-	if byIDFound := rls.accountManager.GetByPlayerID(logInfo.ID); byIDFound != nil {
-		rls.onRLPlayerDetected(byIDFound, logInfo)
-	}
+	rls.verifyRLPlayerDetected(logInfo)
 }
 
 func (rls *RLSupervisor) updateRLStatusInfo(logLine string) {
@@ -411,7 +430,9 @@ func (rls *RLSupervisor) updateRLStatusInfo(logLine string) {
 		return
 	}
 
-	rls.RLLogInfo.GameVersion = splitted[2]
+	if rls.RLLogInfo.GameVersion != splitted[2] {
+		rls.RLLogInfo.GameVersion = splitted[2]
 
-	logger.Rlogger.Debug("Rocket League Game Version detected", slog.Any("Version", rls.RLLogInfo.GameVersion))
+		logger.Rlogger.Debug("Rocket League Game Version detected", slog.Any("Version", rls.RLLogInfo.GameVersion))
+	}
 }
