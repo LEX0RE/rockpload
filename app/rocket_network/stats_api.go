@@ -10,15 +10,62 @@ import (
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
+const (
+	EventFirstUpdateState tools.EventType = "first_update_state"
+)
+
+type UpdateState struct {
+	MatchGuid string
+	Players   []UpdateStatePlayer
+	Game      UpdateStateGame
+}
+
+type UpdateStatePlayer struct {
+	Name       string
+	PrimaryId  string
+	Shortcut   int
+	TeamNum    int
+	Score      int
+	Goals      int
+	Shots      int
+	Assists    int
+	Saves      int
+	Touches    int
+	CarTouches int
+	Demos      int
+}
+
+type UpdateStateGame struct {
+	Teams       []UpdateStateGameTeam
+	TimeSeconds int
+	bOvertime   bool
+	Frame       int
+	Elapsed     float64
+	bHasWinner  bool
+	Winner      string
+	Arena       string
+}
+
+type UpdateStateGameTeam struct {
+	Name           string
+	TeamNum        int
+	Score          int
+	ColorPrimary   string
+	ColorSecondary string
+}
+
 type RLEvent struct {
-	Event string          `json:"Event"`
+	Event tools.EventType `json:"Event"`
 	Data  json.RawMessage `json:"Data"`
 }
 
 type StatsAPI struct {
-	port string
+	port          string
+	lastStateTime int
+	isFirstSent   bool
 
-	EventManager *tools.EventManager
+	LastUpdateState *UpdateState
+	EventManager    *tools.EventManager
 }
 
 const (
@@ -29,7 +76,7 @@ const (
 )
 
 func NewStatsAPI() *StatsAPI {
-	return &StatsAPI{port: defaultPort, EventManager: tools.NewEventManager()}
+	return &StatsAPI{port: defaultPort, EventManager: tools.NewEventManager(), lastStateTime: -1, isFirstSent: false}
 }
 
 func (s *StatsAPI) StartListener() {
@@ -81,6 +128,111 @@ func (s *StatsAPI) readLoop(conn net.Conn) {
 			json.Unmarshal(rlEvent.Data, &dynamicData)
 		}
 
+		switch rlEvent.Event {
+		case "MatchCreated", "MatchDestroyed":
+			s.LastUpdateState = nil
+			s.lastStateTime = -1
+			s.isFirstSent = false
+		case "UpdateState":
+			updateStateData := ExtractUpdateState(dynamicData)
+
+			if updateStateData != nil {
+				s.LastUpdateState = updateStateData
+
+				if s.lastStateTime == -1 {
+					s.lastStateTime = s.LastUpdateState.Game.TimeSeconds
+				} else if s.lastStateTime != s.LastUpdateState.Game.TimeSeconds {
+					s.lastStateTime = s.LastUpdateState.Game.TimeSeconds
+
+					if !s.isFirstSent && len(s.LastUpdateState.Players) > 0 {
+						s.isFirstSent = true
+						s.EventManager.Notify(EventFirstUpdateState, nil)
+					}
+				}
+			}
+		}
+
 		s.EventManager.Notify(rlEvent.Event, dynamicData)
 	}
+}
+
+func ExtractUpdateState(dynamicData map[string]any) *UpdateState {
+	state := &UpdateState{}
+
+	assignStr := func(m map[string]any, key string, target *string) {
+		if v, ok := m[key].(string); ok {
+			*target = v
+		}
+	}
+
+	assignInt := func(m map[string]any, key string, target *int) {
+		if v, ok := m[key].(float64); ok {
+			*target = int(v)
+		}
+	}
+
+	assignFloat := func(m map[string]any, key string, target *float64) {
+		if v, ok := m[key].(float64); ok {
+			*target = v
+		}
+	}
+
+	assignBool := func(m map[string]any, key string, target *bool) {
+		if v, ok := m[key].(bool); ok {
+			*target = v
+		}
+	}
+
+	assignStr(dynamicData, "MatchGuid", &state.MatchGuid)
+
+	if playersArr, ok := dynamicData["Players"].([]any); ok {
+		for _, playerAny := range playersArr {
+			if playerObj, ok := playerAny.(map[string]any); ok {
+				var newPlayer UpdateStatePlayer
+
+				assignStr(playerObj, "Name", &newPlayer.Name)
+				assignStr(playerObj, "PrimaryId", &newPlayer.PrimaryId)
+				assignInt(playerObj, "Shortcut", &newPlayer.Shortcut)
+				assignInt(playerObj, "TeamNum", &newPlayer.TeamNum)
+				assignInt(playerObj, "Score", &newPlayer.Score)
+				assignInt(playerObj, "Goals", &newPlayer.Goals)
+				assignInt(playerObj, "Shots", &newPlayer.Shots)
+				assignInt(playerObj, "Assists", &newPlayer.Assists)
+				assignInt(playerObj, "Saves", &newPlayer.Saves)
+				assignInt(playerObj, "Touches", &newPlayer.Touches)
+				assignInt(playerObj, "CarTouches", &newPlayer.CarTouches)
+				assignInt(playerObj, "Demos", &newPlayer.Demos)
+
+				state.Players = append(state.Players, newPlayer)
+			}
+		}
+	}
+
+	if gameObj, ok := dynamicData["Game"].(map[string]any); ok {
+		assignInt(gameObj, "TimeSeconds", &state.Game.TimeSeconds)
+		assignBool(gameObj, "bOvertime", &state.Game.bOvertime)
+		assignInt(gameObj, "Frame", &state.Game.Frame)
+		assignFloat(gameObj, "Elapsed", &state.Game.Elapsed)
+		assignBool(gameObj, "bHasWinner", &state.Game.bHasWinner)
+		assignStr(gameObj, "Winner", &state.Game.Winner)
+		assignStr(gameObj, "Arena", &state.Game.Arena)
+
+		if teamsArr, ok := gameObj["Teams"].([]any); ok {
+			for _, teamAny := range teamsArr {
+				if teamObj, ok := teamAny.(map[string]any); ok {
+					var newTeam UpdateStateGameTeam
+
+					assignStr(teamObj, "Name", &newTeam.Name)
+					assignStr(teamObj, "ColorPrimary", &newTeam.ColorPrimary)
+					assignStr(teamObj, "ColorSecondary", &newTeam.ColorSecondary)
+					assignInt(teamObj, "TeamNum", &newTeam.TeamNum)
+					assignInt(teamObj, "Score", &newTeam.Score)
+
+					state.Game.Teams = append(state.Game.Teams, newTeam)
+				}
+			}
+		}
+	}
+
+	return state
 }

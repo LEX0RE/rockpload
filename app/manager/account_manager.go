@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"log/slog"
 	"slices"
-	"strings"
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
@@ -41,7 +40,7 @@ func (am *AccountManager) GetByPlayerName(playerName string) *rocket_network.Acc
 
 	allAccount := am.GetAll()
 	for _, a := range allAccount {
-		if a.Player.PlayerName == playerName {
+		if a != nil && a.Player != nil && a.Player.PlayerName == playerName {
 			return a
 		}
 	}
@@ -54,7 +53,11 @@ func (am *AccountManager) GetByPlayerID(playerID string) *rocket_network.Account
 
 	allAccount := am.GetAll()
 	for _, a := range allAccount {
-		if strings.EqualFold(a.Player.PlayerID.String(), playerID) {
+		if a == nil || a.Player == nil || a.Player.PlayerID == nil {
+			continue
+		}
+
+		if a.Player.EqualStringID(playerID) {
 			return a
 		}
 	}
@@ -227,11 +230,6 @@ func (am *AccountManager) RefreshInfo() {
 func (am *AccountManager) RefreshProfile() {
 	logger.FuncDebug()
 
-	playerList := []*rocket_network.Player{}
-	for _, ac := range am.GetActives() {
-		playerList = append(playerList, ac.Player)
-	}
-
 	unusedAccount := am.GetUnused()
 	if unusedAccount != nil || am.appConfig.BehaviorConfig.NoUploadOnline.Get() {
 		if unusedAccount != nil {
@@ -242,6 +240,31 @@ func (am *AccountManager) RefreshProfile() {
 			ac.Player.UpdateProfile()
 		}
 	}
+}
+
+func (am *AccountManager) RefreshPlayersSkills(updateStatePlayers []rocket_network.UpdateStatePlayer) {
+	logger.FuncDebug()
+
+	logger.Rlogger.Debug("Getting players skills", slog.Any("Player", updateStatePlayers))
+
+	// We won't allow querying skills if we don't have an unused account as it would disconnect the account that is currently playing
+	unusedAccount := am.GetUnused()
+	if unusedAccount == nil || unusedAccount.Player == nil {
+		logger.Rlogger.Debug("Invalid Unused Account for getting Players Skills", slog.Any("Unused Account", unusedAccount))
+		return
+	}
+
+	logger.Rlogger.Debug("Account is being used to get Players Skills", slog.Any("Account", unusedAccount.AccountName()))
+
+	playerIDList := []rlapi.PlayerID{}
+	for _, playerState := range updateStatePlayers {
+		if playerState.PrimaryId != "" {
+			playerIDList = append(playerIDList, rlapi.PlayerID(playerState.PrimaryId))
+		}
+	}
+
+	ranks := unusedAccount.Player.GetRanks(playerIDList)
+	logger.Rlogger.Debug("Got players skills", slog.Any("PlayerWithSkills", ranks))
 }
 
 func (am *AccountManager) uploadStatusMap() map[int]bool {
@@ -290,7 +313,7 @@ func (am *AccountManager) onlineStatusFromAccount(account *rocket_network.Accoun
 		playerList = append(playerList, ac.Player)
 	}
 
-	profiles := account.Player.GetProfiles(playerList)
+	profiles := account.Player.GetProfiles(rocket_network.PlayerList(playerList).ToPlayerIDs())
 
 	for _, player := range playerList {
 		if player.PlayerID == nil {
@@ -298,7 +321,7 @@ func (am *AccountManager) onlineStatusFromAccount(account *rocket_network.Accoun
 		}
 
 		for _, profile := range profiles {
-			if profile.PlayerID == player.PlayerID.String() {
+			if player.EqualStringID(profile.PlayerID) {
 				player.SetProfile(profile)
 				player.LastCheckOnline = profile.PresenceState == "Online"
 				onlineStatus[*player.PlayerID] = player.LastCheckOnline

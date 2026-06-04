@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
@@ -100,6 +101,52 @@ func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error
 	default:
 		return fmt.Errorf("Upload failed: %s\n%s", resp.Status, string(respBody))
 	}
+
+	return nil
+}
+
+func (w *Website) UploadLive(liveData *rocket_network.UpdateState) error {
+	logger.FuncDebug()
+
+	if !w.config.SendLive {
+		return nil
+	}
+
+	jsonData, err := json.Marshal(liveData)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal live data: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", w.config.URL+w.config.LivePath, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("Failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	if w.config.NeedToken && w.config.Token != "" {
+		req.Header.Set("Authorization", w.config.Token)
+	}
+
+	q := req.URL.Query()
+	for key, value := range w.config.URIParams {
+		q.Add(key, value)
+	}
+	req.URL.RawQuery = q.Encode()
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Live data upload failed: %s\n%s", resp.Status, string(respBody))
+	}
+
+	logger.Rlogger.Debug("Live data upload successful")
 
 	return nil
 }

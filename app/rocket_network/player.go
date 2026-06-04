@@ -3,12 +3,28 @@ package rocket_network
 import (
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"github.com/dank/rlapi"
 )
+
+type PlayerList []*Player
+
+func (pl PlayerList) ToPlayerIDs() []rlapi.PlayerID {
+	logger.FuncDebug()
+
+	playerIds := make([]rlapi.PlayerID, 0, len(pl))
+	for _, player := range pl {
+		if player.PlayerID != nil {
+			playerIds = append(playerIds, *player.PlayerID)
+		}
+	}
+
+	return playerIds
+}
 
 type Player struct {
 	PlayerName      string             `json:"player_name"`
@@ -109,7 +125,32 @@ func (p *Player) UpdateProfile() (err error) {
 	return nil
 }
 
-func (p *Player) GetProfiles(players []*Player) []rlapi.PlayerData {
+func (p *Player) GetProfiles(playersIds []rlapi.PlayerID) []rlapi.PlayerData {
+	logger.FuncDebug()
+
+	if !p.rpcMu.TryLock() {
+		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
+		return nil
+	}
+	defer p.rpcMu.Unlock()
+
+	var rpc *rlapi.PsyNetRPC
+	rpc, _, err := GetRPC(p)
+	if err != nil {
+		return nil
+	}
+
+	defer rpc.Close()
+	profiles, err := GetProfiles(rpc, playersIds)
+	if err != nil {
+		logger.Rlogger.Error("Failed to get online statuses:", slog.Any("err", err))
+		return nil
+	}
+
+	return profiles
+}
+
+func (p *Player) GetRanks(playersIds []rlapi.PlayerID) []rlapi.PlayerWithSkills {
 	logger.FuncDebug()
 
 	if !p.rpcMu.TryLock() {
@@ -126,20 +167,13 @@ func (p *Player) GetProfiles(players []*Player) []rlapi.PlayerData {
 
 	defer rpc.Close()
 
-	playerIds := make([]rlapi.PlayerID, 0, len(players))
-	for _, player := range players {
-		if player.PlayerID != nil {
-			playerIds = append(playerIds, *player.PlayerID)
-		}
-	}
-
-	profiles, err := GetProfiles(rpc, playerIds)
+	platersSkills, err := GetPlayersSkills(rpc, playersIds)
 	if err != nil {
 		logger.Rlogger.Error("Failed to get online statuses:", slog.Any("err", err))
 		return nil
 	}
 
-	return profiles
+	return platersSkills
 }
 
 func (p *Player) IsAuthenticated() bool {
@@ -154,4 +188,34 @@ func (p *Player) IsAuthenticated() bool {
 
 	p.Reset()
 	return false
+}
+
+func (p *Player) Equal(otherPlayer *Player) bool {
+	logger.FuncDebug()
+
+	if otherPlayer == nil {
+		return false
+	}
+
+	return p.EqualID(otherPlayer.PlayerID)
+}
+
+func (p *Player) EqualID(otherPlayerID *rlapi.PlayerID) bool {
+	logger.FuncDebug()
+
+	if otherPlayerID == nil {
+		return false
+	}
+
+	return p.EqualStringID(otherPlayerID.String())
+}
+
+func (p *Player) EqualStringID(otherPlayerStringID string) bool {
+	logger.FuncDebug()
+
+	if p.PlayerID == nil {
+		return false
+	}
+
+	return strings.EqualFold(p.PlayerID.String(), otherPlayerStringID)
 }

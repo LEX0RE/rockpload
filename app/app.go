@@ -136,12 +136,23 @@ func (a *App) initEvents() {
 	logger.FuncDebug()
 
 	a.statsApi = rocket_network.NewStatsAPI()
-	a.statsApi.EventManager.Subscribe("MatchCreated", tools.Listener{IsSync: false, Callback: func(data any) {
-		logger.Rlogger.Debug("Match Created", slog.Any("data", data))
+	uploadLiveStatsEvent := []tools.EventType{"CountdownBegin", "PodiumStart"}
+	a.statsApi.EventManager.MultiSubscribe(uploadLiveStatsEvent, tools.Listener{IsSync: false, Callback: func(data any) {
+		a.uploader.UploadLiveStats(a.statsApi.LastUpdateState)
 	}})
-	a.statsApi.EventManager.Subscribe("MatchDestroyed", tools.Listener{IsSync: false, Callback: func(data any) {
-		logger.Rlogger.Debug("Match Destroyed", slog.Any("data", data))
+
+	a.statsApi.EventManager.Subscribe(rocket_network.EventFirstUpdateState, tools.Listener{IsSync: false, Callback: func(data any) {
+		if a.statsApi.LastUpdateState != nil && a.statsApi.LastUpdateState.Players != nil && len(a.statsApi.LastUpdateState.Players) > 0 {
+			a.accountManager.RefreshPlayersSkills(a.statsApi.LastUpdateState.Players)
+		}
 	}})
+
+	a.statsApi.EventManager.Subscribe("CountdownBegin", tools.Listener{IsSync: false, Callback: func(data any) {
+		if a.statsApi.LastUpdateState != nil && a.statsApi.LastUpdateState.Players != nil && len(a.statsApi.LastUpdateState.Players) > 0 {
+			a.accountManager.RefreshPlayersSkills(a.statsApi.LastUpdateState.Players)
+		}
+	}})
+
 	a.statsApi.StartListener()
 
 	onUpdateState := func() {

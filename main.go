@@ -8,8 +8,6 @@ import (
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
-// TODO Upload when we detect Rocket League is closed
-
 var Version = "dev"
 
 // This function run BEFORE main()

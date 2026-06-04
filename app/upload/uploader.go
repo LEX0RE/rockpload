@@ -42,6 +42,7 @@ type uploadCtx struct {
 
 type UploadStorage interface {
 	UploadReplay(filePath string, replayUpload ReplayUpload) error
+	UploadLive(liveState *rocket_network.UpdateState) error
 	Ping() error
 	GetConfig() *config.StorageConfig
 }
@@ -50,6 +51,7 @@ type Uploader struct {
 	*rtime.Looper
 
 	lockInUpload     sync.Mutex
+	lockInLiveUpload sync.Mutex
 	lockInAutoUpload sync.Mutex
 	lockInRunRLAPI   sync.Mutex
 
@@ -82,6 +84,8 @@ func (u *Uploader) Run() {
 	}
 	defer u.lockInRunRLAPI.Unlock()
 
+	logger.Rlogger.Info("Start Upload Replays Process")
+
 	u.EventManager.Notify(EventUploadStarted, nil)
 	u.EventManager.Notify(EventUploadProgress, 0)
 
@@ -109,6 +113,29 @@ func (u *Uploader) Run() {
 
 		u.EventManager.Notify(EventUploadCompleted, nil)
 	}()
+}
+
+func (u *Uploader) UploadLiveStats(liveState *rocket_network.UpdateState) {
+	logger.FuncDebug()
+
+	if !u.lockInLiveUpload.TryLock() {
+		logger.Rlogger.Debug("Duplicate live stat upload request at the same time, skipping")
+		return
+	}
+
+	defer u.lockInLiveUpload.Unlock()
+
+	logger.Rlogger.Info("Start Upload Live Stats Process")
+
+	if !u.appConfig.BehaviorConfig.SendLiveStat.Get() {
+		return
+	}
+
+	for _, storage := range u.getStorages() {
+		if storage.GetConfig().SendLive {
+			storage.UploadLive(liveState)
+		}
+	}
 }
 
 func (u *Uploader) upload(uploadCtx *uploadCtx) {

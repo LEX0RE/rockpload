@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -82,8 +84,15 @@ type StorageConfig struct {
 	Token        string            `json:"token,omitempty" secret:"true"`
 	SendPing     bool              `json:"send_ping"`
 	PingPath     string            `json:"ping_path"`
-	// SendLive   bool // TODO Not implemented yet
-	// LivePath   string // TODO Not implemented yet
+	SendLive     bool              `json:"send_live"`
+	LivePath     string            `json:"live_path"`
+}
+
+var STORAGE_PRESET = map[string]*StorageConfig{
+	ROCKY_STORAGE.Name: ROCKY_STORAGE,
+	BALLCHASING_NAME:   BALLCHASING_STORAGE,
+	LOCALHOST_NAME:     LOCALHOST_STORAGE,
+	FILE_SYSTEM_NAME:   FILE_SYSTEM_STORAGE,
 }
 
 var ROCKY_STORAGE = &StorageConfig{
@@ -100,8 +109,8 @@ var ROCKY_STORAGE = &StorageConfig{
 	SendReplay:   true,
 	ReplayPath:   "/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	// SendLive:   false, // TODO Not implemented yet
-	// LivePath:   "", // TODO Not implemented yet
+	SendLive:     true,
+	LivePath:     "/upload/state",
 }
 
 var BALLCHASING_STORAGE = &StorageConfig{
@@ -118,8 +127,8 @@ var BALLCHASING_STORAGE = &StorageConfig{
 	SendReplay:   false,
 	ReplayPath:   "/v2/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	// SendLive:   false, // TODO Not implemented yet
-	// LivePath:   "", // TODO Not implemented yet
+	SendLive:     false,
+	LivePath:     "",
 }
 
 var LOCALHOST_STORAGE = &StorageConfig{
@@ -136,8 +145,8 @@ var LOCALHOST_STORAGE = &StorageConfig{
 	SendReplay:   true,
 	ReplayPath:   "/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	// SendLive:   false, // TODO Not implemented yet
-	// LivePath:   "", // TODO Not implemented yet
+	SendLive:     false,
+	LivePath:     "",
 }
 
 var FILE_SYSTEM_STORAGE = &StorageConfig{
@@ -154,6 +163,50 @@ var FILE_SYSTEM_STORAGE = &StorageConfig{
 	SendReplay:   false,
 	ReplayPath:   constant.GetHomePath(),
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	// SendLive:   false, // TODO Not implemented yet
-	// LivePath:   "", // TODO Not implemented yet
+	SendLive:     false,
+	LivePath:     "",
+}
+
+func (sc *StorageConfig) UnmarshalJSON(data []byte) error {
+	var jsonMap map[string]json.RawMessage
+	if err := json.Unmarshal(data, &jsonMap); err != nil {
+		return err
+	}
+
+	var name string
+	if nameRaw, ok := jsonMap["name"]; ok {
+		_ = json.Unmarshal(nameRaw, &name)
+	}
+
+	type Alias StorageConfig
+	if err := json.Unmarshal(data, (*Alias)(sc)); err != nil {
+		return err
+	}
+
+	if preset, ok := STORAGE_PRESET[name]; ok {
+		valSC := reflect.ValueOf(sc).Elem()
+		valPreset := reflect.ValueOf(preset).Elem()
+		typeSC := valSC.Type()
+
+		for i := 0; i < valSC.NumField(); i++ {
+			field := typeSC.Field(i)
+
+			jsonTag := field.Tag.Get("json")
+			if jsonTag == "" || jsonTag == "-" {
+				continue
+			}
+			jsonKey := strings.Split(jsonTag, ",")[0]
+
+			if _, present := jsonMap[jsonKey]; !present {
+				valSC.Field(i).Set(valPreset.Field(i))
+			}
+		}
+
+		// Force specific field to be sure the storage are in a good state
+		sc.IsPrimary = preset.IsPrimary
+		sc.IsPredefined = preset.IsPredefined
+		sc.StorageType = preset.StorageType
+	}
+
+	return nil
 }

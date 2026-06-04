@@ -27,6 +27,8 @@ type StorageInfoContainer struct {
 	sendReplayCheck   *widget.Check
 	replayPathEntry   *widget.Entry
 	templateNameEntry *widget.Entry
+	sendLiveCheck     *widget.Check
+	livePathEntry     *widget.Entry
 
 	urlForm          *widget.FormItem
 	storageTypeForm  *widget.FormItem
@@ -38,6 +40,8 @@ type StorageInfoContainer struct {
 	sendReplayForm   *widget.FormItem
 	replayPathForm   *widget.FormItem
 	templateNameForm *widget.FormItem
+	sendLiveForm     *widget.FormItem
+	livePathForm     *widget.FormItem
 }
 
 type StorageSettingsPopup struct {
@@ -174,6 +178,12 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 		wsp.reload()
 	})
 
+	wsp.infoContainer.sendLiveCheck = widget.NewCheck("", func(v bool) {
+		wsp.currentWebsite.SendLive = v
+		wsp.reload()
+	})
+	wsp.infoContainer.livePathEntry = widget.NewEntry()
+
 	wsp.infoContainer.replayPathEntry = widget.NewEntry()
 	wsp.infoContainer.templateNameEntry = widget.NewEntry()
 
@@ -187,6 +197,8 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.sendReplayForm = widget.NewFormItem("Send Replay", wsp.infoContainer.sendReplayCheck)
 	wsp.infoContainer.replayPathForm = widget.NewFormItem("Replay Path", wsp.infoContainer.replayPathEntry)
 	wsp.infoContainer.templateNameForm = widget.NewFormItem("Replay Name Template", wsp.infoContainer.templateNameEntry)
+	wsp.infoContainer.sendLiveForm = widget.NewFormItem("Send Live", wsp.infoContainer.sendLiveCheck)
+	wsp.infoContainer.livePathForm = widget.NewFormItem("Live Path", wsp.infoContainer.livePathEntry)
 
 	return widget.NewForm(
 		wsp.infoContainer.sendReplayForm,
@@ -199,6 +211,8 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 		wsp.infoContainer.sendPingForm,
 		wsp.infoContainer.pingPathForm,
 		wsp.infoContainer.uriParamsForm,
+		wsp.infoContainer.sendLiveForm,
+		wsp.infoContainer.livePathForm,
 	)
 }
 
@@ -236,12 +250,14 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	wsp.infoContainer.sendReplayCheck.SetChecked(wsp.currentWebsite.SendReplay)
 	wsp.infoContainer.replayPathEntry.SetText(wsp.currentWebsite.ReplayPath)
 	wsp.infoContainer.templateNameEntry.SetText(wsp.currentWebsite.TemplateName)
+	wsp.infoContainer.sendLiveCheck.SetChecked(wsp.appConfig.BehaviorConfig.SendLiveStat.Get() && wsp.currentWebsite.SendLive)
+	wsp.infoContainer.livePathEntry.SetText(wsp.currentWebsite.LivePath)
 
-	var paramsStr string
+	var paramsStr strings.Builder
 	for k, v := range wsp.currentWebsite.URIParams {
-		paramsStr += fmt.Sprintf("%s=%s\n", k, v)
+		fmt.Fprintf(&paramsStr, "%s=%s\n", k, v)
 	}
-	wsp.infoContainer.uriParamsEntry.SetText(strings.TrimSpace(paramsStr))
+	wsp.infoContainer.uriParamsEntry.SetText(strings.TrimSpace(paramsStr.String()))
 
 	wsp.reload()
 }
@@ -268,6 +284,8 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	wsp.infoContainer.sendReplayForm.Widget.Show()
 	wsp.infoContainer.replayPathForm.Widget.Show()
 	wsp.infoContainer.templateNameForm.Widget.Show()
+	wsp.infoContainer.sendLiveForm.Widget.Show()
+	wsp.infoContainer.livePathForm.Widget.Show()
 
 	if !wsp.infoContainer.needTokenCheck.Checked {
 		wsp.infoContainer.tokenForm.Widget.Hide()
@@ -275,6 +293,15 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 
 	if !wsp.infoContainer.sendPingCheck.Checked {
 		wsp.infoContainer.pingPathForm.Widget.Hide()
+	}
+
+	if !wsp.infoContainer.sendLiveCheck.Checked {
+		wsp.infoContainer.livePathForm.Widget.Hide()
+	}
+
+	if !wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
+		wsp.infoContainer.sendLiveForm.Widget.Hide()
+		wsp.infoContainer.livePathForm.Widget.Hide()
 	}
 
 	if !wsp.infoContainer.sendReplayCheck.Checked {
@@ -290,6 +317,8 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.tokenForm.Widget.Hide()
 		wsp.infoContainer.sendPingForm.Widget.Hide()
 		wsp.infoContainer.pingPathForm.Widget.Hide()
+		wsp.infoContainer.sendLiveForm.Widget.Hide()
+		wsp.infoContainer.livePathForm.Widget.Hide()
 	default:
 		fallthrough
 	case config.WebsiteConfig:
@@ -318,6 +347,13 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 	wsp.infoContainer.sendReplayCheck.Enable()
 	wsp.infoContainer.replayPathEntry.Enable()
 	wsp.infoContainer.templateNameEntry.Enable()
+	wsp.infoContainer.sendLiveCheck.Enable()
+	wsp.infoContainer.livePathEntry.Enable()
+
+	if !wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
+		wsp.infoContainer.sendLiveCheck.Disable()
+		wsp.infoContainer.livePathEntry.Disable()
+	}
 
 	switch wsp.currentWebsite.StorageType {
 	case config.FileSystemConfig:
@@ -327,6 +363,8 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.infoContainer.tokenEntry.Disable()
 		wsp.infoContainer.sendPingCheck.Disable()
 		wsp.infoContainer.pingPathEntry.Disable()
+		wsp.infoContainer.sendLiveCheck.Disable()
+		wsp.infoContainer.livePathEntry.Disable()
 	default:
 		fallthrough
 	case config.WebsiteConfig:
@@ -340,6 +378,8 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.infoContainer.needTokenCheck.Disable()
 		wsp.infoContainer.sendPingCheck.Disable()
 		wsp.infoContainer.pingPathEntry.Disable()
+		wsp.infoContainer.livePathEntry.Disable()
+		wsp.infoContainer.sendLiveCheck.Disable()
 
 		if wsp.currentWebsite.IsPrimary {
 			wsp.btnSave.Disable()
@@ -350,8 +390,6 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 			wsp.infoContainer.replayPathEntry.Disable()
 		} else {
 			switch wsp.currentWebsite.StorageType {
-			case config.FileSystemConfig:
-				wsp.infoContainer.uriParamsEntry.Disable()
 			default:
 				fallthrough
 			case config.WebsiteConfig:
@@ -379,6 +417,8 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	wsp.infoContainer.replayPathEntry.SetText("")
 	wsp.infoContainer.templateNameEntry.SetText("")
 	wsp.infoContainer.uriParamsEntry.SetText("")
+	wsp.infoContainer.sendLiveCheck.SetChecked(false)
+	wsp.infoContainer.livePathEntry.SetText("")
 
 	wsp.btnDelete.Disable()
 	wsp.btnSave.Disable()
@@ -413,6 +453,11 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	site.SendReplay = wsp.infoContainer.sendReplayCheck.Checked
 	site.ReplayPath = wsp.infoContainer.replayPathEntry.Text
 	site.TemplateName = wsp.infoContainer.templateNameEntry.Text
+
+	if wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
+		site.SendLive = wsp.infoContainer.sendLiveCheck.Checked
+		site.LivePath = wsp.infoContainer.livePathEntry.Text
+	}
 
 	newParams := make(map[string]string)
 	lines := strings.Split(wsp.infoContainer.uriParamsEntry.Text, "\n")

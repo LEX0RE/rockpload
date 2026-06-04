@@ -14,7 +14,6 @@ type Account struct {
 	HistorySended []string `json:"-"`
 }
 
-// TODO Delete uploaded file when account is deleted
 func NewAccount(profileId int) *Account {
 	logger.FuncDebug()
 

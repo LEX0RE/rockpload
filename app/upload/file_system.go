@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
@@ -65,6 +66,14 @@ func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) e
 
 	logger.Rlogger.Debug("Upload (copy) successful")
 	return nil
+}
+
+func (w *FileSystem) UploadLive(liveData *rocket_network.UpdateState) error {
+	if !w.config.SendLive {
+		return nil
+	}
+
+	return fmt.Errorf("File System can't send live data")
 }
 
 func (w *FileSystem) Ping() error {
