@@ -1,5 +1,7 @@
 package main
 
+//go:generate go run github.com/tc-hib/go-winres@latest simply --icon app/assets/logo.png
+
 import (
 	"os"
 	"runtime"

@@ -18,6 +18,17 @@ else
     VERSION="dev"
 fi
 
+###################
+# GENERATE ASSETS #
+###################
+
+echo "Generating Assets"
+go generate
+
+###############
+# PREPARATION #
+###############
+
 VERSION="${VERSION#v}"
 VERSION_CLEAN=$(echo "$VERSION" | sed 's/\//-/g')
 echo "Building version $VERSION_CLEAN"
@@ -50,3 +61,10 @@ CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOAR
 #############
 # BUILD MAC # (CURRENTLY NOT SUPPORTED)
 #############
+
+
+#############################
+# Removing Generated Assets #
+#############################
+
+rm -f "$ROOT_DIR"/*.syso
