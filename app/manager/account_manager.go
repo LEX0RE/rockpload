@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
@@ -19,9 +20,14 @@ const (
 	EVENT_DELETE_ACCOUNT tools.EventType = "delete_account"
 )
 
+type MatchRanking struct {
+	data       map[rlapi.PlayerID][]rlapi.Skill
+	lastUpdate time.Time
+}
+
 type AccountManager struct {
 	appConfig    *config.AppConfig
-	skillMatches map[string]any
+	skillMatches map[string]*MatchRanking
 
 	EventManager *tools.EventManager
 }
@@ -29,7 +35,7 @@ type AccountManager struct {
 func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 	logger.FuncDebug()
 
-	am := &AccountManager{appConfig: appConfig, EventManager: tools.NewEventManager()}
+	am := &AccountManager{appConfig: appConfig, EventManager: tools.NewEventManager(), skillMatches: make(map[string]*MatchRanking)}
 
 	am.RefreshProfile()
 
@@ -243,28 +249,48 @@ func (am *AccountManager) RefreshProfile() {
 	}
 }
 
-func (am *AccountManager) GetPlayersSkills(updateState *rocket_network.UpdateState) []rlapi.PlayerWithSkills {
+func (am *AccountManager) AddPlayersSkills(liveStats *rocket_network.LiveStats) {
 	logger.FuncDebug()
 
-	logger.Rlogger.Debug("Getting players skills", slog.Any("Player", updateState.Players))
+	logger.Rlogger.Debug("Getting players skills", slog.Any("Player", liveStats.State.Players))
 
 	// We won't allow querying skills if we don't have an unused account as it would disconnect the account that is currently playing
 	unusedAccount := am.GetUnused()
 	if unusedAccount == nil || unusedAccount.Player == nil {
 		logger.Rlogger.Debug("Invalid Unused Account for getting Players Skills", slog.Any("Unused Account", unusedAccount))
-		return []rlapi.PlayerWithSkills{}
+		return
 	}
 
 	logger.Rlogger.Debug("Account is being used to get Players Skills", slog.Any("Account", unusedAccount.AccountName()))
 
 	playerIDList := []rlapi.PlayerID{}
-	for _, playerState := range updateState.Players {
-		if playerState.PrimaryId != "" && len(playerState.Skills) == 0 {
+	for _, playerState := range liveStats.State.Players {
+		if playerState.PrimaryId == "" {
+			continue
+		}
+
+		if playerSkills, ok := liveStats.Skills[rlapi.PlayerID(playerState.PrimaryId)]; !ok || len(playerSkills) == 0 {
 			playerIDList = append(playerIDList, rlapi.PlayerID(playerState.PrimaryId))
 		}
 	}
 
-	return unusedAccount.Player.GetRanks(playerIDList)
+	ranks := unusedAccount.Player.GetRanks(playerIDList)
+	if liveStats.State.MatchGuid != "" {
+		if _, ok := am.skillMatches[liveStats.State.MatchGuid]; !ok {
+			am.skillMatches[liveStats.State.MatchGuid] = &MatchRanking{
+				data:       make(map[rlapi.PlayerID][]rlapi.Skill),
+				lastUpdate: time.Now(),
+			}
+		}
+
+		for _, playerRank := range ranks {
+			am.skillMatches[liveStats.State.MatchGuid].data[playerRank.PlayerID] = playerRank.Skills
+			am.skillMatches[liveStats.State.MatchGuid].lastUpdate = time.Now()
+
+			liveStats.Skills[playerRank.PlayerID] = playerRank.Skills
+
+		}
+	}
 }
 
 func (am *AccountManager) uploadStatusMap() map[int]bool {

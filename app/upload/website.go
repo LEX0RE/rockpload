@@ -105,14 +105,14 @@ func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error
 	return nil
 }
 
-func (w *Website) UploadLive(liveData *rocket_network.UpdateState) error {
+func (w *Website) UploadLive(liveStats *rocket_network.LiveStats) error {
 	logger.FuncDebug()
 
 	if !w.config.SendLive {
 		return nil
 	}
 
-	jsonData, err := json.Marshal(liveData)
+	jsonData, err := json.Marshal(liveStats)
 	if err != nil {
 		return fmt.Errorf("Failed to marshal live data: %w", err)
 	}

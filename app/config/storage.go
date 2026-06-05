@@ -89,10 +89,28 @@ type StorageConfig struct {
 }
 
 var STORAGE_PRESET = map[string]*StorageConfig{
+	LOCALHOST_NAME:     LOCALHOST_STORAGE,
 	ROCKY_STORAGE.Name: ROCKY_STORAGE,
 	BALLCHASING_NAME:   BALLCHASING_STORAGE,
-	LOCALHOST_NAME:     LOCALHOST_STORAGE,
 	FILE_SYSTEM_NAME:   FILE_SYSTEM_STORAGE,
+}
+
+var LOCALHOST_STORAGE = &StorageConfig{
+	Name:         LOCALHOST_NAME,
+	URL:          "http://localhost:3000",
+	IsPrimary:    true,
+	IsPredefined: true,
+	StorageType:  WebsiteConfig,
+	URIParams:    map[string]string{},
+	NeedToken:    false,
+	Token:        "",
+	SendPing:     false,
+	PingPath:     "/",
+	SendReplay:   true,
+	ReplayPath:   "/upload",
+	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
+	SendLive:     false,
+	LivePath:     "",
 }
 
 var ROCKY_STORAGE = &StorageConfig{
@@ -126,24 +144,6 @@ var BALLCHASING_STORAGE = &StorageConfig{
 	PingPath:     "/",
 	SendReplay:   false,
 	ReplayPath:   "/v2/upload",
-	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	SendLive:     false,
-	LivePath:     "",
-}
-
-var LOCALHOST_STORAGE = &StorageConfig{
-	Name:         LOCALHOST_NAME,
-	URL:          "http://localhost:3000",
-	IsPrimary:    true,
-	IsPredefined: true,
-	StorageType:  WebsiteConfig,
-	URIParams:    map[string]string{},
-	NeedToken:    false,
-	Token:        "",
-	SendPing:     false,
-	PingPath:     "/",
-	SendReplay:   true,
-	ReplayPath:   "/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	SendLive:     false,
 	LivePath:     "",

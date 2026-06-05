@@ -42,7 +42,7 @@ type uploadCtx struct {
 
 type UploadStorage interface {
 	UploadReplay(filePath string, replayUpload ReplayUpload) error
-	UploadLive(liveState *rocket_network.UpdateState) error
+	UploadLive(liveStats *rocket_network.LiveStats) error
 	Ping() error
 	GetConfig() *config.StorageConfig
 }
@@ -115,7 +115,7 @@ func (u *Uploader) Run() {
 	}()
 }
 
-func (u *Uploader) UploadLiveStats(liveState *rocket_network.UpdateState) {
+func (u *Uploader) UploadLiveStats(liveStats *rocket_network.LiveStats) {
 	logger.FuncDebug()
 
 	if !u.lockInLiveUpload.TryLock() {
@@ -133,7 +133,7 @@ func (u *Uploader) UploadLiveStats(liveState *rocket_network.UpdateState) {
 
 	for _, storage := range u.getStorages() {
 		if storage.GetConfig().SendLive {
-			storage.UploadLive(liveState)
+			storage.UploadLive(liveStats)
 		}
 	}
 }

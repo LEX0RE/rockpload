@@ -17,8 +17,8 @@ const (
 
 type UpdateState struct {
 	MatchGuid string
-	Players   []UpdateStatePlayer
-	Game      UpdateStateGame
+	Players   []*UpdateStatePlayer
+	Game      *UpdateStateGame
 }
 
 type UpdateStatePlayer struct {
@@ -34,11 +34,10 @@ type UpdateStatePlayer struct {
 	Touches    int
 	CarTouches int
 	Demos      int
-	Skills     []rlapi.Skill
 }
 
 type UpdateStateGame struct {
-	Teams       []UpdateStateGameTeam
+	Teams       []*UpdateStateGameTeam
 	TimeSeconds int
 	bOvertime   bool
 	Frame       int
@@ -56,6 +55,11 @@ type UpdateStateGameTeam struct {
 	ColorSecondary string
 }
 
+type LiveStats struct {
+	State  *UpdateState
+	Skills map[rlapi.PlayerID][]rlapi.Skill
+}
+
 type RLEvent struct {
 	Event tools.EventType `json:"Event"`
 	Data  json.RawMessage `json:"Data"`
@@ -66,8 +70,8 @@ type StatsAPI struct {
 	lastStateTime int
 	isFirstSent   bool
 
-	LastUpdateState *UpdateState
-	EventManager    *tools.EventManager
+	LastInfo     *LiveStats
+	EventManager *tools.EventManager
 }
 
 const (
@@ -80,25 +84,22 @@ const (
 func NewStatsAPI() *StatsAPI {
 	logger.FuncDebug()
 
-	return &StatsAPI{port: defaultPort, EventManager: tools.NewEventManager(), lastStateTime: -1, isFirstSent: false}
+	return &StatsAPI{
+		port:          defaultPort,
+		EventManager:  tools.NewEventManager(),
+		lastStateTime: -1,
+		isFirstSent:   false,
+		LastInfo: &LiveStats{
+			State:  nil,
+			Skills: make(map[rlapi.PlayerID][]rlapi.Skill),
+		},
+	}
 }
 
 func (s *StatsAPI) StartListener() {
 	logger.FuncDebug()
 
 	go s.innerStartListener()
-}
-
-func (s *StatsAPI) AddPlayerSkill(playerSkill []rlapi.PlayerWithSkills) {
-	logger.FuncDebug()
-
-	for _, ps := range playerSkill {
-		for i, p := range s.LastUpdateState.Players {
-			if p.PrimaryId == ps.PlayerID.String() {
-				s.LastUpdateState.Players[i].Skills = ps.Skills
-			}
-		}
-	}
 }
 
 func (s *StatsAPI) innerStartListener() {
@@ -153,14 +154,14 @@ func (s *StatsAPI) readLoop(conn net.Conn) {
 			updateStateData := ExtractUpdateState(dynamicData)
 
 			if updateStateData != nil {
-				s.LastUpdateState = updateStateData
+				s.LastInfo.State = updateStateData
 
 				if s.lastStateTime == -1 {
-					s.lastStateTime = s.LastUpdateState.Game.TimeSeconds
-				} else if s.lastStateTime != s.LastUpdateState.Game.TimeSeconds {
-					s.lastStateTime = s.LastUpdateState.Game.TimeSeconds
+					s.lastStateTime = s.LastInfo.State.Game.TimeSeconds
+				} else if s.lastStateTime != s.LastInfo.State.Game.TimeSeconds {
+					s.lastStateTime = s.LastInfo.State.Game.TimeSeconds
 
-					if !s.isFirstSent && len(s.LastUpdateState.Players) > 0 {
+					if !s.isFirstSent && len(s.LastInfo.State.Players) > 0 {
 						s.isFirstSent = true
 						s.EventManager.Notify(EventFirstUpdateState, nil)
 					}
@@ -175,7 +176,10 @@ func (s *StatsAPI) readLoop(conn net.Conn) {
 func (s *StatsAPI) resetState() {
 	logger.FuncDebug()
 
-	s.LastUpdateState = nil
+	s.LastInfo = &LiveStats{
+		State:  nil,
+		Skills: make(map[rlapi.PlayerID][]rlapi.Skill),
+	}
 	s.lastStateTime = -1
 	s.isFirstSent = false
 }
@@ -228,14 +232,17 @@ func ExtractUpdateState(dynamicData map[string]any) *UpdateState {
 				assignInt(playerObj, "Touches", &newPlayer.Touches)
 				assignInt(playerObj, "CarTouches", &newPlayer.CarTouches)
 				assignInt(playerObj, "Demos", &newPlayer.Demos)
-				newPlayer.Skills = []rlapi.Skill{}
 
-				state.Players = append(state.Players, newPlayer)
+				state.Players = append(state.Players, &newPlayer)
 			}
 		}
 	}
 
 	if gameObj, ok := dynamicData["Game"].(map[string]any); ok {
+		if state.Game == nil {
+			state.Game = &UpdateStateGame{}
+		}
+
 		assignInt(gameObj, "TimeSeconds", &state.Game.TimeSeconds)
 		assignBool(gameObj, "bOvertime", &state.Game.bOvertime)
 		assignInt(gameObj, "Frame", &state.Game.Frame)
@@ -255,7 +262,7 @@ func ExtractUpdateState(dynamicData map[string]any) *UpdateState {
 					assignInt(teamObj, "TeamNum", &newTeam.TeamNum)
 					assignInt(teamObj, "Score", &newTeam.Score)
 
-					state.Game.Teams = append(state.Game.Teams, newTeam)
+					state.Game.Teams = append(state.Game.Teams, &newTeam)
 				}
 			}
 		}

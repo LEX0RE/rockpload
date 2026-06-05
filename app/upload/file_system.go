@@ -68,7 +68,7 @@ func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) e
 	return nil
 }
 
-func (w *FileSystem) UploadLive(liveData *rocket_network.UpdateState) error {
+func (w *FileSystem) UploadLive(liveStats *rocket_network.LiveStats) error {
 	if !w.config.SendLive {
 		return nil
 	}
