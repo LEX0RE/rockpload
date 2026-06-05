@@ -9,6 +9,7 @@ type BehaviorConfig struct {
 	NoUploadOnline   Setting[bool] `json:"no_upload_online"`
 	UploadOnRLClose  Setting[bool] `json:"upload_on_rl_close"`
 	UploadOlderFirst Setting[bool] `json:"upload_older_first"`
+	SendLiveStat     Setting[bool] `json:"send_live_stat"`
 
 	SelectedAccountId Setting[int] `json:"selected_account_id"`
 	SelectedStorageId Setting[int] `json:"selected_storage_id"`
@@ -25,6 +26,7 @@ const (
 	NoUploadOnline
 	UploadOnRLClose
 	UploadOlderFirst
+	SendLiveStat
 )
 
 type BehaviorSettingVisualDependancy struct {
@@ -42,6 +44,7 @@ var BehaviorSettingVisualMapping = map[BehaviorSettingType]BehaviorSettingVisual
 	NoUploadOnline:   {Name: "No Upload if player is online", Children: []BehaviorSettingType{}, Position: 3},
 	UploadOnRLClose:  {Name: "Upload when RL is closed", Children: []BehaviorSettingType{}, Position: 2},
 	UploadOlderFirst: {Name: "Upload older replay first", Children: []BehaviorSettingType{}, Position: 7},
+	SendLiveStat:     {Name: "Send Live Stats (with StatsAPI)", Children: []BehaviorSettingType{}, Position: 8},
 }
 
 func (bc *BehaviorConfig) GetBoolSettingsMap() map[BehaviorSettingType]*Setting[bool] {
@@ -54,5 +57,6 @@ func (bc *BehaviorConfig) GetBoolSettingsMap() map[BehaviorSettingType]*Setting[
 		NoUploadOnline:   &bc.NoUploadOnline,
 		UploadOnRLClose:  &bc.UploadOnRLClose,
 		UploadOlderFirst: &bc.UploadOlderFirst,
+		SendLiveStat:     &bc.SendLiveStat,
 	}
 }

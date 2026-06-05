@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/manager"
+	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
@@ -18,7 +20,7 @@ func NewFileSystem(config *config.StorageConfig) *FileSystem {
 	return &FileSystem{config: config}
 }
 
-func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) error {
+func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload, skills *manager.MatchPlaylistRanking) error {
 	logger.FuncDebug()
 
 	if !fs.config.SendReplay {
@@ -65,6 +67,14 @@ func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) e
 
 	logger.Rlogger.Debug("Upload (copy) successful")
 	return nil
+}
+
+func (w *FileSystem) UploadLive(liveStats *rocket_network.LiveStats) error {
+	if !w.config.SendLive {
+		return nil
+	}
+
+	return fmt.Errorf("File System can't send live data")
 }
 
 func (w *FileSystem) Ping() error {

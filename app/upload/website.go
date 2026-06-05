@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/manager"
+	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
@@ -23,7 +25,7 @@ func NewWebsite(config *config.StorageConfig) *Website {
 	return &Website{config: config}
 }
 
-func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error {
+func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload, skills *manager.MatchPlaylistRanking) error {
 	logger.FuncDebug()
 
 	if !w.config.SendReplay {
@@ -38,6 +40,18 @@ func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
+
+	if skills != nil {
+		jsonData, err := json.Marshal(skills)
+		if err != nil {
+			return fmt.Errorf("Failed to marshal skills to JSON: %w", err)
+		}
+
+		err = writer.WriteField("skills", string(jsonData))
+		if err != nil {
+			return fmt.Errorf("Failed to add JSON field to multipart: %w", err)
+		}
+	}
 
 	fileName := replayUploadFileName(filePath, w.config.TemplateName, replayUpload)
 	part, err := writer.CreateFormFile("file", fileName)
@@ -100,6 +114,52 @@ func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error
 	default:
 		return fmt.Errorf("Upload failed: %s\n%s", resp.Status, string(respBody))
 	}
+
+	return nil
+}
+
+func (w *Website) UploadLive(liveStats *rocket_network.LiveStats) error {
+	logger.FuncDebug()
+
+	if !w.config.SendLive {
+		return nil
+	}
+
+	jsonData, err := json.Marshal(liveStats)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal live data: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", w.config.URL+w.config.LivePath, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("Failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	if w.config.NeedToken && w.config.Token != "" {
+		req.Header.Set("Authorization", w.config.Token)
+	}
+
+	q := req.URL.Query()
+	for key, value := range w.config.URIParams {
+		q.Add(key, value)
+	}
+	req.URL.RawQuery = q.Encode()
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Live data upload failed: %s\n%s", resp.Status, string(respBody))
+	}
+
+	logger.Rlogger.Debug("Live data upload successful")
 
 	return nil
 }

@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"log/slog"
 	"slices"
-	"strings"
+	"time"
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
@@ -20,8 +20,19 @@ const (
 	EVENT_DELETE_ACCOUNT tools.EventType = "delete_account"
 )
 
+type MatchPlaylistRanking struct {
+	Data       map[rlapi.PlayerID]*rlapi.Skill `json:"Data"`
+	LastUpdate time.Time                       `json:"LastUpdate"`
+}
+
+type MatchRanking struct {
+	data       map[rlapi.PlayerID][]rlapi.Skill
+	lastUpdate time.Time
+}
+
 type AccountManager struct {
-	appConfig *config.AppConfig
+	appConfig    *config.AppConfig
+	skillMatches map[string]*MatchRanking
 
 	EventManager *tools.EventManager
 }
@@ -29,8 +40,7 @@ type AccountManager struct {
 func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 	logger.FuncDebug()
 
-	am := &AccountManager{appConfig: appConfig, EventManager: tools.NewEventManager()}
-
+	am := &AccountManager{appConfig: appConfig, EventManager: tools.NewEventManager(), skillMatches: make(map[string]*MatchRanking)}
 	am.RefreshProfile()
 
 	return am
@@ -41,7 +51,7 @@ func (am *AccountManager) GetByPlayerName(playerName string) *rocket_network.Acc
 
 	allAccount := am.GetAll()
 	for _, a := range allAccount {
-		if a.Player.PlayerName == playerName {
+		if a != nil && a.Player != nil && a.Player.PlayerName == playerName {
 			return a
 		}
 	}
@@ -54,7 +64,11 @@ func (am *AccountManager) GetByPlayerID(playerID string) *rocket_network.Account
 
 	allAccount := am.GetAll()
 	for _, a := range allAccount {
-		if strings.EqualFold(a.Player.PlayerID.String(), playerID) {
+		if a == nil || a.Player == nil || a.Player.PlayerID == nil {
+			continue
+		}
+
+		if a.Player.EqualStringID(playerID) {
 			return a
 		}
 	}
@@ -227,11 +241,6 @@ func (am *AccountManager) RefreshInfo() {
 func (am *AccountManager) RefreshProfile() {
 	logger.FuncDebug()
 
-	playerList := []*rocket_network.Player{}
-	for _, ac := range am.GetActives() {
-		playerList = append(playerList, ac.Player)
-	}
-
 	unusedAccount := am.GetUnused()
 	if unusedAccount != nil || am.appConfig.BehaviorConfig.NoUploadOnline.Get() {
 		if unusedAccount != nil {
@@ -242,6 +251,75 @@ func (am *AccountManager) RefreshProfile() {
 			ac.Player.UpdateProfile()
 		}
 	}
+}
+
+func (am *AccountManager) AddPlayersSkills(liveStats *rocket_network.LiveStats) {
+	logger.FuncDebug()
+
+	logger.Rlogger.Debug("Getting players skills", slog.Any("Player", liveStats.State.Players))
+
+	// We won't allow querying skills if we don't have an unused account as it would disconnect the account that is currently playing
+	unusedAccount := am.GetUnused()
+	if unusedAccount == nil || unusedAccount.Player == nil {
+		logger.Rlogger.Debug("Invalid Unused Account for getting Players Skills", slog.Any("Unused Account", unusedAccount))
+		return
+	}
+
+	logger.Rlogger.Debug("Account is being used to get Players Skills", slog.Any("Account", unusedAccount.AccountName()))
+
+	playerIDList := []rlapi.PlayerID{}
+	for _, playerState := range liveStats.State.Players {
+		if playerState.PrimaryId == "" {
+			continue
+		}
+
+		if playerSkills, ok := liveStats.Skills[rlapi.PlayerID(playerState.PrimaryId)]; !ok || len(playerSkills) == 0 {
+			playerIDList = append(playerIDList, rlapi.PlayerID(playerState.PrimaryId))
+		}
+	}
+
+	ranks := unusedAccount.Player.GetRanks(playerIDList)
+	if liveStats.State.MatchGuid != "" {
+		if _, ok := am.skillMatches[liveStats.State.MatchGuid]; !ok {
+			am.skillMatches[liveStats.State.MatchGuid] = &MatchRanking{
+				data:       make(map[rlapi.PlayerID][]rlapi.Skill),
+				lastUpdate: time.Now(),
+			}
+		}
+
+		for _, playerRank := range ranks {
+			am.skillMatches[liveStats.State.MatchGuid].data[playerRank.PlayerID] = playerRank.Skills
+			am.skillMatches[liveStats.State.MatchGuid].lastUpdate = time.Now()
+
+			liveStats.Skills[playerRank.PlayerID] = playerRank.Skills
+
+		}
+	}
+}
+
+func (am *AccountManager) GetSkillMatch(match rlapi.MatchEntry) *MatchPlaylistRanking {
+	logger.FuncDebug()
+
+	originalRanking, ok := am.skillMatches[match.Match.MatchGUID]
+	if !ok {
+		return nil
+	}
+
+	filteredRanking := &MatchPlaylistRanking{
+		Data:       make(map[rlapi.PlayerID]*rlapi.Skill),
+		LastUpdate: originalRanking.lastUpdate,
+	}
+
+	for playerID, skills := range originalRanking.data {
+		for _, skill := range skills {
+			if skill.Playlist == match.Match.Playlist {
+				filteredRanking.Data[playerID] = &skill
+				break
+			}
+		}
+	}
+
+	return filteredRanking
 }
 
 func (am *AccountManager) uploadStatusMap() map[int]bool {
@@ -290,7 +368,7 @@ func (am *AccountManager) onlineStatusFromAccount(account *rocket_network.Accoun
 		playerList = append(playerList, ac.Player)
 	}
 
-	profiles := account.Player.GetProfiles(playerList)
+	profiles := account.Player.GetProfiles(rocket_network.PlayerList(playerList).ToPlayerIDs())
 
 	for _, player := range playerList {
 		if player.PlayerID == nil {
@@ -298,7 +376,7 @@ func (am *AccountManager) onlineStatusFromAccount(account *rocket_network.Accoun
 		}
 
 		for _, profile := range profiles {
-			if profile.PlayerID == player.PlayerID.String() {
+			if player.EqualStringID(profile.PlayerID) {
 				player.SetProfile(profile)
 				player.LastCheckOnline = profile.PresenceState == "Online"
 				onlineStatus[*player.PlayerID] = player.LastCheckOnline

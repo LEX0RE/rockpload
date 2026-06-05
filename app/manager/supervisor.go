@@ -49,6 +49,7 @@ type RLSupervisor struct {
 
 type RLLogInfo struct {
 	GameVersion  string
+	FeatureSet   string
 	AccountFound *rocket_network.Account
 }
 
@@ -352,7 +353,11 @@ func (rls *RLSupervisor) analyzeLogLine(line string) {
 	logger.FuncDebug()
 
 	if strings.Contains(line, "GPsyonixBuildID") {
-		rls.updateRLStatusInfo(line)
+		rls.updateGameVersion(line)
+	}
+
+	if strings.Contains(line, "Using feature set") {
+		rls.updateFeatureSet(line)
 	}
 
 	if strings.Contains(line, "HandleLocalPlayerLoginStatusChanged") && strings.Contains(line, "LS_LoggedIn") {
@@ -421,7 +426,7 @@ func (rls *RLSupervisor) updateLoginPlayerInfo(logLine string) {
 	rls.verifyRLPlayerDetected(logInfo)
 }
 
-func (rls *RLSupervisor) updateRLStatusInfo(logLine string) {
+func (rls *RLSupervisor) updateGameVersion(logLine string) {
 	logger.FuncDebug()
 
 	splitted := strings.Split(logLine, " ")
@@ -434,5 +439,21 @@ func (rls *RLSupervisor) updateRLStatusInfo(logLine string) {
 		rls.RLLogInfo.GameVersion = splitted[2]
 
 		logger.Rlogger.Debug("Rocket League Game Version detected", slog.Any("Version", rls.RLLogInfo.GameVersion))
+	}
+}
+
+func (rls *RLSupervisor) updateFeatureSet(logLine string) {
+	logger.FuncDebug()
+
+	splitted := strings.Split(logLine, " ")
+
+	if len(splitted) != 6 || splitted[3] != "feature" || splitted[4] != "set" {
+		return
+	}
+
+	if rls.RLLogInfo.FeatureSet != splitted[5] {
+		rls.RLLogInfo.FeatureSet = splitted[5]
+
+		logger.Rlogger.Debug("Rocket League Feature Set detected", slog.Any("FeatureSet", rls.RLLogInfo.FeatureSet))
 	}
 }

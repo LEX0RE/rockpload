@@ -32,6 +32,7 @@ func NewAppConfig() *AppConfig {
 	cfg.BehaviorConfig.ExitInTray = NewSetting(true, saveHook)
 	cfg.BehaviorConfig.NoUploadOnline = NewSetting(true, saveHook)
 	cfg.BehaviorConfig.UploadOnRLClose = NewSetting(true, saveHook)
+	cfg.BehaviorConfig.SendLiveStat = NewSetting(true, saveHook)
 
 	cfg.BehaviorConfig.AutoStart = NewSetting(false, saveHook)
 	cfg.BehaviorConfig.StartInTray = NewSetting(false, saveHook)

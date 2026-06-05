@@ -37,6 +37,7 @@ type App struct {
 	updateInfo    *UpdateInfo
 
 	uploader       *upload.Uploader
+	statsApi       *rocket_network.StatsAPI
 	accountManager *manager.AccountManager
 	rlSupervisor   *manager.RLSupervisor
 }
@@ -133,6 +134,15 @@ func (a *App) initManager() {
 
 func (a *App) initEvents() {
 	logger.FuncDebug()
+
+	a.statsApi = rocket_network.NewStatsAPI()
+	uploadLiveStatsEvent := []tools.EventType{"CountdownBegin", "PodiumStart"}
+	a.statsApi.EventManager.MultiSubscribe(uploadLiveStatsEvent, tools.Listener{IsSync: false, Callback: func(data any) {
+		a.accountManager.AddPlayersSkills(a.statsApi.LastInfo)
+		a.uploader.UploadLiveStats(a.statsApi.LastInfo)
+	}})
+
+	a.statsApi.StartListener()
 
 	onUpdateState := func() {
 		fyne.Do(a.gui.UpdateState)

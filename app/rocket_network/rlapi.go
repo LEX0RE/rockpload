@@ -83,3 +83,18 @@ func GetShops(rpc *rlapi.PsyNetRPC) (shops *rlapi.GetStandardShopsResponse, err 
 
 	return shops, nil
 }
+
+func GetPlayersSkills(rpc *rlapi.PsyNetRPC, playerIDs []rlapi.PlayerID) (playersSkills []rlapi.PlayerWithSkills, err error) {
+	logger.FuncDebug()
+
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer apiCancel()
+
+	playersSkills, err = rpc.GetPlayersSkills(apiCtx, playerIDs)
+	if err != nil {
+		logger.Rlogger.Error("Failed to get shops", slog.Any("error", err))
+		return nil, err
+	}
+
+	return playersSkills, nil
+}

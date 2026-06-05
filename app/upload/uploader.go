@@ -36,12 +36,14 @@ type uploadCtx struct {
 	accountList           []*rocket_network.Account
 	storageIndex          int
 	storageList           []UploadStorage
+	currentMatchRanking   *manager.MatchPlaylistRanking
 	currentAllReplayIndex int
 	allReplaysLength      int
 }
 
 type UploadStorage interface {
-	UploadReplay(filePath string, replayUpload ReplayUpload) error
+	UploadReplay(filePath string, replayUpload ReplayUpload, skills *manager.MatchPlaylistRanking) error
+	UploadLive(liveStats *rocket_network.LiveStats) error
 	Ping() error
 	GetConfig() *config.StorageConfig
 }
@@ -50,6 +52,7 @@ type Uploader struct {
 	*rtime.Looper
 
 	lockInUpload     sync.Mutex
+	lockInLiveUpload sync.Mutex
 	lockInAutoUpload sync.Mutex
 	lockInRunRLAPI   sync.Mutex
 
@@ -82,6 +85,8 @@ func (u *Uploader) Run() {
 	}
 	defer u.lockInRunRLAPI.Unlock()
 
+	logger.Rlogger.Info("Start Upload Replays Process")
+
 	u.EventManager.Notify(EventUploadStarted, nil)
 	u.EventManager.Notify(EventUploadProgress, 0)
 
@@ -109,6 +114,29 @@ func (u *Uploader) Run() {
 
 		u.EventManager.Notify(EventUploadCompleted, nil)
 	}()
+}
+
+func (u *Uploader) UploadLiveStats(liveStats *rocket_network.LiveStats) {
+	logger.FuncDebug()
+
+	if !u.lockInLiveUpload.TryLock() {
+		logger.Rlogger.Debug("Duplicate live stat upload request at the same time, skipping")
+		return
+	}
+
+	defer u.lockInLiveUpload.Unlock()
+
+	logger.Rlogger.Info("Start Upload Live Stats Process")
+
+	if !u.appConfig.BehaviorConfig.SendLiveStat.Get() {
+		return
+	}
+
+	for _, storage := range u.getStorages() {
+		if storage.GetConfig().SendLive {
+			storage.UploadLive(liveStats)
+		}
+	}
 }
 
 func (u *Uploader) upload(uploadCtx *uploadCtx) {
@@ -146,6 +174,8 @@ func (u *Uploader) upload(uploadCtx *uploadCtx) {
 
 		uploadCtx.matchIndex = i
 		uploadCtx.currentAllReplayIndex += 1
+
+		uploadCtx.currentMatchRanking = u.accountManager.GetSkillMatch(replay)
 
 		lazyDownload := func() (string, error) {
 			if isDownloaded {
@@ -227,7 +257,8 @@ func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string
 			PlayerName: ac.Player.PlayerName,
 			PlayerID:   playerID,
 			Replay:     match,
-		})
+		}, uploadCtx.currentMatchRanking)
+
 		if err != nil {
 			logger.Rlogger.Error("Upload error:", slog.Any("err", err))
 		} else {
