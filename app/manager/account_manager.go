@@ -20,7 +20,8 @@ const (
 )
 
 type AccountManager struct {
-	appConfig *config.AppConfig
+	appConfig    *config.AppConfig
+	skillMatches map[string]any
 
 	EventManager *tools.EventManager
 }
@@ -242,29 +243,28 @@ func (am *AccountManager) RefreshProfile() {
 	}
 }
 
-func (am *AccountManager) RefreshPlayersSkills(updateStatePlayers []rocket_network.UpdateStatePlayer) {
+func (am *AccountManager) GetPlayersSkills(updateState *rocket_network.UpdateState) []rlapi.PlayerWithSkills {
 	logger.FuncDebug()
 
-	logger.Rlogger.Debug("Getting players skills", slog.Any("Player", updateStatePlayers))
+	logger.Rlogger.Debug("Getting players skills", slog.Any("Player", updateState.Players))
 
 	// We won't allow querying skills if we don't have an unused account as it would disconnect the account that is currently playing
 	unusedAccount := am.GetUnused()
 	if unusedAccount == nil || unusedAccount.Player == nil {
 		logger.Rlogger.Debug("Invalid Unused Account for getting Players Skills", slog.Any("Unused Account", unusedAccount))
-		return
+		return []rlapi.PlayerWithSkills{}
 	}
 
 	logger.Rlogger.Debug("Account is being used to get Players Skills", slog.Any("Account", unusedAccount.AccountName()))
 
 	playerIDList := []rlapi.PlayerID{}
-	for _, playerState := range updateStatePlayers {
-		if playerState.PrimaryId != "" {
+	for _, playerState := range updateState.Players {
+		if playerState.PrimaryId != "" && len(playerState.Skills) == 0 {
 			playerIDList = append(playerIDList, rlapi.PlayerID(playerState.PrimaryId))
 		}
 	}
 
-	ranks := unusedAccount.Player.GetRanks(playerIDList)
-	logger.Rlogger.Debug("Got players skills", slog.Any("PlayerWithSkills", ranks))
+	return unusedAccount.Player.GetRanks(playerIDList)
 }
 
 func (am *AccountManager) uploadStatusMap() map[int]bool {

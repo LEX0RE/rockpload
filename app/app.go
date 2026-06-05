@@ -138,19 +138,9 @@ func (a *App) initEvents() {
 	a.statsApi = rocket_network.NewStatsAPI()
 	uploadLiveStatsEvent := []tools.EventType{"CountdownBegin", "PodiumStart"}
 	a.statsApi.EventManager.MultiSubscribe(uploadLiveStatsEvent, tools.Listener{IsSync: false, Callback: func(data any) {
+		playerSkill := a.accountManager.GetPlayersSkills(a.statsApi.LastUpdateState)
+		a.statsApi.AddPlayerSkill(playerSkill)
 		a.uploader.UploadLiveStats(a.statsApi.LastUpdateState)
-	}})
-
-	a.statsApi.EventManager.Subscribe(rocket_network.EventFirstUpdateState, tools.Listener{IsSync: false, Callback: func(data any) {
-		if a.statsApi.LastUpdateState != nil && a.statsApi.LastUpdateState.Players != nil && len(a.statsApi.LastUpdateState.Players) > 0 {
-			a.accountManager.RefreshPlayersSkills(a.statsApi.LastUpdateState.Players)
-		}
-	}})
-
-	a.statsApi.EventManager.Subscribe("CountdownBegin", tools.Listener{IsSync: false, Callback: func(data any) {
-		if a.statsApi.LastUpdateState != nil && a.statsApi.LastUpdateState.Players != nil && len(a.statsApi.LastUpdateState.Players) > 0 {
-			a.accountManager.RefreshPlayersSkills(a.statsApi.LastUpdateState.Players)
-		}
 	}})
 
 	a.statsApi.StartListener()

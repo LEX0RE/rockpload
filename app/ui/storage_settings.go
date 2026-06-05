@@ -219,17 +219,18 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	logger.FuncDebug()
 
-	if id == -1 {
-		wsp.onUnselected(id)
+	if id < 0 {
+		wsp.onUnselected(-1)
 		return
 	}
 
-	wsp.appConfig.BehaviorConfig.SelectedStorageId.Set(id)
-
 	storages := wsp.appConfig.StorageSettings.Get()
-	wsp.currentWebsite = *storages[id]
+	formatedId := min(id, len(storages)-1)
 
-	wsp.list.Select(id)
+	wsp.appConfig.BehaviorConfig.SelectedStorageId.Set(formatedId)
+	wsp.currentWebsite = *storages[formatedId]
+
+	wsp.list.Select(formatedId)
 
 	wsp.infoContainer.titleLabel.SetText(wsp.currentWebsite.Name)
 	wsp.infoContainer.urlEntry.SetText(wsp.currentWebsite.URL)
@@ -433,6 +434,7 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	}
 
 	storages := wsp.appConfig.StorageSettings.Get()
+	selectedIndex = min(selectedIndex, len(storages)-1)
 	site := storages[selectedIndex]
 
 	site.URL = wsp.infoContainer.urlEntry.Text

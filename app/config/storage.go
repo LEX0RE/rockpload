@@ -110,7 +110,7 @@ var ROCKY_STORAGE = &StorageConfig{
 	ReplayPath:   "/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	SendLive:     true,
-	LivePath:     "/upload/state",
+	LivePath:     "/upload/live",
 }
 
 var BALLCHASING_STORAGE = &StorageConfig{

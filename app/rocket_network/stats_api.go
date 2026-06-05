@@ -8,6 +8,7 @@ import (
 
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
+	"github.com/dank/rlapi"
 )
 
 const (
@@ -33,6 +34,7 @@ type UpdateStatePlayer struct {
 	Touches    int
 	CarTouches int
 	Demos      int
+	Skills     []rlapi.Skill
 }
 
 type UpdateStateGame struct {
@@ -76,11 +78,27 @@ const (
 )
 
 func NewStatsAPI() *StatsAPI {
+	logger.FuncDebug()
+
 	return &StatsAPI{port: defaultPort, EventManager: tools.NewEventManager(), lastStateTime: -1, isFirstSent: false}
 }
 
 func (s *StatsAPI) StartListener() {
+	logger.FuncDebug()
+
 	go s.innerStartListener()
+}
+
+func (s *StatsAPI) AddPlayerSkill(playerSkill []rlapi.PlayerWithSkills) {
+	logger.FuncDebug()
+
+	for _, ps := range playerSkill {
+		for i, p := range s.LastUpdateState.Players {
+			if p.PrimaryId == ps.PlayerID.String() {
+				s.LastUpdateState.Players[i].Skills = ps.Skills
+			}
+		}
+	}
 }
 
 func (s *StatsAPI) innerStartListener() {
@@ -130,9 +148,7 @@ func (s *StatsAPI) readLoop(conn net.Conn) {
 
 		switch rlEvent.Event {
 		case "MatchCreated", "MatchDestroyed":
-			s.LastUpdateState = nil
-			s.lastStateTime = -1
-			s.isFirstSent = false
+			s.resetState()
 		case "UpdateState":
 			updateStateData := ExtractUpdateState(dynamicData)
 
@@ -156,7 +172,17 @@ func (s *StatsAPI) readLoop(conn net.Conn) {
 	}
 }
 
+func (s *StatsAPI) resetState() {
+	logger.FuncDebug()
+
+	s.LastUpdateState = nil
+	s.lastStateTime = -1
+	s.isFirstSent = false
+}
+
 func ExtractUpdateState(dynamicData map[string]any) *UpdateState {
+	logger.FuncDebug()
+
 	state := &UpdateState{}
 
 	assignStr := func(m map[string]any, key string, target *string) {
@@ -202,6 +228,7 @@ func ExtractUpdateState(dynamicData map[string]any) *UpdateState {
 				assignInt(playerObj, "Touches", &newPlayer.Touches)
 				assignInt(playerObj, "CarTouches", &newPlayer.CarTouches)
 				assignInt(playerObj, "Demos", &newPlayer.Demos)
+				newPlayer.Skills = []rlapi.Skill{}
 
 				state.Players = append(state.Players, newPlayer)
 			}
