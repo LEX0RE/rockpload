@@ -38,3 +38,6 @@ bin/
 
 # Releases folder
 releases/
+
+# Windows logo .syso files
+*.syso
