@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
@@ -24,7 +25,7 @@ func NewWebsite(config *config.StorageConfig) *Website {
 	return &Website{config: config}
 }
 
-func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error {
+func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload, skills *manager.MatchPlaylistRanking) error {
 	logger.FuncDebug()
 
 	if !w.config.SendReplay {
@@ -39,6 +40,18 @@ func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
+
+	if skills != nil {
+		jsonData, err := json.Marshal(skills)
+		if err != nil {
+			return fmt.Errorf("Failed to marshal skills to JSON: %w", err)
+		}
+
+		err = writer.WriteField("skills", string(jsonData))
+		if err != nil {
+			return fmt.Errorf("Failed to add JSON field to multipart: %w", err)
+		}
+	}
 
 	fileName := replayUploadFileName(filePath, w.config.TemplateName, replayUpload)
 	part, err := writer.CreateFormFile("file", fileName)

@@ -20,6 +20,11 @@ const (
 	EVENT_DELETE_ACCOUNT tools.EventType = "delete_account"
 )
 
+type MatchPlaylistRanking struct {
+	Data       map[rlapi.PlayerID]*rlapi.Skill `json:"Data"`
+	LastUpdate time.Time                       `json:"LastUpdate"`
+}
+
 type MatchRanking struct {
 	data       map[rlapi.PlayerID][]rlapi.Skill
 	lastUpdate time.Time
@@ -36,7 +41,6 @@ func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 	logger.FuncDebug()
 
 	am := &AccountManager{appConfig: appConfig, EventManager: tools.NewEventManager(), skillMatches: make(map[string]*MatchRanking)}
-
 	am.RefreshProfile()
 
 	return am
@@ -291,6 +295,31 @@ func (am *AccountManager) AddPlayersSkills(liveStats *rocket_network.LiveStats) 
 
 		}
 	}
+}
+
+func (am *AccountManager) GetSkillMatch(match rlapi.MatchEntry) *MatchPlaylistRanking {
+	logger.FuncDebug()
+
+	originalRanking, ok := am.skillMatches[match.Match.MatchGUID]
+	if !ok {
+		return nil
+	}
+
+	filteredRanking := &MatchPlaylistRanking{
+		Data:       make(map[rlapi.PlayerID]*rlapi.Skill),
+		LastUpdate: originalRanking.lastUpdate,
+	}
+
+	for playerID, skills := range originalRanking.data {
+		for _, skill := range skills {
+			if skill.Playlist == match.Match.Playlist {
+				filteredRanking.Data[playerID] = &skill
+				break
+			}
+		}
+	}
+
+	return filteredRanking
 }
 
 func (am *AccountManager) uploadStatusMap() map[int]bool {

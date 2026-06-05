@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
@@ -19,7 +20,7 @@ func NewFileSystem(config *config.StorageConfig) *FileSystem {
 	return &FileSystem{config: config}
 }
 
-func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) error {
+func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload, skills *manager.MatchPlaylistRanking) error {
 	logger.FuncDebug()
 
 	if !fs.config.SendReplay {
