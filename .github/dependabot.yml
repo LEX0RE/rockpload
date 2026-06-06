@@ -16,7 +16,6 @@ updates:
     open-pull-requests-limit: 5
     schedule:
       interval: "daily"
-    vendor: true
   - package-ecosystem: "nix"
     directory: "/"
     labels:
