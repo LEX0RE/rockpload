@@ -293,8 +293,8 @@ github.com/yuin/goldmark/renderer
 github.com/yuin/goldmark/renderer/html
 github.com/yuin/goldmark/text
 github.com/yuin/goldmark/util
-# golang.org/x/image v0.24.0
-## explicit; go 1.18
+# golang.org/x/image v0.38.0
+## explicit; go 1.25.0
 golang.org/x/image/ccitt
 golang.org/x/image/colornames
 golang.org/x/image/draw
@@ -316,8 +316,8 @@ golang.org/x/net/html/charset
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/text v0.22.0
-## explicit; go 1.18
+# golang.org/x/text v0.35.0
+## explicit; go 1.25.0
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
 golang.org/x/text/encoding/htmlindex
