@@ -11,7 +11,7 @@ import (
 	"github.com/dank/rlapi"
 )
 
-func GetRPC(p *Player) (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
+func GetRPC(psyNet *rlapi.PsyNet, p *Player) (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
 	logger.FuncDebug()
 
 	logger.Rlogger.Info("Log in to player account", slog.Any("PlayerName", p.PlayerName), slog.Any("PlayerID", p.PlayerID), slog.Any("Online", p.LastCheckOnline))
@@ -23,7 +23,6 @@ func GetRPC(p *Player) (*rlapi.PsyNetRPC, *rlapi.PlayerID, error) {
 		return nil, nil, fmt.Errorf("no valid authentication token")
 	}
 
-	psyNet := rlapi.NewPsyNet()
 	eosToken := p.Auth.getValidToken()
 	if eosToken == nil {
 		return nil, nil, fmt.Errorf("failed to get any valid token")

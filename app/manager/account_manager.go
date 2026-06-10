@@ -3,6 +3,7 @@ package manager
 import (
 	"cmp"
 	"log/slog"
+	"reflect"
 	"slices"
 	"time"
 
@@ -33,6 +34,7 @@ type MatchRanking struct {
 type AccountManager struct {
 	appConfig    *config.AppConfig
 	skillMatches map[string]*MatchRanking
+	psyNetList   []*rlapi.PsyNet
 
 	EventManager *tools.EventManager
 }
@@ -40,7 +42,12 @@ type AccountManager struct {
 func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 	logger.FuncDebug()
 
-	am := &AccountManager{appConfig: appConfig, EventManager: tools.NewEventManager(), skillMatches: make(map[string]*MatchRanking)}
+	am := &AccountManager{
+		appConfig:    appConfig,
+		EventManager: tools.NewEventManager(),
+		skillMatches: make(map[string]*MatchRanking),
+		psyNetList:   []*rlapi.PsyNet{rlapi.NewPsyNet()},
+	}
 	am.RefreshProfile()
 
 	return am
@@ -234,7 +241,7 @@ func (am *AccountManager) RefreshInfo() {
 			continue
 		}
 
-		ac.Player.GetInfo()
+		ac.Player.GetInfo(am.currentPsyNet())
 	}
 }
 
@@ -248,7 +255,7 @@ func (am *AccountManager) RefreshProfile() {
 		}
 	} else {
 		for _, ac := range am.appConfig.AccountSettings.Get() {
-			ac.Player.UpdateProfile()
+			ac.Player.UpdateProfile(am.currentPsyNet())
 		}
 	}
 }
@@ -278,7 +285,11 @@ func (am *AccountManager) AddPlayersSkills(liveStats *rocket_network.LiveStats) 
 		}
 	}
 
-	ranks := unusedAccount.Player.GetRanks(playerIDList)
+	getRanks := func(psyNet *rlapi.PsyNet) ([]rlapi.PlayerWithSkills, error) {
+		return unusedAccount.Player.GetRanks(psyNet, playerIDList)
+	}
+
+	ranks, _ := tryRotatingPsyNet(am, getRanks)
 	if liveStats.State.MatchGuid != "" {
 		if _, ok := am.skillMatches[liveStats.State.MatchGuid]; !ok {
 			am.skillMatches[liveStats.State.MatchGuid] = &MatchRanking{
@@ -320,6 +331,30 @@ func (am *AccountManager) GetSkillMatch(match rlapi.MatchEntry) *MatchPlaylistRa
 	}
 
 	return filteredRanking
+}
+
+func (am *AccountManager) AddPsyNetVersion(rlVersionInfo RLVersionInfo) {
+	logger.FuncDebug()
+
+	if rlVersionInfo.GameVersion == "" || rlVersionInfo.FeatureSet == "" {
+		return
+	}
+
+	duplicate := false
+	for _, psyNet := range am.psyNetList {
+		gameVersion, featureSet := GetPsyNetInfo(psyNet)
+
+		if gameVersion == rlVersionInfo.GameVersion && featureSet == rlVersionInfo.FeatureSet {
+			duplicate = true
+			break
+		}
+	}
+
+	if !duplicate {
+		newPsyNet := rlapi.NewPsyNet()
+		newPsyNet.SetVersion(rlVersionInfo.GameVersion, rlVersionInfo.FeatureSet)
+		am.psyNetList = append(am.psyNetList, newPsyNet)
+	}
 }
 
 func (am *AccountManager) uploadStatusMap() map[int]bool {
@@ -368,8 +403,11 @@ func (am *AccountManager) onlineStatusFromAccount(account *rocket_network.Accoun
 		playerList = append(playerList, ac.Player)
 	}
 
-	profiles := account.Player.GetProfiles(rocket_network.PlayerList(playerList).ToPlayerIDs())
+	getProfile := func(psyNet *rlapi.PsyNet) ([]rlapi.PlayerData, error) {
+		return account.Player.GetProfiles(psyNet, rocket_network.PlayerList(playerList).ToPlayerIDs())
+	}
 
+	profiles, _ := tryRotatingPsyNet(am, getProfile)
 	for _, player := range playerList {
 		if player.PlayerID == nil {
 			continue
@@ -386,4 +424,67 @@ func (am *AccountManager) onlineStatusFromAccount(account *rocket_network.Accoun
 	}
 
 	return onlineStatus
+}
+
+func (am *AccountManager) currentPsyNet() *rlapi.PsyNet {
+	logger.FuncDebug()
+
+	return am.psyNetList[0]
+}
+
+func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T, error)) (T, error) {
+	logger.FuncDebug()
+
+	defaultGameVersion, defaultFeatureSet := GetPsyNetInfo(am.psyNetList[0])
+	var result T
+	var err error
+
+	for {
+		currPsyNet := am.psyNetList[0]
+
+		result, err = request(currPsyNet)
+		if err == nil {
+			return result, nil
+		}
+
+		if len(am.psyNetList) < 2 {
+			break
+		}
+
+		logger.Rlogger.Info("PsyNet version info seems not good, trying with another one")
+		current := am.psyNetList[0]
+		am.psyNetList = append(am.psyNetList[1:], current)
+
+		tempGameVersion, tempFeatureSet := GetPsyNetInfo(am.psyNetList[0])
+		if tempGameVersion == defaultGameVersion && tempFeatureSet == defaultFeatureSet {
+			break
+		}
+	}
+
+	logger.Rlogger.Info("Error with current PsyNet and no other PsyNet version found")
+	return result, err
+}
+
+// Temporary while we have a way to get gameVersion and featureSet from rlapi package
+func GetPsyNetInfo(psyNet *rlapi.PsyNet) (gameVersion string, featureSet string) {
+	logger.FuncDebug()
+
+	val := reflect.ValueOf(psyNet)
+	if val.Kind() == reflect.Pointer {
+		val = val.Elem()
+	}
+
+	gameVersion = "unknown"
+	field := val.FieldByName("gameVersion")
+	if field.IsValid() && field.Kind() == reflect.String {
+		gameVersion = field.String()
+	}
+
+	featureSet = "unknown"
+	field = val.FieldByName("featureSet")
+	if field.IsValid() && field.Kind() == reflect.String {
+		featureSet = field.String()
+	}
+
+	return gameVersion, featureSet
 }
