@@ -8,9 +8,13 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+
 jobs:
   lint-and-vet:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -40,6 +44,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -76,6 +81,11 @@ jobs:
 
   nix-build-and-test:
     runs-on: ubuntu-latest
+
+    permissions:
+          contents: read
+          id-token: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
