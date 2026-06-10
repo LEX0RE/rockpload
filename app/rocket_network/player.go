@@ -59,7 +59,7 @@ func (p *Player) Reset() {
 	p.Auth.clearToken()
 }
 
-func (p *Player) GetInfo() (err error) {
+func (p *Player) GetInfo(psyNet *rlapi.PsyNet) (err error) {
 	logger.FuncDebug()
 
 	if !p.rpcMu.TryLock() {
@@ -69,7 +69,7 @@ func (p *Player) GetInfo() (err error) {
 	defer p.rpcMu.Unlock()
 
 	var rpc *rlapi.PsyNetRPC
-	rpc, playerId, err := GetRPC(p)
+	rpc, playerId, err := GetRPC(psyNet, p)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (p *Player) GetInfo() (err error) {
 	return nil
 }
 
-func (p *Player) UpdateProfile() (err error) {
+func (p *Player) UpdateProfile(psyNet *rlapi.PsyNet) (err error) {
 	logger.FuncDebug()
 
 	if !p.rpcMu.TryLock() {
@@ -108,7 +108,7 @@ func (p *Player) UpdateProfile() (err error) {
 	defer p.rpcMu.Unlock()
 
 	var rpc *rlapi.PsyNetRPC
-	rpc, p.PlayerID, err = GetRPC(p)
+	rpc, p.PlayerID, err = GetRPC(psyNet, p)
 	if err != nil {
 		return err
 	}
@@ -125,44 +125,44 @@ func (p *Player) UpdateProfile() (err error) {
 	return nil
 }
 
-func (p *Player) GetProfiles(playersIds []rlapi.PlayerID) []rlapi.PlayerData {
+func (p *Player) GetProfiles(psyNet *rlapi.PsyNet, playersIds []rlapi.PlayerID) ([]rlapi.PlayerData, error) {
 	logger.FuncDebug()
 
 	if !p.rpcMu.TryLock() {
 		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
-		return nil
+		return nil, nil
 	}
 	defer p.rpcMu.Unlock()
 
 	var rpc *rlapi.PsyNetRPC
-	rpc, _, err := GetRPC(p)
+	rpc, _, err := GetRPC(psyNet, p)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	defer rpc.Close()
 	profiles, err := GetProfiles(rpc, playersIds)
 	if err != nil {
 		logger.Rlogger.Error("Failed to get online statuses:", slog.Any("err", err))
-		return nil
+		return nil, err
 	}
 
-	return profiles
+	return profiles, nil
 }
 
-func (p *Player) GetRanks(playersIds []rlapi.PlayerID) []rlapi.PlayerWithSkills {
+func (p *Player) GetRanks(psyNet *rlapi.PsyNet, playersIds []rlapi.PlayerID) ([]rlapi.PlayerWithSkills, error) {
 	logger.FuncDebug()
 
 	if !p.rpcMu.TryLock() {
 		logger.Rlogger.Debug("Duplicate request at the same time, skipping")
-		return nil
+		return nil, nil
 	}
 	defer p.rpcMu.Unlock()
 
 	var rpc *rlapi.PsyNetRPC
-	rpc, _, err := GetRPC(p)
+	rpc, _, err := GetRPC(psyNet, p)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	defer rpc.Close()
@@ -170,10 +170,10 @@ func (p *Player) GetRanks(playersIds []rlapi.PlayerID) []rlapi.PlayerWithSkills 
 	platersSkills, err := GetPlayersSkills(rpc, playersIds)
 	if err != nil {
 		logger.Rlogger.Error("Failed to get online statuses:", slog.Any("err", err))
-		return nil
+		return nil, err
 	}
 
-	return platersSkills
+	return platersSkills, nil
 }
 
 func (p *Player) IsAuthenticated() bool {

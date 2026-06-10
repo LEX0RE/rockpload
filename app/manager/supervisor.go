@@ -47,9 +47,13 @@ type RLSupervisor struct {
 	stateFlickerCount int
 }
 
+type RLVersionInfo struct {
+	GameVersion string
+	FeatureSet  string
+}
+
 type RLLogInfo struct {
-	GameVersion  string
-	FeatureSet   string
+	VersionInfo  *RLVersionInfo
 	AccountFound *rocket_network.Account
 }
 
@@ -435,10 +439,19 @@ func (rls *RLSupervisor) updateGameVersion(logLine string) {
 		return
 	}
 
-	if rls.RLLogInfo.GameVersion != splitted[2] {
-		rls.RLLogInfo.GameVersion = splitted[2]
+	if rls.RLLogInfo == nil {
+		rls.RLLogInfo = &RLLogInfo{}
+	}
 
-		logger.Rlogger.Debug("Rocket League Game Version detected", slog.Any("Version", rls.RLLogInfo.GameVersion))
+	if rls.RLLogInfo.VersionInfo == nil {
+		rls.RLLogInfo.VersionInfo = &RLVersionInfo{}
+	}
+
+	if rls.RLLogInfo.VersionInfo.GameVersion != splitted[2] {
+		rls.RLLogInfo.VersionInfo.GameVersion = splitted[2]
+
+		logger.Rlogger.Debug("Rocket League Game Version detected", slog.Any("Version", rls.RLLogInfo.VersionInfo.GameVersion))
+		rls.accountManager.AddPsyNetVersion(*rls.RLLogInfo.VersionInfo)
 	}
 }
 
@@ -451,9 +464,18 @@ func (rls *RLSupervisor) updateFeatureSet(logLine string) {
 		return
 	}
 
-	if rls.RLLogInfo.FeatureSet != splitted[5] {
-		rls.RLLogInfo.FeatureSet = splitted[5]
+	if rls.RLLogInfo == nil {
+		rls.RLLogInfo = &RLLogInfo{}
+	}
 
-		logger.Rlogger.Debug("Rocket League Feature Set detected", slog.Any("FeatureSet", rls.RLLogInfo.FeatureSet))
+	if rls.RLLogInfo.VersionInfo == nil {
+		rls.RLLogInfo.VersionInfo = &RLVersionInfo{}
+	}
+
+	if rls.RLLogInfo.VersionInfo.FeatureSet != splitted[5] {
+		rls.RLLogInfo.VersionInfo.FeatureSet = splitted[5]
+
+		logger.Rlogger.Debug("Rocket League Feature Set detected", slog.Any("FeatureSet", rls.RLLogInfo.VersionInfo.FeatureSet))
+		rls.accountManager.AddPsyNetVersion(*rls.RLLogInfo.VersionInfo)
 	}
 }
