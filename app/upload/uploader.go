@@ -36,13 +36,12 @@ type uploadCtx struct {
 	accountList           []*rocket_network.Account
 	storageIndex          int
 	storageList           []UploadStorage
-	currentMatchRanking   *manager.MatchPlaylistRanking
 	currentAllReplayIndex int
 	allReplaysLength      int
 }
 
 type UploadStorage interface {
-	UploadReplay(filePath string, replayUpload ReplayUpload, skills *manager.MatchPlaylistRanking) error
+	UploadReplay(filePath string, replayUpload ReplayUpload) error
 	UploadLive(liveStats *rocket_network.LiveStats) error
 	Ping() error
 	GetConfig() *config.StorageConfig
@@ -175,14 +174,12 @@ func (u *Uploader) upload(uploadCtx *uploadCtx) {
 		uploadCtx.matchIndex = i
 		uploadCtx.currentAllReplayIndex += 1
 
-		uploadCtx.currentMatchRanking = u.accountManager.GetSkillMatch(replay)
-
 		lazyDownload := func() (string, error) {
 			if isDownloaded {
 				return filePath, nil
 			}
 
-			logger.Rlogger.Debug("Downloading file for the first time in this loop", slog.Any("url", replay.ReplayUrl))
+			logger.Rlogger.Debug("Downloading file", slog.Any("url", replay.ReplayUrl))
 			path, err := downloadFile(replay.ReplayUrl)
 			if err != nil {
 				return "", err
@@ -257,7 +254,7 @@ func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string
 			PlayerName: ac.Player.PlayerName,
 			PlayerID:   playerID,
 			Replay:     match,
-		}, uploadCtx.currentMatchRanking)
+		})
 
 		if err != nil {
 			logger.Rlogger.Error("Upload error:", slog.Any("err", err))

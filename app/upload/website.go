@@ -12,9 +12,9 @@ import (
 	"strings"
 
 	"github.com/LEX0RE/rockpload/app/config"
-	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
+	"github.com/dank/rlapi"
 )
 
 type Website struct {
@@ -25,7 +25,7 @@ func NewWebsite(config *config.StorageConfig) *Website {
 	return &Website{config: config}
 }
 
-func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload, skills *manager.MatchPlaylistRanking) error {
+func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error {
 	logger.FuncDebug()
 
 	if !w.config.SendReplay {
@@ -41,7 +41,14 @@ func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload, skill
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 
-	if skills != nil {
+	skills := make(map[rlapi.PlayerID]*rlapi.MatchSkills)
+	for _, player := range replayUpload.Replay.Match.Players {
+		if player.Skills.Valid {
+			skills[rlapi.PlayerID(player.PlayerID)] = &player.Skills
+		}
+	}
+
+	if len(skills) > 0 {
 		jsonData, err := json.Marshal(skills)
 		if err != nil {
 			return fmt.Errorf("Failed to marshal skills to JSON: %w", err)

@@ -29,7 +29,7 @@ func SaveJSONFilePath(filePath string, data any) error {
 func SaveFilePath(filePath string, data []byte) error {
 	logger.FuncDebug()
 
-	logger.Rlogger.Debug("Saving JSON File", slog.Any("Path", filePath))
+	logger.Rlogger.Debug("Saving File", slog.Any("Path", filePath))
 
 	dirPath := filepath.Dir(filePath)
 	if err := os.MkdirAll(dirPath, 0700); err != nil {
