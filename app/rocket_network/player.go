@@ -182,7 +182,7 @@ func (p *Player) IsAuthenticated() bool {
 	p.authMu.Lock()
 	defer p.authMu.Unlock()
 
-	if p.Auth != nil && p.Auth.isAuthenticate() {
+	if p.Auth != nil && p.Auth.isAuthenticated() {
 		return true
 	}
 

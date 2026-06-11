@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"reflect"
 	"slices"
-	"time"
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
@@ -21,20 +20,9 @@ const (
 	EVENT_DELETE_ACCOUNT tools.EventType = "delete_account"
 )
 
-type MatchPlaylistRanking struct {
-	Data       map[rlapi.PlayerID]*rlapi.Skill `json:"Data"`
-	LastUpdate time.Time                       `json:"LastUpdate"`
-}
-
-type MatchRanking struct {
-	data       map[rlapi.PlayerID][]rlapi.Skill
-	lastUpdate time.Time
-}
-
 type AccountManager struct {
-	appConfig    *config.AppConfig
-	skillMatches map[string]*MatchRanking
-	psyNetList   []*rlapi.PsyNet
+	appConfig  *config.AppConfig
+	psyNetList []*rlapi.PsyNet
 
 	EventManager *tools.EventManager
 }
@@ -45,7 +33,6 @@ func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 	am := &AccountManager{
 		appConfig:    appConfig,
 		EventManager: tools.NewEventManager(),
-		skillMatches: make(map[string]*MatchRanking),
 		psyNetList:   []*rlapi.PsyNet{rlapi.NewPsyNet()},
 	}
 	am.RefreshProfile()
@@ -258,79 +245,6 @@ func (am *AccountManager) RefreshProfile() {
 			ac.Player.UpdateProfile(am.currentPsyNet())
 		}
 	}
-}
-
-func (am *AccountManager) AddPlayersSkills(liveStats *rocket_network.LiveStats) {
-	logger.FuncDebug()
-
-	logger.Rlogger.Debug("Getting players skills", slog.Any("Player", liveStats.State.Players))
-
-	// We won't allow querying skills if we don't have an unused account as it would disconnect the account that is currently playing
-	unusedAccount := am.GetUnused()
-	if unusedAccount == nil || unusedAccount.Player == nil {
-		logger.Rlogger.Debug("Invalid Unused Account for getting Players Skills", slog.Any("Unused Account", unusedAccount))
-		return
-	}
-
-	logger.Rlogger.Debug("Account is being used to get Players Skills", slog.Any("Account", unusedAccount.AccountName()))
-
-	playerIDList := []rlapi.PlayerID{}
-	for _, playerState := range liveStats.State.Players {
-		if playerState.PrimaryId == "" {
-			continue
-		}
-
-		if playerSkills, ok := liveStats.Skills[rlapi.PlayerID(playerState.PrimaryId)]; !ok || len(playerSkills) == 0 {
-			playerIDList = append(playerIDList, rlapi.PlayerID(playerState.PrimaryId))
-		}
-	}
-
-	getRanks := func(psyNet *rlapi.PsyNet) ([]rlapi.PlayerWithSkills, error) {
-		return unusedAccount.Player.GetRanks(psyNet, playerIDList)
-	}
-
-	ranks, _ := tryRotatingPsyNet(am, getRanks)
-	if liveStats.State.MatchGuid != "" {
-		if _, ok := am.skillMatches[liveStats.State.MatchGuid]; !ok {
-			am.skillMatches[liveStats.State.MatchGuid] = &MatchRanking{
-				data:       make(map[rlapi.PlayerID][]rlapi.Skill),
-				lastUpdate: time.Now(),
-			}
-		}
-
-		for _, playerRank := range ranks {
-			am.skillMatches[liveStats.State.MatchGuid].data[playerRank.PlayerID] = playerRank.Skills
-			am.skillMatches[liveStats.State.MatchGuid].lastUpdate = time.Now()
-
-			liveStats.Skills[playerRank.PlayerID] = playerRank.Skills
-
-		}
-	}
-}
-
-func (am *AccountManager) GetSkillMatch(match rlapi.MatchEntry) *MatchPlaylistRanking {
-	logger.FuncDebug()
-
-	originalRanking, ok := am.skillMatches[match.Match.MatchGUID]
-	if !ok {
-		return nil
-	}
-
-	filteredRanking := &MatchPlaylistRanking{
-		Data:       make(map[rlapi.PlayerID]*rlapi.Skill),
-		LastUpdate: originalRanking.lastUpdate,
-	}
-
-	for playerID, skills := range originalRanking.data {
-		for _, skill := range skills {
-			if skill.Playlist == match.Match.Playlist {
-				filteredRanking.Data[playerID] = &skill
-				break
-			}
-		}
-	}
-
-	return filteredRanking
 }
 
 func (am *AccountManager) AddPsyNetVersion(rlVersionInfo RLVersionInfo) {

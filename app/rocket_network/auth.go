@@ -49,7 +49,7 @@ func NewAuth(profileId int) (a *Auth) {
 	logger.FuncDebug()
 
 	a = &Auth{EventManager: tools.NewEventManager(), ProfileId: profileId, egs: rlapi.NewEGS(), logger: logger.Rlogger.With("profileId", profileId)}
-	_ = a.isAuthenticate()
+	_ = a.isAuthenticated()
 
 	return a
 }
@@ -152,7 +152,7 @@ func (a *Auth) GetDeviceCode() (deviceAuth *rlapi.DeviceAuthResponse, err error)
 	return a.deviceAuth, nil
 }
 
-func (a *Auth) isAuthenticate() bool {
+func (a *Auth) isAuthenticated() bool {
 	logger.FuncDebug()
 
 	if a.getValidToken() != nil {
