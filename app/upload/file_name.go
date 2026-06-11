@@ -57,6 +57,7 @@ func replayUploadFileName(filePath string, template string, replayUpload ReplayU
 		"{MIN}":     fmt.Sprintf("%02d", replayTime.Minute()),
 		"{WL}":      wl,
 		"{WINLOSS}": winLoss,
+		"{GUID}":    replayUpload.Replay.Match.MatchGUID,
 	}
 
 	fileName := template
