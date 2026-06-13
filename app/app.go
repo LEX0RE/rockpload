@@ -47,7 +47,7 @@ func NewApp(version string) *App {
 
 	a := &App{version: version}
 
-	a.app = app.NewWithID("com.lexore.rockpload")
+	a.app = app.NewWithID("gg.lexore.rockpload")
 
 	// TODO Check for update before load config to be sure that if the config crash, we can still update it
 	a.appConfig = config.NewAppConfig()
