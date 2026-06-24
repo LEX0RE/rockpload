@@ -4,7 +4,7 @@ updates:
     directory: "/"
     labels:
       - "dependencies"
-      - "github-actions"
+      - "github_actions"
     open-pull-requests-limit: 5
     schedule:
       interval: "weekly"
