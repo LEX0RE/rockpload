@@ -3,7 +3,6 @@ package manager
 import (
 	"cmp"
 	"log/slog"
-	"reflect"
 	"slices"
 
 	"github.com/LEX0RE/rockpload/app/config"
@@ -256,7 +255,7 @@ func (am *AccountManager) AddPsyNetVersion(rlVersionInfo RLVersionInfo) {
 
 	duplicate := false
 	for _, psyNet := range am.psyNetList {
-		gameVersion, featureSet := GetPsyNetInfo(psyNet)
+		gameVersion, featureSet := psyNet.GetVersion()
 
 		if gameVersion == rlVersionInfo.GameVersion && featureSet == rlVersionInfo.FeatureSet {
 			duplicate = true
@@ -349,7 +348,7 @@ func (am *AccountManager) currentPsyNet() *rlapi.PsyNet {
 func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T, error)) (T, error) {
 	logger.FuncDebug()
 
-	defaultGameVersion, defaultFeatureSet := GetPsyNetInfo(am.psyNetList[0])
+	defaultGameVersion, defaultFeatureSet := am.psyNetList[0].GetVersion()
 	var result T
 	var err error
 
@@ -369,7 +368,7 @@ func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T
 		current := am.psyNetList[0]
 		am.psyNetList = append(am.psyNetList[1:], current)
 
-		tempGameVersion, tempFeatureSet := GetPsyNetInfo(am.psyNetList[0])
+		tempGameVersion, tempFeatureSet := am.psyNetList[0].GetVersion()
 		if tempGameVersion == defaultGameVersion && tempFeatureSet == defaultFeatureSet {
 			break
 		}
@@ -377,28 +376,4 @@ func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T
 
 	logger.Rlogger.Info("Error with current PsyNet and no other PsyNet version found")
 	return result, err
-}
-
-// Temporary while we have a way to get gameVersion and featureSet from rlapi package
-func GetPsyNetInfo(psyNet *rlapi.PsyNet) (gameVersion string, featureSet string) {
-	logger.FuncDebug()
-
-	val := reflect.ValueOf(psyNet)
-	if val.Kind() == reflect.Pointer {
-		val = val.Elem()
-	}
-
-	gameVersion = "unknown"
-	field := val.FieldByName("gameVersion")
-	if field.IsValid() && field.Kind() == reflect.String {
-		gameVersion = field.String()
-	}
-
-	featureSet = "unknown"
-	field = val.FieldByName("featureSet")
-	if field.IsValid() && field.Kind() == reflect.String {
-		featureSet = field.String()
-	}
-
-	return gameVersion, featureSet
 }

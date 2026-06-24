@@ -19,7 +19,7 @@ import (
 
 const (
 	baseURL      = "https://api.rlpp.psynet.gg/rpc"
-	gameVersion  = "260602.75104.519749"
+	gameVersion  = "260616.79869.520762"
 	featureSet   = "PrimeUpdate59"
 	psySigKey    = "c338bd36fb8c42b1a431d30add939fc7"
 	pingInterval = 20 * time.Second
@@ -97,6 +97,11 @@ func (p *PsyNet) SetVersion(gameVersion, featureSet string) {
 	p.gameVersion = gameVersion
 	p.featureSet = featureSet
 	p.buildID = strconv.Itoa(int(decodeBuildID(gameVersion)))
+}
+
+// GetVersion returns the current game version and feature set.
+func (p *PsyNet) GetVersion() (gameVersion, featureSet string) {
+	return p.gameVersion, p.featureSet
 }
 
 func (p *PsyNet) establishSocket(url string, playerID PlayerID, psyToken string, sessionID string) (*PsyNetRPC, error) {
