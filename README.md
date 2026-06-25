@@ -13,7 +13,7 @@ A desktop companion app for Rocket League that watches your replay history and a
 
 ## Features
 
-- **Automatic Upload**: Monitors your Rocket League replay directory and uploads new replays in real time
+- **Automatic Upload**: Monitors your Rocket League game and uploads new replays in real time
 - **Epic Games Authentication**: Seamless authentication via Epic Games Launcher or custom OAuth
 - **Multi Account Upload**: Allow to upload for multiple account at the same time
 - **Multi Website Upload**: Allow to upload for multiple website at the same time ([Rocky](https://lexore.ca/rocky) and [Ballchasing](https://ballchasing.com) are preconfigured, but you can add as many as you want)
