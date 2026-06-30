@@ -43,7 +43,10 @@ func GetConfigPath() string {
 	// No logger as some global var use it
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		panic(err)
+		dir, err = os.UserCacheDir()
+		if err != nil {
+			dir = os.TempDir()
+		}
 	}
 
 	dir = filepath.Join(dir, rockploadCacheDir)
@@ -58,9 +61,8 @@ func GetHomePath() string {
 	// No logger as some global var use it
 	dir, err := os.UserHomeDir()
 	if err != nil {
-		panic(err)
+		dir = GetConfigPath()
 	}
 
 	return dir
-
 }

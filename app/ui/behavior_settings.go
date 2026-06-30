@@ -2,6 +2,7 @@ package ui
 
 import (
 	"slices"
+	"sort"
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -21,22 +22,30 @@ type BehaviorSettingPopup struct {
 	optionNameMapping map[string]config.BehaviorSettingType
 }
 
+func behaviorOptionTextList() []string {
+	options := make([]config.BehaviorSettingVisualDependancy, 0, len(config.BehaviorSettingVisualMapping))
+	for _, value := range config.BehaviorSettingVisualMapping {
+		options = append(options, value)
+	}
+
+	sort.Slice(options, func(i, j int) bool {
+		return options[i].Position < options[j].Position
+	})
+
+	optionTextList := make([]string, 0, len(options))
+	for _, value := range options {
+		optionTextList = append(optionTextList, value.Name)
+	}
+
+	return optionTextList
+}
+
 func NewBehaviorSettingPopup(p *Popup) *BehaviorSettingPopup {
 	logger.FuncDebug()
 
 	sp := &BehaviorSettingPopup{Popup: p, optionNameMapping: make(map[string]config.BehaviorSettingType)}
 
-	var optionTextList []string
-	for i := range len(config.BehaviorSettingVisualMapping) {
-		for _, value := range config.BehaviorSettingVisualMapping {
-			if value.Position == i {
-				optionTextList = append(optionTextList, value.Name)
-				break
-			}
-		}
-	}
-
-	sp.optionCheckGroup = widget.NewCheckGroup(optionTextList, sp.reload)
+	sp.optionCheckGroup = widget.NewCheckGroup(behaviorOptionTextList(), sp.reload)
 
 	for key, value := range config.BehaviorSettingVisualMapping {
 		sp.optionNameMapping[value.Name] = key
@@ -87,17 +96,7 @@ func (sp *BehaviorSettingPopup) Show() {
 }
 
 func (sp *BehaviorSettingPopup) reload(nextSelection []string) {
-	var optionTextList []string
-	for i := range len(config.BehaviorSettingVisualMapping) {
-		for _, value := range config.BehaviorSettingVisualMapping {
-			if value.Position == i {
-				optionTextList = append(optionTextList, value.Name)
-				break
-			}
-		}
-	}
-
-	sp.optionCheckGroup.Options = optionTextList
+	sp.optionCheckGroup.Options = behaviorOptionTextList()
 	sp.onCheckGroupChange(nextSelection)
 }
 

@@ -4,10 +4,8 @@ import (
 	_ "embed"
 	"log/slog"
 	"os"
-	"os/exec"
 
 	"github.com/LEX0RE/rockpload/app/config"
-	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools"
@@ -17,13 +15,14 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/driver/desktop"
-	"github.com/emersion/go-autostart"
-	"github.com/gofrs/flock"
 )
 
 //go:embed assets/logo.png
 var logoBytes []byte
+
+type duplicateLock interface {
+	Unlock() error
+}
 
 type App struct {
 	app    fyne.App
@@ -32,7 +31,7 @@ type App struct {
 	appConfig *config.AppConfig
 	gui       *ui.GUI
 
-	duplicateLock *flock.Flock
+	duplicateLock duplicateLock
 	version       string
 	updateInfo    *UpdateInfo
 
@@ -68,18 +67,10 @@ func NewApp(version string) *App {
 
 	a.window = a.app.NewWindow("Rockpload")
 
-	if desk, ok := a.app.(desktop.App); ok {
-		menu := fyne.NewMenu("Rockpload",
-			fyne.NewMenuItem("Open", func() {
-				a.window.Show()
-			}),
-		)
-
-		desk.SetSystemTrayMenu(menu)
-	}
+	a.configureSystemTray()
 
 	a.window.SetCloseIntercept(func() {
-		if a.appConfig.BehaviorConfig.ExitInTray.Get() {
+		if a.canRunInTray() && a.appConfig.BehaviorConfig.ExitInTray.Get() {
 			a.window.Hide()
 		} else {
 			a.app.Quit()
@@ -91,7 +82,9 @@ func NewApp(version string) *App {
 
 func (a *App) Close() {
 	logger.FuncDebug()
-	a.duplicateLock.Unlock()
+	if a.duplicateLock != nil {
+		a.duplicateLock.Unlock()
+	}
 	a.app.Quit()
 }
 
@@ -112,7 +105,7 @@ func (a *App) Run() {
 
 	a.window.Resize(fyne.NewSize(450, 400))
 
-	if a.appConfig.BehaviorConfig.ExitInTray.Get() && a.appConfig.BehaviorConfig.StartInTray.Get() {
+	if a.canRunInTray() && a.appConfig.BehaviorConfig.ExitInTray.Get() && a.appConfig.BehaviorConfig.StartInTray.Get() {
 		a.app.Run()
 	} else {
 		a.window.ShowAndRun()
@@ -141,7 +134,9 @@ func (a *App) initEvents() {
 		a.uploader.UploadLiveStats(a.statsApi.LastInfo)
 	}})
 
-	a.statsApi.StartListener()
+	if a.supportsLocalStatsAPI() {
+		a.statsApi.StartListener()
+	}
 
 	onUpdateState := func() {
 		fyne.Do(a.gui.UpdateState)
@@ -218,11 +213,15 @@ func (a *App) startManager() {
 		a.uploader.Start()
 	}
 
-	a.rlSupervisor.Start()
+	a.startPlatformManagers()
 }
 
 func (a *App) setupAppUpdate() {
 	logger.FuncDebug()
+	if !a.supportsSelfUpdate() {
+		return
+	}
+
 	updater := NewUpdater()
 	skipUpdate := os.Getenv("SKIP_UPDATE")
 
@@ -250,43 +249,6 @@ func (a *App) setupAppUpdate() {
 	}
 }
 
-func (a *App) createDuplicateLock() bool {
-	logger.FuncDebug()
-
-	a.duplicateLock = flock.New(constant.AppLock)
-	gotLocked, err := a.duplicateLock.TryLock()
-	if err != nil {
-		panic(err)
-	}
-
-	return gotLocked
-}
-
-func (a *App) SetAutoStart(value bool) {
-	logger.FuncDebug()
-	execPath, err := os.Executable()
-	if err != nil {
-		logger.Rlogger.Error("Failed to get executable path for autostart:", slog.Any("err", err))
-		return
-	}
-
-	asapp := &autostart.App{
-		Name:        "lexore-rockpload",
-		DisplayName: "Rockpload",
-		Exec:        []string{execPath},
-	}
-
-	if value {
-		err = asapp.Enable()
-	} else {
-		err = asapp.Disable()
-	}
-
-	if err != nil && !os.IsNotExist(err) {
-		logger.Rlogger.Error("Failed to enable autostart:", slog.Any("err", err))
-	}
-}
-
 func (a *App) SetAutoUpload(value bool) {
 	logger.FuncDebug()
 
@@ -301,22 +263,4 @@ func (a *App) SetUploadOnRLClose(value bool) {
 	if a.rlSupervisor != nil {
 		a.rlSupervisor.Toggle(value)
 	}
-}
-
-func (a *App) restart() {
-	logger.FuncDebug()
-
-	a.Close()
-
-	cmd := exec.Command(os.Args[0], os.Args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	err := cmd.Start()
-	if err != nil {
-		logger.Rlogger.Error("restart failed", slog.Any("err", err))
-	}
-
-	os.Exit(0)
 }

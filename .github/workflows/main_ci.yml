@@ -67,17 +67,40 @@ jobs:
             xorg-dev \
             gcc-mingw-w64-x86-64
 
+      - name: Install Android Build Dependencies
+        run: |
+          go install fyne.io/tools/cmd/fyne@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;27.2.12479018"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
       - name: Build with Script
         run: |
           chmod +x ./scripts/build.sh
+          chmod +x ./scripts/build-android.sh
           ./scripts/build.sh
         env:
           ROCKPLOAD_VERSION: "dev"
+          BUILD_ANDROID: "true"
+          ANDROID_APP_BUILD: ${{ github.run_number }}
 
       - name: Check generated files
         run: |
           ls -lh releases/
           [ "$(ls -A releases/)" ] || (echo "Error: No generated file" && exit 1)
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rockpload-builds-${{ github.run_id }}
+          path: releases/rockpload_*
+          retention-days: 14
 
   nix-build-and-test:
     runs-on: ubuntu-latest
