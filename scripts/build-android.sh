@@ -24,6 +24,13 @@ fi
 
 VERSION="${VERSION#v}"
 VERSION_CLEAN=$(echo "$VERSION" | sed 's/\//-/g')
+ANDROID_APP_VERSION="$VERSION_CLEAN"
+if [[ "$ANDROID_APP_VERSION" == *-* ]]; then
+    ANDROID_APP_VERSION="${ANDROID_APP_VERSION%%-*}"
+fi
+if [[ ! "$ANDROID_APP_VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+    ANDROID_APP_VERSION="0.0.1"
+fi
 APP_BUILD="${ANDROID_APP_BUILD:-1}"
 OUTPUT="$RELEASE_PATH/${PACKAGE_NAME}_${VERSION_CLEAN}-android.apk"
 
@@ -39,8 +46,9 @@ echo "Building Android APK $OUTPUT..."
         -appID "$APP_ID" \
         -name "$APP_NAME" \
         -icon app/assets/logo.png \
-        -appVersion "$VERSION_CLEAN" \
+        -appVersion "$ANDROID_APP_VERSION" \
         -appBuild "$APP_BUILD" \
+        -metadata "rockploadVersion=$VERSION_CLEAN" \
         -tags mobile
 )
 
