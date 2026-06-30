@@ -67,12 +67,25 @@ jobs:
             xorg-dev \
             gcc-mingw-w64-x86-64
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install Android Build Dependencies
         run: |
           go install fyne.io/tools/cmd/fyne@latest
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager \
+
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME" -name sdkmanager -type f -print -quit)"
+          fi
+          if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
+            echo "sdkmanager not found in ANDROID_HOME=$ANDROID_HOME"
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0" \
