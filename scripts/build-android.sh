@@ -48,8 +48,7 @@ echo "Building Android APK $OUTPUT..."
         -icon app/assets/logo.png \
         -appVersion "$ANDROID_APP_VERSION" \
         -appBuild "$APP_BUILD" \
-        -metadata "rockploadVersion=$VERSION_CLEAN" \
-        -tags mobile
+        -metadata "rockploadVersion=$VERSION_CLEAN"
 )
 
 APK_FILE="$(find "$ROOT_DIR" -maxdepth 1 -name '*.apk' -print -quit)"
