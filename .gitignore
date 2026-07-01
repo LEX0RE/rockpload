@@ -44,3 +44,7 @@ releases/
 
 # Fyne-cross build
 fyne-cross/
+
+# Keystore
+keystore/
+*.keystore

@@ -46,12 +46,6 @@ func (a *App) supportsLocalStatsAPI() bool {
 	return true
 }
 
-func (a *App) supportsSelfUpdate() bool {
-	logger.FuncDebug()
-
-	return true
-}
-
 func (a *App) startPlatformManagers() {
 	logger.FuncDebug()
 

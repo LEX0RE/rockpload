@@ -7,6 +7,7 @@ PACKAGE_NAME="rockpload"
 VERSION_FILE="$ROOT_DIR/VERSION"
 APP_ID="gg.lexore.rockpload"
 APP_NAME="Rockpload"
+KEYSTORE_ENV_FILE="$ROOT_DIR/keystore/.env"
 
 if ! command -v fyne-cross >/dev/null 2>&1; then
     echo "Missing fyne-cross. Install it with:"
@@ -34,9 +35,19 @@ fi
 APP_BUILD="${ANDROID_APP_BUILD:-1}"
 OUTPUT="$RELEASE_PATH/${PACKAGE_NAME}_${VERSION_CLEAN}-android.apk"
 
+if [ -f "$KEYSTORE_ENV_FILE" ]; then
+    echo "Loading secrets from $KEYSTORE_ENV_FILE"
+    export $(grep -v '^#' "$KEYSTORE_ENV_FILE" | xargs)
+else
+    echo "Warning: $KEYSTORE_ENV_FILE not found, skipping."
+fi
+
 mkdir -p "$RELEASE_PATH"
-rm -f "$ROOT_DIR"/*.apk "$OUTPUT"
-rm -rf "$ROOT_DIR/fyne-cross"/*
+
+if ls "$ROOT_DIR/$RELEASE_PATH/"*.apk >/dev/null 2>&1; then
+    rm -f "$ROOT_DIR/$RELEASE_PATH/"*.apk "$OUTPUT"
+fi
+rm -rf "$ROOT_DIR/fyne-cross/"
 
 echo "Building Android APK $OUTPUT..."
 
@@ -50,7 +61,10 @@ echo "Building Android APK $OUTPUT..."
         -icon app/assets/logo.png \
         -app-version "$ANDROID_APP_VERSION" \
         -app-build "$APP_BUILD" \
-        -metadata "rockploadVersion=$VERSION_CLEAN"
+        -metadata "rockploadVersion=$VERSION_CLEAN" \
+        -keystore "$ROCKPLOAD_KEYSTORE_PATH" \
+        -keystore-pass "$ROCKPLOAD_KEYSTORE_PASS" \
+        -key-pass "$ROCKPLOAD_KEYSTORE_PASS"
 )
 
 APK_FILE="$(find "$ROOT_DIR/fyne-cross" -maxdepth 3 -name '*.apk' -print -quit)"

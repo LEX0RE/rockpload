@@ -12,7 +12,7 @@ import (
 type mobileDuplicateLock struct{}
 
 func (m mobileDuplicateLock) Unlock() error {
-	logger.Rlogger.Info("Duplicate lock is not supported on mobile")
+	logger.FuncDebug()
 	return nil
 }
 
@@ -51,12 +51,6 @@ func (a *App) supportsLocalStatsAPI() bool {
 	return false
 }
 
-func (a *App) supportsSelfUpdate() bool {
-	logger.FuncDebug()
-
-	return false
-}
-
 func (a *App) startPlatformManagers() {
 	logger.FuncDebug()
 }
@@ -78,7 +72,5 @@ func (a *App) SetAutoStart(value bool) {
 
 func (a *App) restart() {
 	logger.FuncDebug()
-
-	logger.Rlogger.Info("Restart after update is not supported on mobile")
 	a.Close()
 }

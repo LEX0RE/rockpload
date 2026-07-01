@@ -24,15 +24,17 @@ type Updater struct {
 	UpdateInfo *UpdateInfo
 }
 
-const uploaderUpdateURL = "https://lexore.ca/rocky/api/rockpload"
+const uploaderUpdateURL = "http://host.docker.internal:3000/api/rockpload"
 
 func NewUpdater() *Updater {
 	logger.FuncDebug()
+
 	return &Updater{}
 }
 
 func (u *Updater) CheckForUpdate(currentVersion string) (bool, error) {
 	logger.FuncDebug()
+
 	url := fmt.Sprintf(uploaderUpdateURL+"?os=%s", runtime.GOOS)
 
 	resp, err := http.Get(url)
@@ -65,11 +67,13 @@ func (u *Updater) CheckForUpdate(currentVersion string) (bool, error) {
 		return true, nil
 	}
 
+	logger.Rlogger.Info("No update available")
 	return false, nil
 }
 
 func verifyChecksum(data []byte, expected string) bool {
 	logger.FuncDebug()
+
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:]) == expected
 }

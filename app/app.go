@@ -228,9 +228,6 @@ func (a *App) startManager() {
 
 func (a *App) setupAppUpdate() {
 	logger.FuncDebug()
-	if !a.supportsSelfUpdate() {
-		return
-	}
 
 	updater := NewUpdater()
 	skipUpdate := os.Getenv("SKIP_UPDATE")
