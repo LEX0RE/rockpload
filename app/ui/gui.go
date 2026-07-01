@@ -4,6 +4,7 @@ import (
 	"image/color"
 	"log/slog"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -233,11 +234,15 @@ func (g *GUI) createLoginUI() {
 		selectedAccount.Player.Auth.OpenAuth()
 	})
 
-	ResetBrowserBtn := widget.NewButton("Reset Browser", func() {
-		tools.ClearBrowserSession()
-	})
-
-	actionButtonBorder := container.NewBorder(nil, nil, LoginBtn, nil, ResetBrowserBtn)
+	var actionButtonBorder *fyne.Container
+	if runtime.GOOS != "android" && runtime.GOOS != "ios" {
+		resetBrowserBtn := widget.NewButton("Reset Browser", func() {
+			tools.ClearBrowserSession()
+		})
+		actionButtonBorder = container.NewBorder(nil, nil, LoginBtn, nil, resetBrowserBtn)
+	} else {
+		actionButtonBorder = container.NewBorder(nil, nil, LoginBtn, nil)
+	}
 
 	g.LoginBox = container.NewVBox(
 		deviceAuthBorder,
@@ -357,7 +362,7 @@ func (g *GUI) lastUploadAt() (time.Time, bool) {
 	var lastUploadAt time.Time
 
 	for _, storage := range g.appConfig.StorageSettings.Get() {
-		info, err := os.Stat(constant.UploadedCache + "_" + storage.Name)
+		info, err := os.Stat(constant.Paths.UploadedCache + "_" + storage.Name)
 		if err != nil {
 			continue
 		}

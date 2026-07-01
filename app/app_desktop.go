@@ -61,7 +61,7 @@ func (a *App) startPlatformManagers() {
 func (a *App) createDuplicateLock() bool {
 	logger.FuncDebug()
 
-	lock := flock.New(constant.AppLock)
+	lock := flock.New(constant.Paths.AppLock)
 	gotLocked, err := lock.TryLock()
 	if err != nil {
 		panic(err)

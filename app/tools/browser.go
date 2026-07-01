@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 
@@ -52,7 +53,7 @@ func OpenAutoChromiumBrowser(url string, profileId int) (authCode string, err er
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", false), // TODO Check when profile folder exist and make it headless so user dont see navigator
-		chromedp.Flag("user-data-dir", constant.BrowserSession),
+		chromedp.Flag("user-data-dir", constant.Paths.BrowserSession),
 		chromedp.Flag("profile-directory", getBrowserProfilePath(profileId)),
 		chromedp.Flag("disable-restore-session-state", true),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
@@ -127,8 +128,7 @@ func OpenAutoChromiumBrowser(url string, profileId int) (authCode string, err er
 func ClearBrowserSession() {
 	logger.FuncDebug()
 
-	err := os.RemoveAll(constant.BrowserSession)
-	if err != nil {
+	if err := os.RemoveAll(constant.Paths.BrowserSession); err != nil {
 		logger.Rlogger.Error("Failed to clear browser session", slog.Any("err", err))
 	}
 }
@@ -136,8 +136,10 @@ func ClearBrowserSession() {
 func ClearBrowserProfile(profileId int) {
 	logger.FuncDebug()
 
-	err := os.RemoveAll(getBrowserProfilePath(profileId))
-	if err != nil {
+	profileFolderName := getBrowserProfilePath(profileId)
+	fullProfilePath := filepath.Join(constant.Paths.BrowserSession, profileFolderName)
+
+	if err := os.RemoveAll(fullProfilePath); err != nil {
 		logger.Rlogger.Error("Failed to clear browser profile", slog.Any("err", err))
 	}
 }

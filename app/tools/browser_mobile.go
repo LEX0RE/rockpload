@@ -6,10 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
-	"strconv"
 
-	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
@@ -45,24 +42,8 @@ func OpenAutoChromiumBrowser(rawURL string, profileId int) (authCode string, err
 
 func ClearBrowserSession() {
 	logger.FuncDebug()
-
-	err := os.RemoveAll(constant.BrowserSession)
-	if err != nil {
-		logger.Rlogger.Error("Failed to clear browser session", "err", err)
-	}
 }
 
 func ClearBrowserProfile(profileId int) {
 	logger.FuncDebug()
-
-	err := os.RemoveAll(getBrowserProfilePath(profileId))
-	if err != nil {
-		logger.Rlogger.Error("Failed to clear browser profile", "err", err)
-	}
-}
-
-func getBrowserProfilePath(profileId int) string {
-	logger.FuncDebug()
-
-	return BrowserProfilePrefix + strconv.Itoa(profileId)
 }

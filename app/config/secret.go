@@ -27,14 +27,14 @@ func (a *AppConfig) saveSecretSettings() (func(), error) {
 		return restoreSecretFields, err
 	}
 
-	return restoreSecretFields, tools.SaveJSONFilePath(constant.SecretSettingsFile, settings)
+	return restoreSecretFields, tools.SaveJSONFilePath(constant.Paths.SecretSettingsFile, settings)
 }
 
 func (a *AppConfig) loadSecretSettings() error {
 	logger.FuncDebug()
 
 	settings := secretSettings{}
-	if err := tools.LoadJSONFilePath(constant.SecretSettingsFile, &settings, false); err != nil {
+	if err := tools.LoadJSONFilePath(constant.Paths.SecretSettingsFile, &settings, false); err != nil {
 		return err
 	}
 
@@ -53,7 +53,7 @@ func (a *AppConfig) migrateSecretSettings() error {
 	}
 
 	settings := secretSettings{}
-	if err := tools.LoadJSONFilePath(constant.SecretSettingsFile, &settings, false); err != nil {
+	if err := tools.LoadJSONFilePath(constant.Paths.SecretSettingsFile, &settings, false); err != nil {
 		restoreSecretFields()
 		return err
 	}
@@ -75,7 +75,7 @@ func (a *AppConfig) migrateSecretSettings() error {
 	}
 
 	if migrated {
-		if err := tools.SaveJSONFilePath(constant.SecretSettingsFile, settings); err != nil {
+		if err := tools.SaveJSONFilePath(constant.Paths.SecretSettingsFile, settings); err != nil {
 			restoreSecretFields()
 			return err
 		}

@@ -52,13 +52,13 @@ func NewAppConfig() *AppConfig {
 func (a *AppConfig) Load(prefs fyne.Preferences) error {
 	logger.FuncDebug()
 
-	tools.WaitFileBoot([]string{constant.BehaviorSettingsFile, constant.AppLog})
+	tools.WaitFileBoot([]string{constant.Paths.BehaviorSettingsFile, constant.Paths.AppLog})
 
-	if err := tools.LoadJSONFilePath(constant.BehaviorSettingsFile, &a.BehaviorConfig, false); err != nil {
+	if err := tools.LoadJSONFilePath(constant.Paths.BehaviorSettingsFile, &a.BehaviorConfig, false); err != nil {
 		return err
 	}
 
-	if err := tools.LoadJSONFilePath(constant.StorageSettingsFile, &a.StorageSettings.value, false); err != nil {
+	if err := tools.LoadJSONFilePath(constant.Paths.StorageSettingsFile, &a.StorageSettings.value, false); err != nil {
 		return err
 	}
 
@@ -66,7 +66,7 @@ func (a *AppConfig) Load(prefs fyne.Preferences) error {
 		a.StorageSettings.value.UnmarshalJSON([]byte{})
 	}
 
-	if err := tools.LoadJSONFilePath(constant.AccountSettingsFile, &a.AccountSettings.value, false); err != nil {
+	if err := tools.LoadJSONFilePath(constant.Paths.AccountSettingsFile, &a.AccountSettings.value, false); err != nil {
 		return err
 	}
 
@@ -137,9 +137,9 @@ func (a *AppConfig) savePublicSettings() (error, error, error) {
 
 	a.StorageSettings.value = filteredWebsites
 
-	accountErr := tools.SaveJSONFilePath(constant.AccountSettingsFile, a.AccountSettings.Get())
-	storageErr := tools.SaveJSONFilePath(constant.StorageSettingsFile, a.StorageSettings.Get())
-	behaviorErr := tools.SaveJSONFilePath(constant.BehaviorSettingsFile, a.BehaviorConfig)
+	accountErr := tools.SaveJSONFilePath(constant.Paths.AccountSettingsFile, a.AccountSettings.Get())
+	storageErr := tools.SaveJSONFilePath(constant.Paths.StorageSettingsFile, a.StorageSettings.Get())
+	behaviorErr := tools.SaveJSONFilePath(constant.Paths.BehaviorSettingsFile, a.BehaviorConfig)
 
 	a.StorageSettings.value = originalWebsites
 

@@ -1,5 +1,7 @@
 package config
 
+import "runtime"
+
 type BehaviorConfig struct {
 	AutoUpload       Setting[bool] `json:"auto_upload"`
 	ExitInTray       Setting[bool] `json:"exit_in_tray"`
@@ -58,5 +60,15 @@ func (bc *BehaviorConfig) GetBoolSettingsMap() map[BehaviorSettingType]*Setting[
 		UploadOnRLClose:  &bc.UploadOnRLClose,
 		UploadOlderFirst: &bc.UploadOlderFirst,
 		SendLiveStat:     &bc.SendLiveStat,
+	}
+}
+
+func init() {
+	if runtime.GOOS == "android" {
+		delete(BehaviorSettingVisualMapping, AutoStart)
+		delete(BehaviorSettingVisualMapping, ExitInTray)
+		delete(BehaviorSettingVisualMapping, StartInTray)
+		delete(BehaviorSettingVisualMapping, UploadOnRLClose)
+		delete(BehaviorSettingVisualMapping, SendLiveStat)
 	}
 }
