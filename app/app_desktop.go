@@ -17,6 +17,8 @@ import (
 )
 
 func (a *App) configureSystemTray() {
+	logger.FuncDebug()
+
 	if desk, ok := a.app.(desktop.App); ok {
 		menu := fyne.NewMenu("Rockpload",
 			fyne.NewMenuItem("Open", func() {
@@ -28,19 +30,31 @@ func (a *App) configureSystemTray() {
 	}
 }
 
+func (a *App) configureApp() {
+	logger.FuncDebug()
+}
+
 func (a *App) canRunInTray() bool {
+	logger.FuncDebug()
+
 	return true
 }
 
 func (a *App) supportsLocalStatsAPI() bool {
+	logger.FuncDebug()
+
 	return true
 }
 
 func (a *App) supportsSelfUpdate() bool {
+	logger.FuncDebug()
+
 	return true
 }
 
 func (a *App) startPlatformManagers() {
+	logger.FuncDebug()
+
 	a.rlSupervisor.Start()
 }
 
@@ -59,6 +73,7 @@ func (a *App) createDuplicateLock() bool {
 
 func (a *App) SetAutoStart(value bool) {
 	logger.FuncDebug()
+
 	execPath, err := os.Executable()
 	if err != nil {
 		logger.Rlogger.Error("Failed to get executable path for autostart:", slog.Any("err", err))

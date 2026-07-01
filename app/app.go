@@ -56,6 +56,8 @@ func NewApp(version string) *App {
 		}
 	}
 
+	a.configureApp()
+
 	// TODO Check for update before load config to be sure that if the config crash, we can still update it
 	a.appConfig = config.NewAppConfig()
 	err := a.appConfig.Load(a.app.Preferences())

@@ -7,6 +7,5 @@ func init() {
 	delete(BehaviorSettingVisualMapping, ExitInTray)
 	delete(BehaviorSettingVisualMapping, StartInTray)
 	delete(BehaviorSettingVisualMapping, UploadOnRLClose)
-	delete(BehaviorSettingVisualMapping, NoUploadOnline)
 	delete(BehaviorSettingVisualMapping, SendLiveStat)
 }

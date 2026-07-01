@@ -143,5 +143,7 @@ func ClearBrowserProfile(profileId int) {
 }
 
 func getBrowserProfilePath(profileId int) string {
+	logger.FuncDebug()
+
 	return BrowserProfilePrefix + strconv.Itoa(profileId)
 }
