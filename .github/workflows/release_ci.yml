@@ -19,6 +19,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Prepare Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > rockpload.keystore
+          echo "ROCKPLOAD_KEYSTORE_PATH=$(pwd)/rockpload.keystore" >> $GITHUB_ENV
+          echo "ROCKPLOAD_KEYSTORE_PASS=${{ secrets.KEYSTORE_PASS }}" >> $GITHUB_ENV
+          echo "ROCKPLOAD_KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
