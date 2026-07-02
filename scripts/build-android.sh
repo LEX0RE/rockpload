@@ -56,6 +56,12 @@ if [ "$IS_SIGNED" = "true" ]; then
             -keyPass "$ROCKPLOAD_KEYSTORE_PASS" \
             -keyName "$ROCKPLOAD_KEY_ALIAS"
     )
+
+    APK_FILE="$(find "$ROOT_DIR" -maxdepth 1 -name '*.aab' -print -quit)"
+    if [ -z "$APK_FILE" ]; then
+        echo "Fyne completed but no AAB was found in $ROOT_DIR"
+        exit 1
+    fi
 else
     (
         cd "$ROOT_DIR"
@@ -69,10 +75,13 @@ else
             -metadata "rockploadVersion=$VERSION_CLEAN"
     )
 
-APK_FILE="$(find "$ROOT_DIR" -maxdepth 1 -name '*.aab' -print -quit)"
-if [ -z "$APK_FILE" ]; then
-    echo "Fyne completed but no AAB was found in $ROOT_DIR"
-    exit 1
+    APK_FILE="$(find "$ROOT_DIR" -maxdepth 1 -name '*.apk' -print -quit)"
+    if [ -z "$APK_FILE" ]; then
+        echo "Fyne completed but no APK was found in $ROOT_DIR"
+        exit 1
+    fi
+
+    mv "$APK_FILE" "$OUTPUT"
 fi
 
 echo "Android AAB created: $APK_FILE"
