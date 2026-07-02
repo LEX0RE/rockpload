@@ -87,6 +87,7 @@ jobs:
           ANDROID_APP_BUILD: ${{ github.run_number }}
           ROCKPLOAD_KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
           ROCKPLOAD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ROCKPLOAD_SIGNED: "true"
         run: |
           chmod +x ./scripts/build.sh
           chmod +x ./scripts/build-android.sh

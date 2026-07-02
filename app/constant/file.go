@@ -18,9 +18,10 @@ type AppPaths struct {
 	ConfigDir string
 	HomeDir   string
 
-	UploadedCache  string
-	BrowserSession string
-	AppLog         string
+	UploadedCache         string
+	BrowserSession        string
+	AppLog                string
+	LastCachedGameVersion string
 
 	AppLock    string
 	TokensPath string
@@ -52,9 +53,10 @@ func InitPaths(app fyne.App) {
 		ConfigDir: configDir,
 		HomeDir:   homeDir,
 
-		UploadedCache:  filepath.Join(cacheDir, ".uploaded"),
-		BrowserSession: filepath.Join(cacheDir, ".browser_session"),
-		AppLog:         filepath.Join(cacheDir, "rockpload.log"),
+		UploadedCache:         filepath.Join(cacheDir, ".uploaded"),
+		BrowserSession:        filepath.Join(cacheDir, ".browser_session"),
+		AppLog:                filepath.Join(cacheDir, "rockpload.log"),
+		LastCachedGameVersion: filepath.Join(cacheDir, "last_game_version.json"),
 
 		AppLock:    filepath.Join(configDir, "rockpload.lock"),
 		TokensPath: filepath.Join(configDir, ".tokens"),
