@@ -12,8 +12,8 @@ const (
 )
 
 type RLVersionInfo struct {
-	GameVersion string
-	FeatureSet  string
+	GameVersion string `json:"game_version"`
+	FeatureSet  string `json:"feature_set"`
 }
 
 type RLLogInfo struct {

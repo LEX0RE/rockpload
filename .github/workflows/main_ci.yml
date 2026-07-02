@@ -58,12 +58,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Java Configuration
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
       - name: Check project version
         run: bash ./scripts/set-version.sh --check
 
@@ -102,14 +96,6 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
-      - name: Install Bundletool
-        run: |
-          wget https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar -O bundletool.jar
-          
-          echo '#!/bin/bash' | sudo tee /usr/local/bin/bundletool
-          echo "java -jar $PWD/bundletool.jar \"\$@\"" | sudo tee -a /usr/local/bin/bundletool
-          sudo chmod +x /usr/local/bin/bundletool
-
       - name: Prepare Keystore
         run: |
           mkdir -p keystore
@@ -120,33 +106,11 @@ jobs:
           ROCKPLOAD_VERSION: "dev"
           BUILD_ANDROID: "true"
           ANDROID_APP_BUILD: ${{ github.run_number }}
-          ROCKPLOAD_KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
-          ROCKPLOAD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ROCKPLOAD_SIGNED: "false"
         run: |
           chmod +x ./scripts/build.sh
           chmod +x ./scripts/build-android.sh
           ./scripts/build.sh
-
-      - name: Download Bundletool
-        run: |
-          wget https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar -O bundletool.jar
-
-      - name: Extract Signed Universal APK
-        env:
-          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          bundletool build-apks \
-            --bundle=Rockpload.aab \
-            --output=Rockpload.apks \
-            --mode=universal \
-            --ks=keystore/rockpload.keystore \
-            --ks-pass=pass:$KEYSTORE_PASS \
-            --ks-key-alias=$KEY_ALIAS \
-            --key-pass=pass:$KEYSTORE_PASS
-            
-          unzip Rockpload.apks -d apks_dir
-          mv apks_dir/universal.apk releases/rockpload_dev-android.apk
 
       - name: Check generated files
         run: |

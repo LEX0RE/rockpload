@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -20,8 +21,9 @@ const (
 )
 
 type AccountManager struct {
-	appConfig  *config.AppConfig
-	psyNetList []*rlapi.PsyNet
+	appConfig         *config.AppConfig
+	psyNetList        []*rlapi.PsyNet
+	lastWorkingPsynet *rlapi.PsyNet
 
 	EventManager *tools.EventManager
 }
@@ -32,8 +34,17 @@ func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 	am := &AccountManager{
 		appConfig:    appConfig,
 		EventManager: tools.NewEventManager(),
-		psyNetList:   []*rlapi.PsyNet{rlapi.NewPsyNet()},
+		psyNetList:   []*rlapi.PsyNet{},
 	}
+
+	var lastWorkingVersion RLVersionInfo
+	if err := tools.LoadJSONFilePath(constant.Paths.LastCachedGameVersion, &lastWorkingVersion, false); err != nil {
+		logger.Rlogger.Warn("Failed to load PsyNet version info from cache", slog.Any("err", err))
+	}
+
+	am.AddPsyNetVersion(toRLVersionInfo(rlapi.NewPsyNet()))
+	am.AddPsyNetVersion(lastWorkingVersion)
+
 	am.RefreshProfile()
 
 	return am
@@ -348,6 +359,10 @@ func (am *AccountManager) currentPsyNet() *rlapi.PsyNet {
 func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T, error)) (T, error) {
 	logger.FuncDebug()
 
+	if len(am.psyNetList) <= 0 {
+		am.AddPsyNetVersion(toRLVersionInfo(rlapi.NewPsyNet()))
+	}
+
 	defaultGameVersion, defaultFeatureSet := am.psyNetList[0].GetVersion()
 	var result T
 	var err error
@@ -357,6 +372,7 @@ func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T
 
 		result, err = request(currPsyNet)
 		if err == nil {
+			am.updateLastWorkingPsyNet(currPsyNet)
 			return result, nil
 		}
 
@@ -376,4 +392,35 @@ func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T
 
 	logger.Rlogger.Info("Error with current PsyNet and no other PsyNet version found")
 	return result, err
+}
+
+func (am *AccountManager) updateLastWorkingPsyNet(psynet *rlapi.PsyNet) {
+	logger.FuncDebug()
+
+	if psynet == nil {
+		return
+	}
+
+	if am.lastWorkingPsynet != nil {
+		lwGameVersion, lwFeatureSet := am.lastWorkingPsynet.GetVersion()
+		currGameVersion, currFeatureSet := psynet.GetVersion()
+
+		if lwGameVersion == currGameVersion && lwFeatureSet == currFeatureSet {
+			return
+		}
+	}
+
+	am.lastWorkingPsynet = psynet
+
+	if err := tools.SaveJSONFilePath(constant.Paths.LastCachedGameVersion, toRLVersionInfo(am.lastWorkingPsynet)); err != nil {
+		logger.Rlogger.Warn("Failed to save PsyNet version info to cache", slog.Any("err", err))
+	}
+}
+
+func toRLVersionInfo(psyNet *rlapi.PsyNet) RLVersionInfo {
+	gameVersion, featureSet := psyNet.GetVersion()
+	return RLVersionInfo{
+		GameVersion: gameVersion,
+		FeatureSet:  featureSet,
+	}
 }
