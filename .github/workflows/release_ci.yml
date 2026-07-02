@@ -25,6 +25,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Java Configuration
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Verify release tag matches project version
         run: |
           bash ./scripts/set-version.sh --check
@@ -86,7 +92,7 @@ jobs:
           chmod +x ./scripts/build-android.sh
           ./scripts/build.sh
 
-      - name: Downloading de Bundletool
+      - name: Download Bundletool
         run: |
           wget https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar -O bundletool.jar
 
@@ -95,8 +101,8 @@ jobs:
           KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          java -jar bundletool.jar build-apks \
-            --bundle=fyne-cross/dist/android/Rockpload.aab \
+          bundletool build-apks \
+            --bundle=Rockpload.aab \
             --output=Rockpload.apks \
             --mode=universal \
             --ks=keystore/rockpload.keystore \
@@ -106,6 +112,11 @@ jobs:
             
           unzip Rockpload.apks -d apks_dir
           mv apks_dir/universal.apk releases/rockpload_${{ github.ref_name }}-android.apk
+
+      - name: Check generated files
+        run: |
+          ls -lh releases/
+          [ "$(ls -A releases/)" ] || (echo "Error: No generated file" && exit 1)
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3

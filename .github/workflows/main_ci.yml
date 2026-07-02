@@ -58,7 +58,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: ☕ Configuration de Java (pour bundletool)
+      - name: Java Configuration
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -116,18 +116,18 @@ jobs:
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore/rockpload.keystore
 
       - name: Build with Script
-        run: |
-          chmod +x ./scripts/build.sh
-          chmod +x ./scripts/build-android.sh
-          ./scripts/build.sh
         env:
           ROCKPLOAD_VERSION: "dev"
           BUILD_ANDROID: "true"
           ANDROID_APP_BUILD: ${{ github.run_number }}
           ROCKPLOAD_KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
           ROCKPLOAD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          chmod +x ./scripts/build.sh
+          chmod +x ./scripts/build-android.sh
+          ./scripts/build.sh
 
-      - name: Downloading de Bundletool
+      - name: Download Bundletool
         run: |
           wget https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar -O bundletool.jar
 
