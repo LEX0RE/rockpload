@@ -218,7 +218,7 @@ func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string
 	currentProgress := float64((uploadCtx.currentAllReplayIndex * len(uploadCtx.storageList)) + uploadCtx.storageIndex)
 	maxProgress := float64(uploadCtx.allReplaysLength * len(uploadCtx.storageList))
 
-	u.EventManager.Notify(EventUploadProgress, currentProgress/maxProgress)
+	u.EventManager.Notify(EventUploadProgress, max(0, currentProgress-1)/maxProgress)
 
 	if !storage.GetConfig().SendReplay {
 		return
