@@ -137,7 +137,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           bundletool build-apks \
-            --bundle=fyne-cross/dist/android/Rockpload.aab \
+            --bundle=Rockpload.aab \
             --output=Rockpload.apks \
             --mode=universal \
             --ks=keystore/rockpload.keystore \
