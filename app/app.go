@@ -14,7 +14,6 @@ import (
 	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
 )
 
 //go:embed assets/logo.png
@@ -41,12 +40,11 @@ type App struct {
 	rlSupervisor   *manager.RLSupervisor
 }
 
-func NewApp(version string) *App {
+func NewApp(version string, app fyne.App) *App {
 	logger.FuncDebug()
 
-	a := &App{version: version}
+	a := &App{version: version, app: app}
 
-	a.app = app.NewWithID("gg.lexore.rockpload")
 	if version == "dev" {
 		metadata := a.app.Metadata()
 		if rockploadVersion := metadata.Custom["rockploadVersion"]; rockploadVersion != "" {

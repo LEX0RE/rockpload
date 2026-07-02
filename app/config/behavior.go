@@ -64,7 +64,7 @@ func (bc *BehaviorConfig) GetBoolSettingsMap() map[BehaviorSettingType]*Setting[
 }
 
 func init() {
-	if runtime.GOOS == "android" {
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
 		delete(BehaviorSettingVisualMapping, AutoStart)
 		delete(BehaviorSettingVisualMapping, ExitInTray)
 		delete(BehaviorSettingVisualMapping, StartInTray)

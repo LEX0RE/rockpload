@@ -1,14 +1,20 @@
 package ui
 
 import (
+	"log/slog"
+	"os"
+	"runtime"
 	"slices"
 	"sort"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/constant"
+	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
@@ -78,11 +84,57 @@ func NewBehaviorSettingPopup(p *Popup) *BehaviorSettingPopup {
 	})
 	saveBtn.Importance = widget.HighImportance
 
-	content := container.NewVBox(
-		sp.optionCheckGroup,
-		layout.NewSpacer(),
-		saveBtn,
-	)
+	var content *fyne.Container
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+		ExportLogsButton := widget.NewButton("Export Logs", func() {
+			saveDialog := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
+				if writer == nil || err != nil {
+					return
+				}
+
+				_, err = tools.PathExists(constant.Paths.AppLog)
+				if err != nil {
+					logger.Rlogger.Error("Error checking logs file:", slog.Any("err", err))
+					dialog.ShowInformation("Error", "Failed to export logs!\nLogs file not found", p.parentWindow)
+					return
+				}
+
+				defer writer.Close()
+				logData, err := os.ReadFile(constant.Paths.AppLog)
+				if err != nil {
+					logger.Rlogger.Error("Error reading logs:", slog.Any("err", err))
+					dialog.ShowInformation("Error", "Failed to export logs!\nError reading logs file", p.parentWindow)
+					return
+				}
+
+				_, err = writer.Write(logData)
+				if err != nil {
+					logger.Rlogger.Error("Error writing of export:", slog.Any("err", err))
+					dialog.ShowInformation("Error", "Failed to export logs!\nError writing logs file", p.parentWindow)
+					return
+				}
+
+				dialog.ShowInformation("Success", "Logs exported successfully!", p.parentWindow)
+
+			}, p.parentWindow)
+
+			saveDialog.SetFileName("rockpload_logs.txt")
+			saveDialog.Show()
+		})
+		content = container.NewVBox(
+			ExportLogsButton,
+			layout.NewSpacer(),
+			sp.optionCheckGroup,
+			layout.NewSpacer(),
+			saveBtn,
+		)
+	} else {
+		content = container.NewVBox(
+			sp.optionCheckGroup,
+			layout.NewSpacer(),
+			saveBtn,
+		)
+	}
 
 	sp.SetContent(content)
 

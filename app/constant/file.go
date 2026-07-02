@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"fyne.io/fyne/v2"
 )
 
 const (
@@ -32,9 +34,9 @@ type AppPaths struct {
 
 var Paths *AppPaths
 
-func InitPaths(force bool) {
+func InitPaths(app fyne.App) {
 	// No logger as constant are used in logger
-	if Paths != nil && force != true {
+	if Paths != nil {
 		return
 	}
 
@@ -100,7 +102,7 @@ func getConfigPath() string {
 
 func getHomePath() string {
 	// No logger as constant are used in logger
-	if runtime.GOOS == "android" {
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
 		log.Println("Android detected: redirecting HomePath to internal ConfigPath")
 		return getConfigPath()
 	}

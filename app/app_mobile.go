@@ -5,7 +5,6 @@ package app
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
-	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
@@ -29,8 +28,6 @@ func (m *mobileScaledTheme) Size(name fyne.ThemeSizeName) float32 {
 
 func (a *App) configureApp() {
 	logger.FuncDebug()
-
-	constant.InitPaths(true)
 
 	a.app.Settings().SetTheme(&mobileScaledTheme{Theme: theme.DefaultTheme()})
 }
