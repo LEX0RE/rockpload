@@ -52,6 +52,7 @@ echo "Building Android APK $OUTPUT..."
         -keyStore "keystore/rockpload.keystore" \
         -keyStorePass "$ROCKPLOAD_KEYSTORE_PASS" \
         -keyPass "$ROCKPLOAD_KEYSTORE_PASS" \
+        -keyName "$ROCKPLOAD_KEY_ALIAS"
 )
 
 APK_FILE="$(find "$ROOT_DIR" -maxdepth 1 -name '*.apk' -print -quit)"
