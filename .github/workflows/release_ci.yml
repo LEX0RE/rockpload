@@ -19,13 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Prepare Keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > rockpload.keystore
-          echo "ROCKPLOAD_KEYSTORE_PATH=$(pwd)/rockpload.keystore" >> $GITHUB_ENV
-          echo "ROCKPLOAD_KEYSTORE_PASS=${{ secrets.KEYSTORE_PASS }}" >> $GITHUB_ENV
-          echo "ROCKPLOAD_KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -76,15 +69,43 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
-      - name: Build with Script
+      - name: Prepare Keystore
         run: |
-          chmod +x ./scripts/build.sh
-          chmod +x ./scripts/build-android.sh
-          ./scripts/build.sh
+          mkdir -p keystore
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore/rockpload.keystore
+
+      - name: Build with Script
         env:
           ROCKPLOAD_VERSION: ${{ github.ref_name }}
           BUILD_ANDROID: "true"
           ANDROID_APP_BUILD: ${{ github.run_number }}
+          ROCKPLOAD_KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          ROCKPLOAD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          chmod +x ./scripts/build.sh
+          chmod +x ./scripts/build-android.sh
+          ./scripts/build.sh
+
+      - name: Downloading de Bundletool
+        run: |
+          wget https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar -O bundletool.jar
+
+      - name: Extracting Signed Universal APK
+        env:
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          java -jar bundletool.jar build-apks \
+            --bundle=fyne-cross/dist/android/Rockpload.aab \
+            --output=Rockpload.apks \
+            --mode=universal \
+            --ks=keystore/rockpload.keystore \
+            --ks-pass=pass:$KEYSTORE_PASS \
+            --ks-key-alias=$KEY_ALIAS \
+            --key-pass=pass:$KEYSTORE_PASS
+            
+          unzip Rockpload.apks -d apks_dir
+          mv apks_dir/universal.apk releases/rockpload_${{ github.ref_name }}-android.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3

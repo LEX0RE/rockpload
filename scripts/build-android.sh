@@ -41,14 +41,17 @@ echo "Building Android APK $OUTPUT..."
 
 (
     cd "$ROOT_DIR"
-    fyne package \
+    fyne release \
         -os android \
         -appID "$APP_ID" \
         -name "$APP_NAME" \
         -icon app/assets/logo.png \
         -appVersion "$ANDROID_APP_VERSION" \
         -appBuild "$APP_BUILD" \
-        -metadata "rockploadVersion=$VERSION_CLEAN"
+        -metadata "rockploadVersion=$VERSION_CLEAN" \
+        -keyStore "keystore/rockpload.keystore" \
+        -keyStorePass "$ROCKPLOAD_KEYSTORE_PASS" \
+        -keyPass "$ROCKPLOAD_KEYSTORE_PASS" \
 )
 
 APK_FILE="$(find "$ROOT_DIR" -maxdepth 1 -name '*.apk' -print -quit)"
