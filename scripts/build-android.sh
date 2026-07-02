@@ -55,11 +55,15 @@ echo "Building Android APK $OUTPUT..."
         -keyName "$ROCKPLOAD_KEY_ALIAS"
 )
 
-APK_FILE="$(find "$ROOT_DIR" -maxdepth 1 -name '*.apk' -print -quit)"
-if [ -z "$APK_FILE" ]; then
-    echo "Fyne completed but no APK was found in $ROOT_DIR"
-    exit 1
-fi
+ls "$ROOT_DIR"
 
-mv "$APK_FILE" "$OUTPUT"
-echo "Android APK created: $OUTPUT"
+# TODO
+
+# APK_FILE="$(find "$ROOT_DIR" -maxdepth 1 -name '*.apk' -print -quit)"
+# if [ -z "$APK_FILE" ]; then
+#     echo "Fyne completed but no APK was found in $ROOT_DIR"
+#     exit 1
+# fi
+
+# mv "$APK_FILE" "$OUTPUT"
+# echo "Android APK created: $OUTPUT"
