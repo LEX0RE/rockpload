@@ -24,7 +24,7 @@ type Updater struct {
 	UpdateInfo *UpdateInfo
 }
 
-const uploaderUpdateURL = "http://host.docker.internal:3000/api/rockpload"
+const uploaderUpdateURL = "https://lexore.ca/rocky/api/rockpload"
 
 func NewUpdater() *Updater {
 	logger.FuncDebug()
