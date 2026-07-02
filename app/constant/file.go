@@ -1,31 +1,74 @@
 package constant
 
 import (
+	"log"
 	"os"
 	"path/filepath"
+	"runtime"
+
+	"fyne.io/fyne/v2"
 )
 
 const (
 	rockploadCacheDir = "rockpload"
 )
 
-var (
-	UploadedCache  = filepath.Join(GetCachePath(), ".uploaded")
-	BrowserSession = filepath.Join(GetCachePath(), ".browser_session")
-	AppLog         = filepath.Join(GetCachePath(), "rockpload.log")
+type AppPaths struct {
+	CacheDir  string
+	ConfigDir string
+	HomeDir   string
 
-	AppLock    = filepath.Join(GetConfigPath(), "rockpload.lock")
-	TokensPath = filepath.Join(GetConfigPath(), ".tokens")
+	UploadedCache  string
+	BrowserSession string
+	AppLog         string
 
-	SettingsFolder       = filepath.Join(GetConfigPath(), "settings")
-	AccountSettingsFile  = filepath.Join(SettingsFolder, "account.json")
-	StorageSettingsFile  = filepath.Join(SettingsFolder, "storage.json")
-	BehaviorSettingsFile = filepath.Join(SettingsFolder, "behavior.json")
-	SecretSettingsFile   = filepath.Join(SettingsFolder, ".secrets.json")
-)
+	AppLock    string
+	TokensPath string
 
-func GetCachePath() string {
-	// No logger as some global var use it
+	SettingsFolder       string
+	AccountSettingsFile  string
+	StorageSettingsFile  string
+	BehaviorSettingsFile string
+	SecretSettingsFile   string
+}
+
+var Paths *AppPaths
+
+func InitPaths(app fyne.App) {
+	// No logger as constant are used in logger
+	if Paths != nil {
+		return
+	}
+
+	cacheDir := getCachePath()
+	configDir := getConfigPath()
+	homeDir := getHomePath()
+
+	settingsDir := filepath.Join(configDir, "settings")
+	os.MkdirAll(settingsDir, 0700)
+
+	Paths = &AppPaths{
+		CacheDir:  cacheDir,
+		ConfigDir: configDir,
+		HomeDir:   homeDir,
+
+		UploadedCache:  filepath.Join(cacheDir, ".uploaded"),
+		BrowserSession: filepath.Join(cacheDir, ".browser_session"),
+		AppLog:         filepath.Join(cacheDir, "rockpload.log"),
+
+		AppLock:    filepath.Join(configDir, "rockpload.lock"),
+		TokensPath: filepath.Join(configDir, ".tokens"),
+
+		SettingsFolder:       settingsDir,
+		AccountSettingsFile:  filepath.Join(settingsDir, "account.json"),
+		StorageSettingsFile:  filepath.Join(settingsDir, "storage.json"),
+		BehaviorSettingsFile: filepath.Join(settingsDir, "behavior.json"),
+		SecretSettingsFile:   filepath.Join(settingsDir, ".secrets.json"),
+	}
+}
+
+func getCachePath() string {
+	// No logger as constant are used in logger
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		dir = os.TempDir()
@@ -39,11 +82,14 @@ func GetCachePath() string {
 	return dir
 }
 
-func GetConfigPath() string {
-	// No logger as some global var use it
+func getConfigPath() string {
+	// No logger as constant are used in logger
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		panic(err)
+		dir, err = os.UserCacheDir()
+		if err != nil {
+			dir = os.TempDir()
+		}
 	}
 
 	dir = filepath.Join(dir, rockploadCacheDir)
@@ -54,13 +100,17 @@ func GetConfigPath() string {
 	return dir
 }
 
-func GetHomePath() string {
-	// No logger as some global var use it
+func getHomePath() string {
+	// No logger as constant are used in logger
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+		log.Println("Android detected: redirecting HomePath to internal ConfigPath")
+		return getConfigPath()
+	}
+
 	dir, err := os.UserHomeDir()
 	if err != nil {
-		panic(err)
+		dir = getConfigPath()
 	}
 
 	return dir
-
 }

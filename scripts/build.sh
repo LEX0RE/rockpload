@@ -68,3 +68,11 @@ CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_ENABLED=1 GOOS=$OS GOAR
 #############################
 
 rm -f "$ROOT_DIR"/*.syso
+
+#################
+# BUILD ANDROID #
+#################
+
+if [ "${BUILD_ANDROID:-false}" = "true" ]; then
+    "$ROOT_DIR/scripts/build-android.sh"
+fi

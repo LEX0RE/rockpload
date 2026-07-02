@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -87,9 +88,12 @@ func (a *Auth) OpenAuth() {
 		}
 	}()
 
-	err := a.openAutoAuth()
-	if err != nil {
-		a.logger.Error("Failed to retrieve token from auto browser (will try manually):", slog.Any("err", err))
+	if runtime.GOOS != "android" && runtime.GOOS != "ios" {
+		if err := a.openAutoAuth(); err != nil {
+			a.logger.Error("Failed to retrieve token from auto browser (will try manually):", slog.Any("err", err))
+			a.openAuthURL()
+		}
+	} else {
 		a.openAuthURL()
 	}
 }
@@ -244,7 +248,7 @@ func (a *Auth) setEOSToken(token *rlapi.EOSTokenResponse) {
 func (a *Auth) tokenPath() AuthTokenPath {
 	logger.FuncDebug()
 
-	basePath := filepath.Join(constant.TokensPath, TokenFilePrefix+fmt.Sprint(a.ProfileId))
+	basePath := filepath.Join(constant.Paths.TokensPath, TokenFilePrefix+fmt.Sprint(a.ProfileId))
 	return AuthTokenPath{
 		EGS: basePath + "_egs",
 		EOS: basePath + "_eos",

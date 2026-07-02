@@ -54,8 +54,10 @@ func SetLogger() {
 
 	var writer io.Writer = os.Stdout
 
-	logFile, err := os.OpenFile(constant.AppLog, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err == nil {
+	logFile, err := os.OpenFile(constant.Paths.AppLog, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		fmt.Printf("ERROR: Unable to open log file (%s): %v\n", constant.Paths.AppLog, err)
+	} else {
 		logFile.WriteString(fmt.Sprintf("\n\n--- App Started at %s ---\n", time.Now().Format(time.RFC3339)))
 		writer = &safeMultiWriter{writers: []io.Writer{os.Stdout, logFile}}
 

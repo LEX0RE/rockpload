@@ -1,13 +1,20 @@
 package ui
 
 import (
+	"log/slog"
+	"os"
+	"runtime"
 	"slices"
+	"sort"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/constant"
+	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
@@ -21,22 +28,30 @@ type BehaviorSettingPopup struct {
 	optionNameMapping map[string]config.BehaviorSettingType
 }
 
+func behaviorOptionTextList() []string {
+	options := make([]config.BehaviorSettingVisualDependancy, 0, len(config.BehaviorSettingVisualMapping))
+	for _, value := range config.BehaviorSettingVisualMapping {
+		options = append(options, value)
+	}
+
+	sort.Slice(options, func(i, j int) bool {
+		return options[i].Position < options[j].Position
+	})
+
+	optionTextList := make([]string, 0, len(options))
+	for _, value := range options {
+		optionTextList = append(optionTextList, value.Name)
+	}
+
+	return optionTextList
+}
+
 func NewBehaviorSettingPopup(p *Popup) *BehaviorSettingPopup {
 	logger.FuncDebug()
 
 	sp := &BehaviorSettingPopup{Popup: p, optionNameMapping: make(map[string]config.BehaviorSettingType)}
 
-	var optionTextList []string
-	for i := range len(config.BehaviorSettingVisualMapping) {
-		for _, value := range config.BehaviorSettingVisualMapping {
-			if value.Position == i {
-				optionTextList = append(optionTextList, value.Name)
-				break
-			}
-		}
-	}
-
-	sp.optionCheckGroup = widget.NewCheckGroup(optionTextList, sp.reload)
+	sp.optionCheckGroup = widget.NewCheckGroup(behaviorOptionTextList(), sp.reload)
 
 	for key, value := range config.BehaviorSettingVisualMapping {
 		sp.optionNameMapping[value.Name] = key
@@ -69,11 +84,57 @@ func NewBehaviorSettingPopup(p *Popup) *BehaviorSettingPopup {
 	})
 	saveBtn.Importance = widget.HighImportance
 
-	content := container.NewVBox(
-		sp.optionCheckGroup,
-		layout.NewSpacer(),
-		saveBtn,
-	)
+	var content *fyne.Container
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+		ExportLogsButton := widget.NewButton("Export Logs", func() {
+			saveDialog := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
+				if writer == nil || err != nil {
+					return
+				}
+
+				_, err = tools.PathExists(constant.Paths.AppLog)
+				if err != nil {
+					logger.Rlogger.Error("Error checking logs file:", slog.Any("err", err))
+					dialog.ShowInformation("Error", "Failed to export logs!\nLogs file not found", p.parentWindow)
+					return
+				}
+
+				defer writer.Close()
+				logData, err := os.ReadFile(constant.Paths.AppLog)
+				if err != nil {
+					logger.Rlogger.Error("Error reading logs:", slog.Any("err", err))
+					dialog.ShowInformation("Error", "Failed to export logs!\nError reading logs file", p.parentWindow)
+					return
+				}
+
+				_, err = writer.Write(logData)
+				if err != nil {
+					logger.Rlogger.Error("Error writing of export:", slog.Any("err", err))
+					dialog.ShowInformation("Error", "Failed to export logs!\nError writing logs file", p.parentWindow)
+					return
+				}
+
+				dialog.ShowInformation("Success", "Logs exported successfully!", p.parentWindow)
+
+			}, p.parentWindow)
+
+			saveDialog.SetFileName("rockpload_logs.txt")
+			saveDialog.Show()
+		})
+		content = container.NewVBox(
+			ExportLogsButton,
+			layout.NewSpacer(),
+			sp.optionCheckGroup,
+			layout.NewSpacer(),
+			saveBtn,
+		)
+	} else {
+		content = container.NewVBox(
+			sp.optionCheckGroup,
+			layout.NewSpacer(),
+			saveBtn,
+		)
+	}
 
 	sp.SetContent(content)
 
@@ -87,17 +148,7 @@ func (sp *BehaviorSettingPopup) Show() {
 }
 
 func (sp *BehaviorSettingPopup) reload(nextSelection []string) {
-	var optionTextList []string
-	for i := range len(config.BehaviorSettingVisualMapping) {
-		for _, value := range config.BehaviorSettingVisualMapping {
-			if value.Position == i {
-				optionTextList = append(optionTextList, value.Name)
-				break
-			}
-		}
-	}
-
-	sp.optionCheckGroup.Options = optionTextList
+	sp.optionCheckGroup.Options = behaviorOptionTextList()
 	sp.onCheckGroupChange(nextSelection)
 }
 

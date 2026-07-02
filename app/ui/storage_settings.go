@@ -391,6 +391,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 			wsp.infoContainer.replayPathEntry.Disable()
 		} else {
 			switch wsp.currentWebsite.StorageType {
+			case config.FileSystemConfig:
 			default:
 				fallthrough
 			case config.WebsiteConfig:

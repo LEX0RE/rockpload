@@ -60,7 +60,7 @@ func LoadUploadedCache(indexName string, nAccount int) *UploadCache {
 }
 
 func (c *UploadCache) cachePath() string {
-	return constant.UploadedCache + "_" + c.indexName
+	return constant.Paths.UploadedCache + "_" + c.indexName
 }
 
 func (c *UploadCache) Add(id string) {

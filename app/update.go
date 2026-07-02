@@ -1,12 +1,10 @@
 package app
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"runtime"
@@ -14,7 +12,6 @@ import (
 	"golang.org/x/mod/semver"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
-	"github.com/inconshreveable/go-update"
 )
 
 type UpdateInfo struct {
@@ -31,11 +28,13 @@ const uploaderUpdateURL = "https://lexore.ca/rocky/api/rockpload"
 
 func NewUpdater() *Updater {
 	logger.FuncDebug()
+
 	return &Updater{}
 }
 
 func (u *Updater) CheckForUpdate(currentVersion string) (bool, error) {
 	logger.FuncDebug()
+
 	url := fmt.Sprintf(uploaderUpdateURL+"?os=%s", runtime.GOOS)
 
 	resp, err := http.Get(url)
@@ -68,31 +67,13 @@ func (u *Updater) CheckForUpdate(currentVersion string) (bool, error) {
 		return true, nil
 	}
 
+	logger.Rlogger.Info("No update available")
 	return false, nil
-}
-
-func (u *Updater) ApplyUpdate() error {
-	logger.FuncDebug()
-	resp, err := http.Get(u.UpdateInfo.URL)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	if !verifyChecksum(data, u.UpdateInfo.Checksum) {
-		return fmt.Errorf("invalid checksum")
-	}
-
-	return update.Apply(bytes.NewReader(data), update.Options{})
 }
 
 func verifyChecksum(data []byte, expected string) bool {
 	logger.FuncDebug()
+
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:]) == expected
 }

@@ -45,6 +45,7 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 	fileSystemIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == FILE_SYSTEM_NAME })
 	if fileSystemIndex == -1 {
 		temp = append(temp, FILE_SYSTEM_STORAGE)
+		temp[len(temp)-1].ReplayPath = constant.Paths.HomeDir
 	} else {
 		temp[fileSystemIndex].IsPrimary = FILE_SYSTEM_STORAGE.IsPrimary
 		temp[fileSystemIndex].IsPredefined = FILE_SYSTEM_STORAGE.IsPredefined
@@ -161,7 +162,7 @@ var FILE_SYSTEM_STORAGE = &StorageConfig{
 	SendPing:     false,
 	PingPath:     "/",
 	SendReplay:   false,
-	ReplayPath:   constant.GetHomePath(),
+	ReplayPath:   "",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	SendLive:     false,
 	LivePath:     "",

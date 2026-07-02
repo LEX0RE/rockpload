@@ -19,13 +19,14 @@ A desktop companion app for Rocket League that watches your replay history and a
 - **Multi Website Upload**: Allow to upload for multiple website at the same time ([Rocky](https://lexore.ca/rocky) and [Ballchasing](https://ballchasing.com) are preconfigured, but you can add as many as you want)
 - **System Tray Integration**: Runs quietly in the background with system tray controls
 - **Auto-start Support**: Launch rockpload automatically on system startup
-- **Cross-platform**: Supports Linux and Windows (macOS is not supported yet)
+- **Cross-platform**: Supports Linux, Windows, and Android (macOS is not supported yet)
 - **Console Platform**: Supports Epic Games Store, Steam, and console (PlayStation, XBox, Nintendo) as long as the program run on a PC
 
 ## Supported Platforms
 
 - **Linux** (amd64)
 - **Windows** (amd64)
+- **Android** (APK)
 - **macOS**: Not supported yet
 
 
@@ -57,6 +58,21 @@ scripts/build.sh
 
 The build script will produce binaries for Linux and Windows in `releases/`.
 It uses the version from `VERSION` by default, or `ROCKPLOAD_VERSION` when set.
+
+To build the Android APK, install the Fyne CLI and the Android SDK/NDK, then run:
+
+```bash
+go install fyne.io/tools/cmd/fyne@latest
+scripts/build-android.sh
+```
+
+The Android APK is written to `releases/`. You can also include it in the standard release build:
+
+```bash
+BUILD_ANDROID=true scripts/build.sh
+```
+
+The mobile build keeps account management, authentication, replay history, manual uploads, and website/storage settings. Desktop-only integrations are disabled on mobile: system tray, autostart, Rocket League process/log watching, upload-on-RL-close, and local StatsAPI live stats.
 
 ### Update the Project Version
 

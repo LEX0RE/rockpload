@@ -1,12 +1,13 @@
-//go:build unix
+//go:build !windows
 
 package logger
 
 import (
 	"os"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 func redirectStderr(f *os.File) error {
-	return syscall.Dup2(int(f.Fd()), 2)
+	return unix.Dup3(int(f.Fd()), 2, 0)
 }

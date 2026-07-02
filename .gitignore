@@ -41,3 +41,10 @@ releases/
 
 # Windows logo .syso files
 *.syso
+
+# Fyne-cross build
+fyne-cross/
+
+# Keystore
+keystore/
+*.keystore
