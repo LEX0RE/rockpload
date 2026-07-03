@@ -46,7 +46,9 @@ echo "Building iOS App..."
         -name "$APP_NAME" \
         -icon app/assets/logo.png \
         -appVersion "$IOS_APP_VERSION" \
-        -appBuild "$APP_BUILD"
+        -appBuild "$APP_BUILD" \
+        -certificate "" \
+        -profile ""
 )
 
 APP_FOLDER="$(find "$ROOT_DIR" -maxdepth 1 -name '*.app' -print -quit)"
@@ -62,6 +64,9 @@ echo "Creating IPA for sideloading: $OUTPUT"
 cd "$ROOT_DIR"
 rm -rf Payload
 mkdir Payload
+
+find "$APP_FOLDER" -maxdepth 3
+
 mv "$APP_FOLDER" Payload/
 zip -qr "$OUTPUT" Payload
 rm -rf Payload

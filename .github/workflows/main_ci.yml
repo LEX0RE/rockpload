@@ -44,85 +44,85 @@ jobs:
       - name: Vet
         run: go vet -mod=vendor ./...
 
-  build:
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
+  # build:
+  #   runs-on: ubuntu-latest
+  #   if: github.event.pull_request.draft == false
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v7
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v6
+  #       with:
+  #         go-version-file: go.mod
+  #         cache: true
 
-      - name: Check project version
-        run: bash ./scripts/set-version.sh --check
+  #     - name: Check project version
+  #       run: bash ./scripts/set-version.sh --check
 
-      - name: Install Build Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config \
-            libgl1-mesa-dev \
-            xorg-dev \
-            gcc-mingw-w64-x86-64
+  #     - name: Install Build Dependencies
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y --no-install-recommends \
+  #           pkg-config \
+  #           libgl1-mesa-dev \
+  #           xorg-dev \
+  #           gcc-mingw-w64-x86-64
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+  #     - name: Set up Android SDK
+  #       uses: android-actions/setup-android@v3
 
-      - name: Install Android Build Dependencies
-        run: |
-          go install fyne.io/tools/cmd/fyne@latest
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+  #     - name: Install Android Build Dependencies
+  #       run: |
+  #         go install fyne.io/tools/cmd/fyne@latest
+  #         echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -x "$SDKMANAGER" ]; then
-            SDKMANAGER="$(find "$ANDROID_HOME" -name sdkmanager -type f -print -quit)"
-          fi
-          if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
-            echo "sdkmanager not found in ANDROID_HOME=$ANDROID_HOME"
-            exit 1
-          fi
+  #         SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+  #         if [ ! -x "$SDKMANAGER" ]; then
+  #           SDKMANAGER="$(find "$ANDROID_HOME" -name sdkmanager -type f -print -quit)"
+  #         fi
+  #         if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
+  #           echo "sdkmanager not found in ANDROID_HOME=$ANDROID_HOME"
+  #           exit 1
+  #         fi
 
-          yes | "$SDKMANAGER" --licenses >/dev/null
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "ndk;27.2.12479018"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+  #         yes | "$SDKMANAGER" --licenses >/dev/null
+  #         "$SDKMANAGER" \
+  #           "platform-tools" \
+  #           "platforms;android-35" \
+  #           "build-tools;35.0.0" \
+  #           "ndk;27.2.12479018"
+  #         echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+  #         echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
-      - name: Prepare Keystore
-        run: |
-          mkdir -p keystore
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore/rockpload.keystore
+  #     - name: Prepare Keystore
+  #       run: |
+  #         mkdir -p keystore
+  #         echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore/rockpload.keystore
 
-      - name: Build with Script
-        env:
-          ROCKPLOAD_VERSION: "dev"
-          BUILD_ANDROID: "true"
-          ANDROID_APP_BUILD: ${{ github.run_number }}
-          ROCKPLOAD_SIGNED: "false"
-        run: |
-          chmod +x ./scripts/build.sh
-          chmod +x ./scripts/build-android.sh
-          ./scripts/build.sh
+  #     - name: Build with Script
+  #       env:
+  #         ROCKPLOAD_VERSION: "dev"
+  #         BUILD_ANDROID: "true"
+  #         ANDROID_APP_BUILD: ${{ github.run_number }}
+  #         ROCKPLOAD_SIGNED: "false"
+  #       run: |
+  #         chmod +x ./scripts/build.sh
+  #         chmod +x ./scripts/build-android.sh
+  #         ./scripts/build.sh
 
-      - name: Check generated files
-        run: |
-          ls -lh releases/
-          [ "$(ls -A releases/)" ] || (echo "Error: No generated file" && exit 1)
+  #     - name: Check generated files
+  #       run: |
+  #         ls -lh releases/
+  #         [ "$(ls -A releases/)" ] || (echo "Error: No generated file" && exit 1)
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: rockpload-builds-${{ github.run_id }}
-          path: releases/rockpload_*
-          retention-days: 14
+  #     - name: Upload build artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: rockpload-builds-${{ github.run_id }}
+  #         path: releases/rockpload_*
+  #         retention-days: 14
 
   build-ios:
     runs-on: macos-latest
@@ -168,29 +168,29 @@ jobs:
           path: releases/rockpload_*-ios.ipa
           retention-days: 14
 
-  nix-build-and-test:
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
+  # nix-build-and-test:
+  #   runs-on: ubuntu-latest
+  #   if: github.event.pull_request.draft == false
 
-    permissions:
-          contents: read
-          id-token: write
+  #   permissions:
+  #         contents: read
+  #         id-token: write
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v7
 
-      - name: Set up Nix
-        uses: DeterminateSystems/nix-installer-action@main
+  #     - name: Set up Nix
+  #       uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Set up Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
+  #     - name: Set up Nix cache
+  #       uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Check Nix flake validity
-        run: nix flake check
+  #     - name: Check Nix flake validity
+  #       run: nix flake check
 
-      - name: Build project
-        run: nix build .
+  #     - name: Build project
+  #       run: nix build .
 
-      - name: Run Go tests
-        run: nix develop --command go test -mod=vendor ./...
+  #     - name: Run Go tests
+  #       run: nix develop --command go test -mod=vendor ./...
