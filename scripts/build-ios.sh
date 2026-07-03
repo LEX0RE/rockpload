@@ -42,13 +42,13 @@ echo "Building iOS App..."
     cd "$ROOT_DIR"
     fyne release \
         -os ios \
+        -certificate "" \
+        -profile "" \
         -appID "$APP_ID" \
         -name "$APP_NAME" \
         -icon app/assets/logo.png \
         -appVersion "$IOS_APP_VERSION" \
-        -appBuild "$APP_BUILD" \
-        -certificate "" \
-        -profile ""
+        -appBuild "$APP_BUILD"
 )
 
 APP_FOLDER="$(find "$ROOT_DIR" -maxdepth 1 -name '*.app' -print -quit)"
