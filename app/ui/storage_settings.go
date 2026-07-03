@@ -64,11 +64,11 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 
 	wsp := &StorageSettingsPopup{Popup: p, infoContainer: StorageInfoContainer{}}
 
-	wsp.btnSave = widget.NewButtonWithIcon("Save Changes", theme.DocumentSaveIcon(), wsp.onSaveBtn)
+	wsp.btnSave = widget.NewButtonWithIcon("Save", theme.DocumentSaveIcon(), wsp.onSaveBtn)
 	wsp.btnSave.Importance = widget.HighImportance
 	wsp.btnSave.Disable()
 
-	wsp.btnDelete = widget.NewButtonWithIcon("Delete this storage", theme.DeleteIcon(), wsp.onDeleteStorageBtn)
+	wsp.btnDelete = widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), wsp.onDeleteStorageBtn)
 	wsp.btnDelete.Importance = widget.DangerImportance
 	wsp.btnDelete.Disable()
 
@@ -112,7 +112,7 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	wsp.list.OnSelected = wsp.onSelected
 	wsp.list.OnUnselected = wsp.onUnselected
 
-	btnAdd := widget.NewButtonWithIcon("Add a storage", theme.ContentAddIcon(), wsp.onAddStorageBtn)
+	btnAdd := widget.NewButtonWithIcon("Add", theme.ContentAddIcon(), wsp.onAddStorageBtn)
 
 	wsp.leftPanel = container.NewBorder(nil, btnAdd, nil, nil, wsp.list)
 	wsp.split = container.NewHSplit(wsp.leftPanel, wsp.detailPanel)
@@ -196,7 +196,7 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.pingPathForm = widget.NewFormItem("Ping Path", wsp.infoContainer.pingPathEntry)
 	wsp.infoContainer.sendReplayForm = widget.NewFormItem("Send Replay", wsp.infoContainer.sendReplayCheck)
 	wsp.infoContainer.replayPathForm = widget.NewFormItem("Replay Path", wsp.infoContainer.replayPathEntry)
-	wsp.infoContainer.templateNameForm = widget.NewFormItem("Replay Name Template", wsp.infoContainer.templateNameEntry)
+	wsp.infoContainer.templateNameForm = widget.NewFormItem("Name Template", wsp.infoContainer.templateNameEntry)
 	wsp.infoContainer.sendLiveForm = widget.NewFormItem("Send Live", wsp.infoContainer.sendLiveCheck)
 	wsp.infoContainer.livePathForm = widget.NewFormItem("Live Path", wsp.infoContainer.livePathEntry)
 

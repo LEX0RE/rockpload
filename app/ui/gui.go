@@ -67,7 +67,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 		Clipboard:      clipboard,
 	}
 
-	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Welcome to Rockpload! ("+version+")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
+	centeredLabel := container.NewCenter(widget.NewLabelWithStyle("Rockpload ("+version+")", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
 
 	accountPopup := NewAccountSettingsPopup(NewPopup("Account Settings", g.window, appConfig, accountManager))
 	accountBtn := widget.NewButtonWithIcon("", theme.AccountIcon(), func() { accountPopup.Show() })
@@ -90,9 +90,12 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 
 	header := container.NewStack(centeredLabel, rightAlignedBtn)
 
+	descriptionLabel := widget.NewLabel("This program will fetch your Rocket League match history and upload replays to any website you want.")
+	descriptionLabel.Wrapping = fyne.TextWrapWord
+
 	infoBox := container.NewVBox(
 		header,
-		widget.NewLabel("This program will fetch your Rocket League match history and upload replays to any website you want."),
+		descriptionLabel,
 		widget.NewSeparator(),
 		g.RLDetectedLabel,
 	)
@@ -137,14 +140,17 @@ func (g *GUI) UpdateState() {
 			g.MatchHistoryData = []string{}
 
 			for _, match := range selectedAccount.Player.MatchHistory {
-				matchUploaded := ""
-				if slices.Contains(selectedAccount.HistorySended, match.Match.MatchGUID) {
-					matchUploaded = "   (Uploaded)"
-				}
+				matchLabel := "[" + match.Match.MatchGUID[:2] + "..." + match.Match.MatchGUID[len(match.Match.MatchGUID)-2:] + "] "
 
 				matchDate := time.Unix(match.Match.RecordStartTimestamp, 0).Format("2006-01-02 15:04:05")
 				matchScore := strconv.Itoa(match.Match.Team0Score) + " - " + strconv.Itoa(match.Match.Team1Score)
-				g.MatchHistoryData = append(g.MatchHistoryData, matchDate+" : "+matchScore+" ("+match.Match.MatchGUID+")"+matchUploaded)
+				matchLabel += matchDate + " : " + matchScore
+
+				if slices.Contains(selectedAccount.HistorySended, match.Match.MatchGUID) {
+					matchLabel += "   (Uploaded)"
+				}
+
+				g.MatchHistoryData = append(g.MatchHistoryData, matchLabel)
 			}
 			g.MatchHistoryList.Refresh()
 		} else {
@@ -292,8 +298,8 @@ func (g *GUI) createPlayerUI() {
 		}, g.window)
 	})
 
-	clearCacheBtn := widget.NewButton("Clear Match History Cache", func() {
-		dialog.ShowConfirm("Clear Match History Cache", "Are you sure you want to delete match history cache ?", func(confirmed bool) {
+	clearCacheBtn := widget.NewButton("Clear History Cache", func() {
+		dialog.ShowConfirm("Clear History Cache", "Are you sure you want to delete match history cache ?", func(confirmed bool) {
 			if confirmed {
 				storage := g.appConfig.StorageSettings.Get()
 
@@ -309,6 +315,15 @@ func (g *GUI) createPlayerUI() {
 		}, g.window)
 	})
 
+	var connectionContainer *fyne.Container
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+		buttonContainer := container.New(NewCenterWrapLayout(), disconnectBtn, clearCacheBtn, uploadBtn)
+		connectionContainer = container.NewBorder(nil, buttonContainer, g.ConnectedLabel, nil, nil)
+	} else {
+		buttonContainer := container.NewBorder(nil, nil, disconnectBtn, uploadBtn, clearCacheBtn)
+		connectionContainer = container.NewBorder(nil, nil, g.ConnectedLabel, buttonContainer, nil)
+	}
+
 	matchHistoryAccordion := widget.NewAccordionItem("Match History", g.MatchHistoryList)
 	matchHistoryAccordion.Open = false
 
@@ -316,13 +331,7 @@ func (g *GUI) createPlayerUI() {
 	centerTopBox := container.NewVBox(g.RLConnectedWarning, uploadProgressBox)
 
 	g.PlayerBox = container.NewBorder(
-		container.NewBorder(
-			nil,
-			nil,
-			g.ConnectedLabel,
-			container.NewBorder(nil, nil, disconnectBtn, uploadBtn, clearCacheBtn),
-			nil,
-		),
+		connectionContainer,
 		nil,
 		nil,
 		nil,

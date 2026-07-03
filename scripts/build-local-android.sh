@@ -79,5 +79,22 @@ mv "$APK_FILE" "$OUTPUT"
 rm -rf "$ROOT_DIR/fyne-cross/"
 echo "Android APK created: $OUTPUT"
 
-echo "To install on emulator: adb install $OUTPUT"
-echo "To get logs on emulator: adb logcat | grep -i 'component=rockpload'"
+echo "--- Android Installation ---"
+if command -v adb >/dev/null 2>&1; then
+    if adb devices | grep -E -v 'List of devices attached|^$' >/dev/null; then
+        echo "Android device/emulator detected. Installing APK automatically..."
+        
+        adb install -r "$OUTPUT"
+        
+        echo "Installation completed."
+        echo "To view logs run: adb logcat | grep -i 'component=rockpload'"
+    else
+        echo "No Android device connected."
+        echo "To install manually: adb install $OUTPUT"
+        echo "To view logs: adb logcat | grep -i 'component=rockpload'"
+    fi
+else
+    echo "adb command not found."
+    echo "To install manually: adb install $OUTPUT"
+    echo "To view logs: adb logcat | grep -i 'component=rockpload'"
+fi
