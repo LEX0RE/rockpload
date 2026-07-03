@@ -43,7 +43,7 @@ echo "Building iOS App..."
     fyne release \
         -os ios \
         -certificate "" \
-        -profile "" \
+        --profile "" \
         -appID "$APP_ID" \
         -name "$APP_NAME" \
         -icon app/assets/logo.png \
