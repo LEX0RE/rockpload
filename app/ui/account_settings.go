@@ -73,7 +73,9 @@ func NewAccountSettingsPopup(p *Popup) *AccountSettingsPopup {
 		row2,
 	)
 
-	asp.list = widget.NewList(
+	var listContainer *fyne.Container
+	asp.list, listContainer = NewMinItemsList(
+		5,
 		func() int { return len(asp.getAllAccounts()) },
 		func() fyne.CanvasObject { return widget.NewLabel("Template...") },
 		func(i widget.ListItemID, o fyne.CanvasObject) {
@@ -96,10 +98,9 @@ func NewAccountSettingsPopup(p *Popup) *AccountSettingsPopup {
 	asp.list.OnSelected = asp.onSelected
 	asp.list.OnUnselected = asp.onUnselected
 
-	content := container.NewBorder(topSection, bottomSection, nil, nil, asp.list)
+	content := container.NewBorder(topSection, bottomSection, nil, nil, listContainer)
 
 	asp.SetContent(content)
-	asp.popup.Resize(fyne.NewSize(350, 450))
 
 	return asp
 }

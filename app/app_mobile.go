@@ -23,7 +23,7 @@ func (m *mobileScaledTheme) Size(name fyne.ThemeSizeName) float32 {
 	logger.FuncDebug()
 
 	baseSize := m.Theme.Size(name)
-	return baseSize * 0.55
+	return baseSize * 0.70
 }
 
 func (a *App) configureApp() {
