@@ -40,7 +40,7 @@ echo "Building iOS App..."
 
 (
     cd "$ROOT_DIR"
-    fyne package \
+    fyne release \
         -os ios \
         -appID "$APP_ID" \
         -name "$APP_NAME" \
