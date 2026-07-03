@@ -138,3 +138,52 @@ jobs:
       - name: Update beta branch
         if: ${{ contains(github.ref_name, '-') }}
         run: git push origin HEAD:refs/heads/beta --force
+
+  build-ios-release:
+    runs-on: macos-latest
+    needs: build-and-release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify release tag matches project version
+        run: |
+          bash ./scripts/set-version.sh --check
+          expected_tag="$(bash ./scripts/set-version.sh --print-tag)"
+          if [ "$expected_tag" != "$GITHUB_REF_NAME" ]; then
+            echo "Release tag $GITHUB_REF_NAME does not match VERSION tag $expected_tag"
+            exit 1
+          fi
+
+      - name: Install Fyne
+        run: |
+          go install fyne.io/tools/cmd/fyne@latest
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Build with Script
+        env:
+          ROCKPLOAD_VERSION: ${{ github.ref_name }}
+          BUILD_IOS: "true"
+          IOS_APP_BUILD: ${{ github.run_number }}
+        run: |
+          chmod +x ./scripts/build-ios.sh
+          go generate
+          ./scripts/build.sh
+
+      - name: Check generated files
+        run: |
+          ls -lh releases/
+          [ "$(ls -A releases/)" ] || (echo "Error: No generated file" && exit 1)
+
+      - name: Upload iOS Release Asset
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            releases/rockpload_*-ios.ipa

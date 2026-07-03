@@ -124,6 +124,50 @@ jobs:
           path: releases/rockpload_*
           retention-days: 14
 
+  build-ios:
+    runs-on: macos-latest
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check project version
+        run: bash ./scripts/set-version.sh --check
+
+      - name: Install Fyne
+        run: |
+          go install fyne.io/tools/cmd/fyne@latest
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Build with Script
+        env:
+          ROCKPLOAD_VERSION: "dev"
+          BUILD_IOS: "true"
+          IOS_APP_BUILD: ${{ github.run_number }}
+        run: |
+          chmod +x ./scripts/build-ios.sh
+          go generate
+          ./scripts/build-ios.sh
+
+      - name: Check generated files
+        run: |
+          ls -lh releases/
+          [ "$(ls -A releases/)" ] || (echo "Error: No generated file" && exit 1)
+
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rockpload-ios-build-${{ github.run_id }}
+          path: releases/rockpload_*-ios.ipa
+          retention-days: 14
+
   nix-build-and-test:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false

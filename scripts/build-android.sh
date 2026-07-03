@@ -25,6 +25,7 @@ fi
 
 VERSION="${VERSION#v}"
 VERSION_CLEAN=$(echo "$VERSION" | sed 's/\//-/g')
+
 ANDROID_APP_VERSION="$VERSION_CLEAN"
 if [[ "$ANDROID_APP_VERSION" == *-* ]]; then
     ANDROID_APP_VERSION="${ANDROID_APP_VERSION%%-*}"
