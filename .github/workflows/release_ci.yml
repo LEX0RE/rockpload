@@ -75,6 +75,14 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
+      - name: Install Bundletool
+        run: |
+          wget https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar -O bundletool.jar
+          
+          echo '#!/bin/bash' | sudo tee /usr/local/bin/bundletool
+          echo "java -jar $PWD/bundletool.jar \"\$@\"" | sudo tee -a /usr/local/bin/bundletool
+          sudo chmod +x /usr/local/bin/bundletool
+
       - name: Prepare Keystore
         run: |
           mkdir -p keystore
@@ -92,10 +100,6 @@ jobs:
           chmod +x ./scripts/build.sh
           chmod +x ./scripts/build-android.sh
           ./scripts/build.sh
-
-      - name: Download Bundletool
-        run: |
-          wget https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar -O bundletool.jar
 
       - name: Extracting Signed Universal APK
         env:
