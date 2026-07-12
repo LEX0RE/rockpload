@@ -8,10 +8,15 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/LEX0RE/rockpload/app/constant"
+)
+
+const (
+	MAX_LOG_FILE_BACKUP = 20
 )
 
 type AppFilterHandler struct {
@@ -37,6 +42,10 @@ var lCounter = 0
 var funcDebugEnabled = os.Getenv("FUNC_DEBUG") == "true"
 
 func SetLogger() {
+	if err := rotateOnStartup(); err != nil {
+		fmt.Printf("ERROR: Code execution failed during log rotation: %v\n", err)
+	}
+
 	level := os.Getenv("SLOG_LEVEL")
 
 	slogOpts := &slog.HandlerOptions{}
@@ -59,7 +68,7 @@ func SetLogger() {
 	if err != nil {
 		fmt.Printf("ERROR: Unable to open log file (%s): %v\n", constant.Paths.AppLog, err)
 	} else {
-		logFile.WriteString(fmt.Sprintf("\n\n--- App Started at %s ---\n", time.Now().Format(time.RFC3339)))
+		fmt.Fprintf(logFile, "\n\n--- App Started at %s ---\n", time.Now().Format(time.RFC3339))
 		writer = &safeMultiWriter{writers: []io.Writer{os.Stdout, logFile}}
 
 		err = redirectStderr(logFile)
@@ -126,4 +135,32 @@ func Step() {
 	Rlogger.Debug("[" + fn.Name() + ":" + strconv.Itoa(line) + "] - Step " + strconv.Itoa(lCounter))
 
 	lCounter++
+}
+
+func rotateOnStartup() error {
+	if _, err := os.Stat(constant.Paths.AppLog); os.IsNotExist(err) {
+		return nil
+	}
+
+	basePath := strings.TrimSuffix(constant.Paths.AppLog, ".log")
+
+	for i := MAX_LOG_FILE_BACKUP - 1; i >= 1; i-- {
+		oldPath := basePath + "-" + strconv.Itoa(i) + ".log"
+		newPath := basePath + "-" + strconv.Itoa(i+1) + ".log"
+
+		if _, err := os.Stat(oldPath); err == nil {
+			_ = os.Remove(newPath)
+			if err := os.Rename(oldPath, newPath); err != nil {
+				return fmt.Errorf("failed to shift backup from %s to %s: %w", oldPath, newPath, err)
+			}
+		}
+	}
+
+	nextPath := basePath + "-1.log"
+	_ = os.Remove(nextPath)
+	if err := os.Rename(constant.Paths.AppLog, nextPath); err != nil {
+		return fmt.Errorf("failed to shift primary log to %s: %w", nextPath, err)
+	}
+
+	return nil
 }
