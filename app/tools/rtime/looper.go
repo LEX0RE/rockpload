@@ -56,3 +56,27 @@ func (l *Looper) Stop() {
 
 	l.Ticker.Stop()
 }
+
+func (l *Looper) SetDuration(duration time.Duration) {
+	logger.FuncDebug()
+
+	l.Ticker.SetDuration(duration)
+	l.Stop()
+	l.Start()
+}
+
+func (l *Looper) SetMinJitter(duration time.Duration) {
+	logger.FuncDebug()
+
+	l.Ticker.SetMinJitter(duration)
+	l.Stop()
+	l.Start()
+}
+
+func (l *Looper) SetMaxJitter(duration time.Duration) {
+	logger.FuncDebug()
+
+	l.Ticker.SetMaxJitter(duration)
+	l.Stop()
+	l.Start()
+}

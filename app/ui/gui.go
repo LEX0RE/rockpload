@@ -107,8 +107,6 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 	contentBox := container.NewBorder(g.loginBox, nil, nil, nil, g.playerBox)
 
 	g.window.SetContent(container.NewBorder(infoBox, nil, nil, nil, contentBox))
-	g.window.Resize(fyne.NewSize(450, 400))
-
 	g.UpdateState()
 
 	return g, nil

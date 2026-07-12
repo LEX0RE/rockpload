@@ -111,7 +111,7 @@ func (a *App) Run() {
 	a.initEvents()
 	a.startManager()
 
-	a.window.Resize(fyne.NewSize(450, 400))
+	a.window.Resize(fyne.NewSize(700, 450))
 
 	if a.canRunInTray() && a.appConfig.BehaviorConfig.ExitInTray.Get() && a.appConfig.BehaviorConfig.StartInTray.Get() {
 		a.app.Run()
@@ -124,6 +124,9 @@ func (a *App) initManager() {
 	logger.FuncDebug()
 
 	a.uploader = upload.NewUploader(a.appConfig, a.accountManager)
+	a.appConfig.BehaviorConfig.AutoUploadTime.Bind(a.uploader.SetDuration)
+	a.appConfig.BehaviorConfig.AutoUploadRandomTime.Bind(a.uploader.SetMaxJitter)
+
 	a.rlSupervisor = manager.NewRLSupervisor(a.appConfig, a.accountManager)
 
 	var err error

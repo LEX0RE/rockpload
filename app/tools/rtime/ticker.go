@@ -75,6 +75,24 @@ func (t *ticker) Set(value bool) {
 	}
 }
 
+func (t *ticker) SetDuration(duration time.Duration) {
+	logger.FuncDebug()
+
+	t.duration = duration
+}
+
+func (t *ticker) SetMinJitter(min time.Duration) {
+	logger.FuncDebug()
+
+	t.jitterMin = min
+}
+
+func (t *ticker) SetMaxJitter(max time.Duration) {
+	logger.FuncDebug()
+
+	t.jitterMax = max
+}
+
 func (t *ticker) run() {
 	logger.FuncDebug()
 

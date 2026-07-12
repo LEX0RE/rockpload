@@ -23,10 +23,7 @@ const (
 	EventUploadProgress        tools.EventType = "upload_progress"
 	EventReplayUploaded        tools.EventType = "replay_uploaded"
 
-	uploadSleep             = time.Second // Ballchasing PATCH is 2 req/sec max, so don't go below that
-	autoUploadTickerTime    = time.Minute * 45
-	autoUploadJitterMinTime = 0
-	autoUploadJitterMaxTime = time.Minute * 15
+	uploadSleep = time.Second // Ballchasing PATCH is 2 req/sec max, so don't go below that
 )
 
 type uploadCtx struct {
@@ -66,10 +63,13 @@ func NewUploader(appConfig *config.AppConfig, accountManager *manager.AccountMan
 
 	u := &Uploader{appConfig: appConfig, EventManager: tools.NewEventManager(), accountManager: accountManager}
 
+	autoUploadTime := appConfig.BehaviorConfig.AutoUploadTime.Get()
+	autoUploadRandomTime := appConfig.BehaviorConfig.AutoUploadRandomTime.Get()
+
 	if appConfig.BehaviorConfig.UploadOnLaunch.Get() {
-		u.Looper = rtime.NewLooper(autoUploadTickerTime, u.Run, u.Run, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
+		u.Looper = rtime.NewLooper(autoUploadTime, u.Run, u.Run, nil, 0, autoUploadRandomTime)
 	} else {
-		u.Looper = rtime.NewLooper(autoUploadTickerTime, u.Run, nil, nil, autoUploadJitterMinTime, autoUploadJitterMaxTime)
+		u.Looper = rtime.NewLooper(autoUploadTime, u.Run, nil, nil, 0, autoUploadRandomTime)
 	}
 
 	return u
