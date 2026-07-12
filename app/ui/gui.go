@@ -39,17 +39,18 @@ type GUI struct {
 	accountManager *manager.AccountManager
 	rlSupervisor   *manager.RLSupervisor
 
-	LoginBox  *fyne.Container
-	PlayerBox *fyne.Container
+	loginBox           *fyne.Container
+	retryConnectionBtn *widget.Button
+	playerBox          *fyne.Container
 
-	TokenEntry         *widget.Entry
-	ConnectedLabel     *widget.Label
-	MatchHistoryData   []string
-	MatchHistoryList   *widget.List
-	UploadStatus       *widget.Label
-	UploadProgress     *widget.ProgressBar
-	RLDetectedLabel    *fyne.Container
-	RLConnectedWarning *fyne.Container
+	tokenEntry         *widget.Entry
+	connectedLabel     *widget.Label
+	matchHistoryData   []string
+	matchHistoryList   *widget.List
+	uploadStatus       *widget.Label
+	uploadProgress     *widget.ProgressBar
+	rlDetectedLabel    *fyne.Container
+	rlConnectedWarning *fyne.Container
 
 	EventManager *tools.EventManager
 
@@ -83,8 +84,8 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 
 	warningRLDetectedLabel := container.NewCenter(widget.NewLabel("⚠️ Rocket League instance detected"))
 	warningBackground := canvas.NewRectangle(color.RGBA{R: 200, G: 100, B: 0, A: 255})
-	g.RLDetectedLabel = container.NewStack(warningBackground, warningRLDetectedLabel)
-	g.RLDetectedLabel.Hide()
+	g.rlDetectedLabel = container.NewStack(warningBackground, warningRLDetectedLabel)
+	g.rlDetectedLabel.Hide()
 
 	rightAlignedBtn := container.NewHBox(layout.NewSpacer(), accountBtn, storageSettingsBtn, settingsBtn)
 
@@ -97,13 +98,13 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 		header,
 		descriptionLabel,
 		widget.NewSeparator(),
-		g.RLDetectedLabel,
+		g.rlDetectedLabel,
 	)
 
 	g.createLoginUI()
 	g.createPlayerUI()
 
-	contentBox := container.NewBorder(g.LoginBox, nil, nil, nil, g.PlayerBox)
+	contentBox := container.NewBorder(g.loginBox, nil, nil, nil, g.playerBox)
 
 	g.window.SetContent(container.NewBorder(infoBox, nil, nil, nil, contentBox))
 	g.window.Resize(fyne.NewSize(450, 400))
@@ -120,24 +121,24 @@ func (g *GUI) UpdateState() {
 
 	g.RefreshConnectedAccount()
 
-	if g.RLDetectedLabel != nil && g.rlSupervisor.LastRLRunningState {
-		g.RLDetectedLabel.Show()
+	if g.rlDetectedLabel != nil && g.rlSupervisor.LastRLRunningState {
+		g.rlDetectedLabel.Show()
 	} else {
-		g.RLDetectedLabel.Hide()
+		g.rlDetectedLabel.Hide()
 	}
 
 	if selectedAccount != nil && selectedAccount.IsConnected() {
-		g.LoginBox.Hide()
-		g.PlayerBox.Show()
+		g.loginBox.Hide()
+		g.playerBox.Show()
 
 		if selectedAccount.Player.LastCheckOnline && g.appConfig.BehaviorConfig.NoUploadOnline.Get() {
-			g.RLConnectedWarning.Show()
+			g.rlConnectedWarning.Show()
 		} else {
-			g.RLConnectedWarning.Hide()
+			g.rlConnectedWarning.Hide()
 		}
 
 		if selectedAccount.Player.MatchHistory != nil {
-			g.MatchHistoryData = []string{}
+			g.matchHistoryData = []string{}
 
 			for _, match := range selectedAccount.Player.MatchHistory {
 				matchLabel := "[" + match.Match.MatchGUID[:2] + "..." + match.Match.MatchGUID[len(match.Match.MatchGUID)-2:] + "] "
@@ -150,23 +151,31 @@ func (g *GUI) UpdateState() {
 					matchLabel += "   (Uploaded)"
 				}
 
-				g.MatchHistoryData = append(g.MatchHistoryData, matchLabel)
+				g.matchHistoryData = append(g.matchHistoryData, matchLabel)
 			}
-			g.MatchHistoryList.Refresh()
+			g.matchHistoryList.Refresh()
 		} else {
-			g.MatchHistoryData = []string{}
-			g.MatchHistoryList.Refresh()
+			g.matchHistoryData = []string{}
+			g.matchHistoryList.Refresh()
 		}
 	} else {
-		g.LoginBox.Show()
-		g.PlayerBox.Hide()
+		g.loginBox.Show()
+		g.playerBox.Hide()
 
-		if g.RLConnectedWarning != nil {
-			g.RLConnectedWarning.Hide()
+		if g.rlConnectedWarning != nil {
+			g.rlConnectedWarning.Hide()
 		}
 
-		g.MatchHistoryData = []string{}
-		g.MatchHistoryList.Refresh()
+		if selectedAccount.Player.Auth.HasTokens() {
+			g.retryConnectionBtn.Enable()
+			g.retryConnectionBtn.Show()
+		} else {
+			g.retryConnectionBtn.Disable()
+			g.retryConnectionBtn.Hide()
+		}
+
+		g.matchHistoryData = []string{}
+		g.matchHistoryList.Refresh()
 	}
 }
 
@@ -205,8 +214,7 @@ func (g *GUI) createLoginUI() {
 			selectedAccount := g.accountManager.GetSelected()
 			selectedAccount.Player.Auth.OpenDeviceAuth()
 
-			err = selectedAccount.Player.Auth.AuthenticateWithDeviceCode()
-			if err != nil {
+			if err = selectedAccount.Player.Auth.AuthenticateWithDeviceCode(); err != nil {
 				logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
 			}
 		}()
@@ -216,18 +224,17 @@ func (g *GUI) createLoginUI() {
 	// Auth with Auth Code
 	ConnectBtn := widget.NewButton("Connect", func() {
 		selectedAccount := g.accountManager.GetSelected()
-		err := selectedAccount.Player.Auth.AuthenticateWithAuthCode(g.TokenEntry.Text)
-		if err != nil {
+		if err := selectedAccount.Player.Auth.AuthenticateWithAuthCode(g.tokenEntry.Text); err != nil {
 			logger.Rlogger.Error("Authentication failed:", slog.Any("err", err))
 		}
 	})
 
 	ConnectBtn.Disable()
 
-	g.TokenEntry = widget.NewPasswordEntry()
-	g.TokenEntry.SetPlaceHolder("Paste your OAuth token here if needed")
+	g.tokenEntry = widget.NewPasswordEntry()
+	g.tokenEntry.SetPlaceHolder("Paste your OAuth token here if needed")
 
-	g.TokenEntry.OnChanged = func(s string) {
+	g.tokenEntry.OnChanged = func(s string) {
 		if strings.TrimSpace(s) != "" {
 			ConnectBtn.Enable()
 		} else {
@@ -250,37 +257,41 @@ func (g *GUI) createLoginUI() {
 		actionButtonBorder = container.NewBorder(nil, nil, LoginBtn, nil)
 	}
 
-	g.LoginBox = container.NewVBox(
-		deviceAuthBorder,
-		container.NewBorder(nil, nil, actionButtonBorder, nil, g.TokenEntry),
-		ConnectBtn,
-	)
+	authContainer := container.NewBorder(nil, nil, actionButtonBorder, nil, g.tokenEntry)
+
+	g.retryConnectionBtn = widget.NewButton("Retry Last Connection", func() {
+		if g.accountManager.GetSelected().IsConnected() {
+			logger.Rlogger.Error("Retry last connection failed:")
+		}
+	})
+
+	g.loginBox = container.NewVBox(deviceAuthBorder, authContainer, ConnectBtn, g.retryConnectionBtn)
 }
 
 func (g *GUI) createPlayerUI() {
 	logger.FuncDebug()
-	g.ConnectedLabel = widget.NewLabel("")
+	g.connectedLabel = widget.NewLabel("")
 	g.RefreshConnectedAccount()
 
-	g.UploadStatus = widget.NewLabel(g.lastUploadStatusText())
-	g.UploadProgress = widget.NewProgressBar()
-	g.UploadProgress.Hide()
+	g.uploadStatus = widget.NewLabel(g.lastUploadStatusText())
+	g.uploadProgress = widget.NewProgressBar()
+	g.uploadProgress.Hide()
 
 	warningRLConnectedLabel := container.NewCenter(widget.NewLabel("⚠️ The player could be connected or unused during the last check.\nNo refresh will be done for this player while 'No Upload if Online' is checked."))
 	warningBackground := canvas.NewRectangle(color.RGBA{R: 200, G: 100, B: 0, A: 255})
-	g.RLConnectedWarning = container.NewStack(warningBackground, warningRLConnectedLabel)
-	g.RLConnectedWarning.Hide()
+	g.rlConnectedWarning = container.NewStack(warningBackground, warningRLConnectedLabel)
+	g.rlConnectedWarning.Hide()
 
-	g.MatchHistoryData = []string{}
-	g.MatchHistoryList = widget.NewList(
+	g.matchHistoryData = []string{}
+	g.matchHistoryList = widget.NewList(
 		func() int {
-			return len(g.MatchHistoryData)
+			return len(g.matchHistoryData)
 		},
 		func() fyne.CanvasObject {
 			return widget.NewLabel("")
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(g.MatchHistoryData[i])
+			o.(*widget.Label).SetText(g.matchHistoryData[i])
 		},
 	)
 
@@ -289,7 +300,7 @@ func (g *GUI) createPlayerUI() {
 	})
 
 	disconnectBtn := widget.NewButton("Disconnect", func() {
-		dialog.ShowConfirm("Disconnect", "Are you sure you want tto disconnect this account ?", func(confirmed bool) {
+		dialog.ShowConfirm("Disconnect", "Are you sure you want to disconnect this account ?", func(confirmed bool) {
 			if confirmed {
 				selectedAccount := g.accountManager.GetSelected()
 				selectedAccount.Player.Reset()
@@ -308,8 +319,8 @@ func (g *GUI) createPlayerUI() {
 					uploadCache.Clear()
 				}
 
-				if g.UploadStatus != nil {
-					g.UploadStatus.SetText(g.lastUploadStatusText())
+				if g.uploadStatus != nil {
+					g.uploadStatus.SetText(g.lastUploadStatusText())
 				}
 			}
 		}, g.window)
@@ -318,19 +329,19 @@ func (g *GUI) createPlayerUI() {
 	var connectionContainer *fyne.Container
 	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
 		buttonContainer := container.New(NewCenterWrapLayout(), disconnectBtn, clearCacheBtn, uploadBtn)
-		connectionContainer = container.NewBorder(nil, buttonContainer, g.ConnectedLabel, nil, nil)
+		connectionContainer = container.NewBorder(nil, buttonContainer, g.connectedLabel, nil, nil)
 	} else {
 		buttonContainer := container.NewBorder(nil, nil, disconnectBtn, uploadBtn, clearCacheBtn)
-		connectionContainer = container.NewBorder(nil, nil, g.ConnectedLabel, buttonContainer, nil)
+		connectionContainer = container.NewBorder(nil, nil, g.connectedLabel, buttonContainer, nil)
 	}
 
-	matchHistoryAccordion := widget.NewAccordionItem("Match History", g.MatchHistoryList)
+	matchHistoryAccordion := widget.NewAccordionItem("Match History", g.matchHistoryList)
 	matchHistoryAccordion.Open = false
 
-	uploadProgressBox := container.NewBorder(nil, nil, g.UploadStatus, nil, g.UploadProgress)
-	centerTopBox := container.NewVBox(g.RLConnectedWarning, uploadProgressBox)
+	uploadProgressBox := container.NewBorder(nil, nil, g.uploadStatus, nil, g.uploadProgress)
+	centerTopBox := container.NewVBox(g.rlConnectedWarning, uploadProgressBox)
 
-	g.PlayerBox = container.NewBorder(
+	g.playerBox = container.NewBorder(
 		connectionContainer,
 		nil,
 		nil,
@@ -342,20 +353,20 @@ func (g *GUI) createPlayerUI() {
 func (g *GUI) UpdateUploadProgress(progress float64) {
 	logger.FuncDebug()
 
-	if g.UploadStatus == nil || g.UploadProgress == nil {
+	if g.uploadStatus == nil || g.uploadProgress == nil {
 		return
 	}
 
 	if progress == -1 {
-		g.UploadProgress.Hide()
-		g.UploadStatus.SetText("Last upload: " + time.Now().Format("2006-01-02 15:04:05"))
+		g.uploadProgress.Hide()
+		g.uploadStatus.SetText("Last upload: " + time.Now().Format("2006-01-02 15:04:05"))
 		return
 	}
 
 	value := float64(max(0, min(progress, 1)))
-	g.UploadProgress.SetValue(value)
-	g.UploadProgress.Show()
-	g.UploadStatus.SetText("Uploading replays...")
+	g.uploadProgress.SetValue(value)
+	g.uploadProgress.Show()
+	g.uploadStatus.SetText("Uploading replays...")
 }
 
 func (g *GUI) lastUploadStatusText() string {
@@ -393,8 +404,8 @@ func (g *GUI) RefreshConnectedAccount() {
 
 	selectedAccount := g.accountManager.GetSelected()
 	if selectedAccount != nil && selectedAccount.IsConnected() {
-		g.ConnectedLabel.SetText(connectedText + ": " + selectedAccount.AccountName())
+		g.connectedLabel.SetText(connectedText + ": " + selectedAccount.AccountName())
 	} else {
-		g.ConnectedLabel.SetText(connectedText)
+		g.connectedLabel.SetText(connectedText)
 	}
 }

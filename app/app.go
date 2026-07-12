@@ -175,32 +175,21 @@ func (a *App) initEvents() {
 		a.gui.UpdateState()
 	}})
 
-	refreshSubscription := func(ac *rocket_network.Account) {
-		if ac.Player.Auth != nil {
-			ac.Player.Auth.EventManager.UnsubscribeAll(rocket_network.EventUserAuthenticated)
-			ac.Player.Auth.EventManager.Subscribe(rocket_network.EventUserAuthenticated, tools.Listener{IsSync: false, Callback: func(data any) {
-				a.accountManager.RefreshProfile()
-
-				if a.appConfig.BehaviorConfig.AutoUpload.Get() {
-					a.uploader.Stop()
-					a.uploader.Start()
-				}
-
-				onUpdateState()
-				a.appConfig.Save()
-			}})
-		}
+	if rocket_network.AuthEventManager == nil {
+		rocket_network.AuthEventManager = tools.NewEventManager()
 	}
 
-	a.appConfig.AccountSettings.Bind(func(config.AccountMapConfig) {
-		for _, ac := range a.appConfig.AccountSettings.Get() {
-			refreshSubscription(ac)
-		}
-	})
+	rocket_network.AuthEventManager.Subscribe(rocket_network.EventUserAuthenticated, tools.Listener{IsSync: false, Callback: func(data any) {
+		a.accountManager.RefreshProfile()
 
-	for _, ac := range a.appConfig.AccountSettings.Get() {
-		refreshSubscription(ac)
-	}
+		if a.appConfig.BehaviorConfig.AutoUpload.Get() {
+			a.uploader.Stop()
+			a.uploader.Start()
+		}
+
+		onUpdateState()
+		a.appConfig.Save()
+	}})
 
 	updateGUIFromSupervisorEvent := []tools.EventType{manager.EVENT_ON_RL_DETECTED, manager.EVENT_ON_RL_PLAYER_DETECTED, manager.EVENT_ON_RL_CLOSED}
 	a.rlSupervisor.EventManager.MultiSubscribe(updateGUIFromSupervisorEvent, tools.Listener{IsSync: false, Callback: func(data any) {

@@ -18,8 +18,6 @@ func GetRPC(psyNet *rlapi.PsyNet, p *Player) (*rlapi.PsyNetRPC, *rlapi.PlayerID,
 
 	if !p.IsAuthenticated() {
 		logger.Rlogger.Error("No valid authentication token found. Please retrieve a new token.")
-		p.Reset()
-
 		return nil, nil, fmt.Errorf("no valid authentication token")
 	}
 

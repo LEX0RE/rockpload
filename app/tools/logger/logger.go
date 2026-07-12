@@ -34,6 +34,7 @@ func (s *safeMultiWriter) Write(p []byte) (n int, err error) {
 
 var Rlogger *slog.Logger
 var lCounter = 0
+var funcDebugEnabled = os.Getenv("FUNC_DEBUG") == "true"
 
 func SetLogger() {
 	level := os.Getenv("SLOG_LEVEL")
@@ -102,7 +103,7 @@ func (h *AppFilterHandler) Handle(ctx context.Context, r slog.Record) error {
 }
 
 func FuncDebug() {
-	if os.Getenv("FUNC_DEBUG") != "true" {
+	if !funcDebugEnabled || Rlogger == nil {
 		return
 	}
 

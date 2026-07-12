@@ -39,6 +39,7 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 	} else {
 		temp[ballchasingIndex].IsPrimary = BALLCHASING_STORAGE.IsPrimary
 		temp[ballchasingIndex].IsPredefined = BALLCHASING_STORAGE.IsPredefined
+		temp[ballchasingIndex].IsTemporary = BALLCHASING_STORAGE.IsTemporary
 		temp[ballchasingIndex].StorageType = BALLCHASING_STORAGE.StorageType
 	}
 
@@ -49,6 +50,7 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 	} else {
 		temp[fileSystemIndex].IsPrimary = FILE_SYSTEM_STORAGE.IsPrimary
 		temp[fileSystemIndex].IsPredefined = FILE_SYSTEM_STORAGE.IsPredefined
+		temp[fileSystemIndex].IsTemporary = BALLCHASING_STORAGE.IsTemporary
 		temp[fileSystemIndex].StorageType = FILE_SYSTEM_STORAGE.StorageType
 	}
 
@@ -77,8 +79,9 @@ type StorageConfig struct {
 	ReplayPath   string            `json:"replay_path"`
 	TemplateName string            `json:"template_file"`
 	URL          string            `json:"url"`
-	IsPrimary    bool              `json:"is_primary"`
-	IsPredefined bool              `json:"is_predefined"`
+	IsPrimary    bool              `json:"-"`
+	IsPredefined bool              `json:"-"`
+	IsTemporary  bool              `json:"-"`
 	StorageType  StorageConfigType `json:"storage_type"`
 	URIParams    map[string]string `json:"uri_params"`
 	NeedToken    bool              `json:"need_token"`
@@ -90,28 +93,9 @@ type StorageConfig struct {
 }
 
 var STORAGE_PRESET = map[string]*StorageConfig{
-	LOCALHOST_NAME:     LOCALHOST_STORAGE,
 	ROCKY_STORAGE.Name: ROCKY_STORAGE,
 	BALLCHASING_NAME:   BALLCHASING_STORAGE,
 	FILE_SYSTEM_NAME:   FILE_SYSTEM_STORAGE,
-}
-
-var LOCALHOST_STORAGE = &StorageConfig{
-	Name:         LOCALHOST_NAME,
-	URL:          "http://localhost:3000",
-	IsPrimary:    true,
-	IsPredefined: true,
-	StorageType:  WebsiteConfig,
-	URIParams:    map[string]string{},
-	NeedToken:    false,
-	Token:        "",
-	SendPing:     false,
-	PingPath:     "/",
-	SendReplay:   true,
-	ReplayPath:   "/upload",
-	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	SendLive:     false,
-	LivePath:     "",
 }
 
 var ROCKY_STORAGE = &StorageConfig{
@@ -119,6 +103,7 @@ var ROCKY_STORAGE = &StorageConfig{
 	URL:          "https://lexore.ca/rocky/api",
 	IsPrimary:    true,
 	IsPredefined: true,
+	IsTemporary:  false,
 	StorageType:  WebsiteConfig,
 	URIParams:    map[string]string{},
 	NeedToken:    false,
@@ -137,6 +122,7 @@ var BALLCHASING_STORAGE = &StorageConfig{
 	URL:          "https://ballchasing.com/api",
 	IsPrimary:    false,
 	IsPredefined: true,
+	IsTemporary:  false,
 	StorageType:  WebsiteConfig,
 	URIParams:    map[string]string{"visibility": "public"},
 	NeedToken:    true,
@@ -155,6 +141,7 @@ var FILE_SYSTEM_STORAGE = &StorageConfig{
 	URL:          "",
 	IsPrimary:    false,
 	IsPredefined: true,
+	IsTemporary:  false,
 	StorageType:  FileSystemConfig,
 	URIParams:    map[string]string{},
 	NeedToken:    false,
@@ -163,6 +150,26 @@ var FILE_SYSTEM_STORAGE = &StorageConfig{
 	PingPath:     "/",
 	SendReplay:   false,
 	ReplayPath:   "",
+	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
+	SendLive:     false,
+	LivePath:     "",
+}
+
+// Dev testing storage only
+var LOCALHOST_STORAGE = &StorageConfig{
+	Name:         LOCALHOST_NAME,
+	URL:          "http://localhost:3000",
+	IsPrimary:    false,
+	IsPredefined: false,
+	IsTemporary:  true,
+	StorageType:  WebsiteConfig,
+	URIParams:    map[string]string{},
+	NeedToken:    false,
+	Token:        "",
+	SendPing:     false,
+	PingPath:     "/",
+	SendReplay:   true,
+	ReplayPath:   "/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	SendLive:     false,
 	LivePath:     "",
@@ -206,6 +213,7 @@ func (sc *StorageConfig) UnmarshalJSON(data []byte) error {
 		// Force specific field to be sure the storage are in a good state
 		sc.IsPrimary = preset.IsPrimary
 		sc.IsPredefined = preset.IsPredefined
+		sc.IsTemporary = preset.IsTemporary
 		sc.StorageType = preset.StorageType
 	}
 
