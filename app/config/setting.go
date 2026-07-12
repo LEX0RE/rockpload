@@ -2,10 +2,24 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
+
+type SettingKind uint8
+
+const (
+	SettingKindBool SettingKind = iota
+	SettingKindDuration
+	SettingKindInt
+)
+
+type AnySetting interface {
+	GetAny() any
+	SetAny(value any) error
+}
 
 type Setting[T any] struct {
 	value    T
@@ -62,4 +76,26 @@ func (s *Setting[T]) Bind(callback func(T)) {
 
 func (s *Setting[T]) secretValue() reflect.Value {
 	return reflect.ValueOf(&s.value).Elem()
+}
+
+func (s *Setting[T]) GetAny() any {
+	logger.FuncDebug()
+
+	return s.value
+}
+
+func (s *Setting[T]) SetAny(value any) error {
+	logger.FuncDebug()
+
+	typedValue, ok := value.(T)
+	if !ok {
+		return fmt.Errorf(
+			"invalid setting value type: expected %T, got %T",
+			s.value,
+			value,
+		)
+	}
+
+	s.Set(typedValue)
+	return nil
 }

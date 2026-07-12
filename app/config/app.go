@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"reflect"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"github.com/LEX0RE/rockpload/app/constant"
@@ -29,6 +30,8 @@ func NewAppConfig() *AppConfig {
 
 	// TODO Find a way to make this in Unmarshal instead
 	cfg.BehaviorConfig.AutoUpload = NewSetting(true, saveHook)
+	cfg.BehaviorConfig.AutoUploadTime = NewSetting(45*time.Minute, saveHook)
+	cfg.BehaviorConfig.AutoUploadRandomTime = NewSetting(15*time.Minute, saveHook)
 	cfg.BehaviorConfig.ExitInTray = NewSetting(true, saveHook)
 	cfg.BehaviorConfig.NoUploadOnline = NewSetting(true, saveHook)
 	cfg.BehaviorConfig.UploadOnRLClose = NewSetting(true, saveHook)
