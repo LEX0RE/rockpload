@@ -86,13 +86,23 @@ func (am *AccountManager) GetSelected() *rocket_network.Account {
 	if ac, ok := am.appConfig.AccountSettings.Get()[am.appConfig.BehaviorConfig.SelectedAccountId.Get()]; ok {
 		return ac
 	} else {
-		am.appConfig.BehaviorConfig.SelectedAccountId.Set(0)
-		am.EventManager.Notify(EVENT_SELECT_ACCOUNT, 0)
+		minProfileId := -1
 
-		if ac, ok := am.appConfig.AccountSettings.Get()[0]; ok {
+		for _, a := range am.appConfig.AccountSettings.Get() {
+			if a.Id() < minProfileId || minProfileId == -1 {
+				minProfileId = a.Id()
+			}
+		}
+
+		if ac, ok := am.appConfig.AccountSettings.Get()[minProfileId]; ok {
+			am.appConfig.BehaviorConfig.SelectedAccountId.Set(minProfileId)
+			am.EventManager.Notify(EVENT_SELECT_ACCOUNT, minProfileId)
 			return ac
 		} else {
-			return am.Add()
+			newAc := am.Add()
+			am.appConfig.BehaviorConfig.SelectedAccountId.Set(newAc.Id())
+			am.EventManager.Notify(EVENT_SELECT_ACCOUNT, newAc.Id())
+			return newAc
 		}
 	}
 }

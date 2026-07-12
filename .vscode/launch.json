@@ -14,7 +14,7 @@
       "env": {
         "SLOG_LEVEL": "debug",
         "FUNC_DEBUG": "false",
-        "ADD_LOCALHOST": "false",
+        "ADD_LOCALHOST": "true",
         "SKIP_UPDATE": "true",
         "FAKE_UPLOAD": "true"
       },

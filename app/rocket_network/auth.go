@@ -26,14 +26,15 @@ const (
 	REFRESH_MARGIN = 15 * time.Minute
 )
 
+var AuthEventManager *tools.EventManager
+
 type Auth struct {
-	ProfileId    int                       `json:"profile_id"`
-	EventManager *tools.EventManager       `json:"-"`
-	egsToken     *rlapi.TokenResponse      `json:"-"`
-	eosToken     *rlapi.EOSTokenResponse   `json:"-"`
-	deviceAuth   *rlapi.DeviceAuthResponse `json:"-"`
-	egs          *rlapi.EGS                `json:"-"`
-	logger       *slog.Logger              `json:"-"`
+	ProfileId  int                       `json:"profile_id"`
+	egsToken   *rlapi.TokenResponse      `json:"-"`
+	eosToken   *rlapi.EOSTokenResponse   `json:"-"`
+	deviceAuth *rlapi.DeviceAuthResponse `json:"-"`
+	egs        *rlapi.EGS                `json:"-"`
+	logger     *slog.Logger              `json:"-"`
 
 	fileEOSMu sync.Mutex `json:"-"`
 	fileEGSMu sync.Mutex `json:"-"`
@@ -49,7 +50,11 @@ type AuthTokenPath struct {
 func NewAuth(profileId int) (a *Auth) {
 	logger.FuncDebug()
 
-	a = &Auth{EventManager: tools.NewEventManager(), ProfileId: profileId, egs: rlapi.NewEGS(), logger: logger.Rlogger.With("profileId", profileId)}
+	if AuthEventManager == nil {
+		AuthEventManager = tools.NewEventManager()
+	}
+
+	a = &Auth{ProfileId: profileId, egs: rlapi.NewEGS(), logger: logger.Rlogger.With("profileId", profileId)}
 	_ = a.isAuthenticated()
 
 	return a
@@ -67,10 +72,33 @@ func (a *Auth) UnmarshalJSON(data []byte) error {
 	}
 
 	a.logger = logger.Rlogger.With("profileId", a.ProfileId)
-	a.EventManager = tools.NewEventManager()
+
+	if AuthEventManager == nil {
+		AuthEventManager = tools.NewEventManager()
+	}
+
 	a.egs = rlapi.NewEGS()
 
 	return nil
+}
+
+func (a *Auth) HasTokens() bool {
+	logger.FuncDebug()
+
+	if a.egsToken != nil || a.eosToken != nil {
+		return true
+	}
+
+	tokenPath := a.tokenPath()
+	if _, err := os.Stat(tokenPath.EGS); err == nil {
+		return true
+	}
+
+	if _, err := os.Stat(tokenPath.EOS); err == nil {
+		return true
+	}
+
+	return false
 }
 
 func (a *Auth) OpenDeviceAuth() {
@@ -114,7 +142,7 @@ func (a *Auth) AuthenticateWithAuthCode(authCode string) (err error) {
 		return err
 	}
 
-	a.EventManager.Notify(EventUserAuthenticated, nil)
+	AuthEventManager.Notify(EventUserAuthenticated, nil)
 
 	return nil
 }
@@ -138,7 +166,7 @@ func (a *Auth) AuthenticateWithDeviceCode() (err error) {
 		return err
 	} else {
 		a.setEOSToken(eosToken)
-		a.EventManager.Notify(EventUserAuthenticated, nil)
+		AuthEventManager.Notify(EventUserAuthenticated, nil)
 
 		return nil
 	}
@@ -163,7 +191,6 @@ func (a *Auth) isAuthenticated() bool {
 		return true
 	}
 
-	a.clearToken()
 	return false
 }
 
@@ -297,7 +324,7 @@ func (a *Auth) readTokens() {
 
 		a.setEGSToken(token)
 		a.refreshEGSAccess()
-		a.EventManager.Notify(EventUserAuthenticated, nil)
+		AuthEventManager.Notify(EventUserAuthenticated, nil)
 
 		return
 	}
@@ -312,7 +339,7 @@ func (a *Auth) readTokens() {
 		}
 
 		a.setEOSToken(token)
-		a.EventManager.Notify(EventUserAuthenticated, nil)
+		AuthEventManager.Notify(EventUserAuthenticated, nil)
 
 		return
 	}

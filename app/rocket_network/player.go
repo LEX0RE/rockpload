@@ -186,7 +186,6 @@ func (p *Player) IsAuthenticated() bool {
 		return true
 	}
 
-	p.Reset()
 	return false
 }
 

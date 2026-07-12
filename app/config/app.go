@@ -130,7 +130,7 @@ func (a *AppConfig) savePublicSettings() (error, error, error) {
 
 	filteredWebsites := storageListConfig{}
 	for _, website := range originalWebsites {
-		if !website.IsPrimary {
+		if !website.IsPrimary && !website.IsTemporary {
 			filteredWebsites = append(filteredWebsites, website)
 		}
 	}
