@@ -41,6 +41,7 @@ jobs:
             xorg-dev \
             libwayland-dev \
             libxkbcommon-dev \
+            wayland-protocols \
             gcc-mingw-w64-x86-64
 
       - name: Vet
