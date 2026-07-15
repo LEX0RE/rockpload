@@ -59,10 +59,11 @@ fyne.io/systray/internal/generated/notifier
 ## explicit; go 1.18
 github.com/BurntSushi/toml
 github.com/BurntSushi/toml/internal
-# github.com/chromedp/cdproto v0.0.0-20260405000525-47a8ff65b46a
+# github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f
 ## explicit; go 1.26
 github.com/chromedp/cdproto
 github.com/chromedp/cdproto/accessibility
+github.com/chromedp/cdproto/ads
 github.com/chromedp/cdproto/animation
 github.com/chromedp/cdproto/audits
 github.com/chromedp/cdproto/autofill
@@ -77,6 +78,7 @@ github.com/chromedp/cdproto/css
 github.com/chromedp/cdproto/debugger
 github.com/chromedp/cdproto/deviceaccess
 github.com/chromedp/cdproto/deviceorientation
+github.com/chromedp/cdproto/digitalcredentials
 github.com/chromedp/cdproto/dom
 github.com/chromedp/cdproto/domdebugger
 github.com/chromedp/cdproto/domsnapshot
@@ -117,7 +119,7 @@ github.com/chromedp/cdproto/tracing
 github.com/chromedp/cdproto/webaudio
 github.com/chromedp/cdproto/webauthn
 github.com/chromedp/cdproto/webmcp
-# github.com/chromedp/chromedp v0.15.1
+# github.com/chromedp/chromedp v0.16.0
 ## explicit; go 1.26
 github.com/chromedp/chromedp
 github.com/chromedp/chromedp/device
@@ -168,7 +170,7 @@ github.com/go-gl/glfw/v3.3/glfw/glfw/deps/mingw
 github.com/go-gl/glfw/v3.3/glfw/glfw/deps/vs2008
 github.com/go-gl/glfw/v3.3/glfw/glfw/include/GLFW
 github.com/go-gl/glfw/v3.3/glfw/glfw/src
-# github.com/go-json-experiment/json v0.0.0-20260214004413-d219187c3433
+# github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68
 ## explicit; go 1.26
 github.com/go-json-experiment/json
 github.com/go-json-experiment/json/internal

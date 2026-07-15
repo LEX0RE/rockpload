@@ -112,14 +112,26 @@ type Value struct {
 	Specificity *Specificity `json:"specificity,omitempty,omitzero"` // Specificity of the selector.
 }
 
+// SpecificityComponent contribution of an individual simple selector to
+// specificity.
+//
+// See: https://chromedevtools.github.io/devtools-protocol/tot/CSS#type-SpecificityComponent
+type SpecificityComponent struct {
+	Text string `json:"text"` // The simple selector text that contributes to specificity.
+	A    int64  `json:"a"`    // The a component contribution.
+	B    int64  `json:"b"`    // The b component contribution.
+	C    int64  `json:"c"`    // The c component contribution.
+}
+
 // Specificity specificity:
 // https://drafts.csswg.org/selectors/#specificity-rules.
 //
 // See: https://chromedevtools.github.io/devtools-protocol/tot/CSS#type-Specificity
 type Specificity struct {
-	A int64 `json:"a"` // The a component, which represents the number of ID selectors.
-	B int64 `json:"b"` // The b component, which represents the number of class selectors, attributes selectors, and pseudo-classes.
-	C int64 `json:"c"` // The c component, which represents the number of type selectors and pseudo-elements.
+	A          int64                   `json:"a"`                             // The a component, which represents the number of ID selectors.
+	B          int64                   `json:"b"`                             // The b component, which represents the number of class selectors, attributes selectors, and pseudo-classes.
+	C          int64                   `json:"c"`                             // The c component, which represents the number of type selectors and pseudo-elements.
+	Components []*SpecificityComponent `json:"components,omitempty,omitzero"` // Per-simple-selector contributions used to explain this specificity.
 }
 
 // SelectorList selector list data.
@@ -331,7 +343,6 @@ type MediaQueryExpression struct {
 //
 // See: https://chromedevtools.github.io/devtools-protocol/tot/CSS#type-CSSContainerQuery
 type ContainerQuery struct {
-	Text               string           `json:"text"`                            // Container query text.
 	Range              *SourceRange     `json:"range,omitempty,omitzero"`        // The associated rule header range in the enclosing stylesheet (if available).
 	StyleSheetID       cdp.StyleSheetID `json:"styleSheetId,omitempty,omitzero"` // Identifier of the stylesheet containing this object (if exists).
 	Name               string           `json:"name,omitempty,omitzero"`         // Optional name for the container.
@@ -339,6 +350,7 @@ type ContainerQuery struct {
 	LogicalAxes        dom.LogicalAxes  `json:"logicalAxes,omitempty,omitzero"`  // Optional logical axes queried for the container.
 	QueriesScrollState bool             `json:"queriesScrollState"`              // true if the query contains scroll-state() queries.
 	QueriesAnchored    bool             `json:"queriesAnchored"`                 // true if the query contains anchored() queries.
+	ConditionText      string           `json:"conditionText"`                   // CSSContainerRule.conditionText
 }
 
 // Supports CSS Supports at-rule descriptor.
@@ -615,6 +627,7 @@ const (
 	AtRuleTypeFontFace          AtRuleType = "font-face"
 	AtRuleTypeFontFeatureValues AtRuleType = "font-feature-values"
 	AtRuleTypeFontPaletteValues AtRuleType = "font-palette-values"
+	AtRuleTypeCounterStyle      AtRuleType = "counter-style"
 )
 
 // UnmarshalJSON satisfies [json.Unmarshaler].
@@ -629,6 +642,8 @@ func (t *AtRuleType) UnmarshalJSON(buf []byte) error {
 		*t = AtRuleTypeFontFeatureValues
 	case AtRuleTypeFontPaletteValues:
 		*t = AtRuleTypeFontPaletteValues
+	case AtRuleTypeCounterStyle:
+		*t = AtRuleTypeCounterStyle
 	default:
 		return fmt.Errorf("unknown AtRuleType value: %v", s)
 	}

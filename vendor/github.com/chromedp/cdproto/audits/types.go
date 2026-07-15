@@ -835,6 +835,7 @@ const (
 	SharedDictionaryErrorWriteErrorNonSecureContext                SharedDictionaryError = "WriteErrorNonSecureContext"
 	SharedDictionaryErrorWriteErrorNonStringIDField                SharedDictionaryError = "WriteErrorNonStringIdField"
 	SharedDictionaryErrorWriteErrorNonStringInMatchDestList        SharedDictionaryError = "WriteErrorNonStringInMatchDestList"
+	SharedDictionaryErrorWriteErrorInvalidMatchDestList            SharedDictionaryError = "WriteErrorInvalidMatchDestList"
 	SharedDictionaryErrorWriteErrorNonStringMatchField             SharedDictionaryError = "WriteErrorNonStringMatchField"
 	SharedDictionaryErrorWriteErrorNonTokenTypeField               SharedDictionaryError = "WriteErrorNonTokenTypeField"
 	SharedDictionaryErrorWriteErrorRequestAborted                  SharedDictionaryError = "WriteErrorRequestAborted"
@@ -887,6 +888,8 @@ func (t *SharedDictionaryError) UnmarshalJSON(buf []byte) error {
 		*t = SharedDictionaryErrorWriteErrorNonStringIDField
 	case SharedDictionaryErrorWriteErrorNonStringInMatchDestList:
 		*t = SharedDictionaryErrorWriteErrorNonStringInMatchDestList
+	case SharedDictionaryErrorWriteErrorInvalidMatchDestList:
+		*t = SharedDictionaryErrorWriteErrorInvalidMatchDestList
 	case SharedDictionaryErrorWriteErrorNonStringMatchField:
 		*t = SharedDictionaryErrorWriteErrorNonStringMatchField
 	case SharedDictionaryErrorWriteErrorNonTokenTypeField:
@@ -938,6 +941,10 @@ const (
 	SRIMessageSignatureErrorValidationFailedInvalidLength                        SRIMessageSignatureError = "ValidationFailedInvalidLength"
 	SRIMessageSignatureErrorValidationFailedSignatureMismatch                    SRIMessageSignatureError = "ValidationFailedSignatureMismatch"
 	SRIMessageSignatureErrorValidationFailedIntegrityMismatch                    SRIMessageSignatureError = "ValidationFailedIntegrityMismatch"
+	SRIMessageSignatureErrorSignatureBaseUnknownDerivedComponent                 SRIMessageSignatureError = "SignatureBaseUnknownDerivedComponent"
+	SRIMessageSignatureErrorSignatureBaseMissingHeader                           SRIMessageSignatureError = "SignatureBaseMissingHeader"
+	SRIMessageSignatureErrorSignatureBaseInvalidUnencodedDigest                  SRIMessageSignatureError = "SignatureBaseInvalidUnencodedDigest"
+	SRIMessageSignatureErrorSignatureBaseUnsupportedComponent                    SRIMessageSignatureError = "SignatureBaseUnsupportedComponent"
 )
 
 // UnmarshalJSON satisfies [json.Unmarshaler].
@@ -988,6 +995,14 @@ func (t *SRIMessageSignatureError) UnmarshalJSON(buf []byte) error {
 		*t = SRIMessageSignatureErrorValidationFailedSignatureMismatch
 	case SRIMessageSignatureErrorValidationFailedIntegrityMismatch:
 		*t = SRIMessageSignatureErrorValidationFailedIntegrityMismatch
+	case SRIMessageSignatureErrorSignatureBaseUnknownDerivedComponent:
+		*t = SRIMessageSignatureErrorSignatureBaseUnknownDerivedComponent
+	case SRIMessageSignatureErrorSignatureBaseMissingHeader:
+		*t = SRIMessageSignatureErrorSignatureBaseMissingHeader
+	case SRIMessageSignatureErrorSignatureBaseInvalidUnencodedDigest:
+		*t = SRIMessageSignatureErrorSignatureBaseInvalidUnencodedDigest
+	case SRIMessageSignatureErrorSignatureBaseUnsupportedComponent:
+		*t = SRIMessageSignatureErrorSignatureBaseUnsupportedComponent
 	default:
 		return fmt.Errorf("unknown SRIMessageSignatureError value: %v", s)
 	}
@@ -1158,10 +1173,15 @@ const (
 	GenericIssueErrorTypeFormInputHasWrongButWellIntendedAutocompleteValueError     GenericIssueErrorType = "FormInputHasWrongButWellIntendedAutocompleteValueError"
 	GenericIssueErrorTypeResponseWasBlockedByORB                                    GenericIssueErrorType = "ResponseWasBlockedByORB"
 	GenericIssueErrorTypeNavigationEntryMarkedSkippable                             GenericIssueErrorType = "NavigationEntryMarkedSkippable"
+	GenericIssueErrorTypeBackUINavigationWouldSkipAd                                GenericIssueErrorType = "BackUINavigationWouldSkipAd"
 	GenericIssueErrorTypeAutofillAndManualTextPolicyControlledFeaturesInfo          GenericIssueErrorType = "AutofillAndManualTextPolicyControlledFeaturesInfo"
 	GenericIssueErrorTypeAutofillPolicyControlledFeatureInfo                        GenericIssueErrorType = "AutofillPolicyControlledFeatureInfo"
 	GenericIssueErrorTypeManualTextPolicyControlledFeatureInfo                      GenericIssueErrorType = "ManualTextPolicyControlledFeatureInfo"
 	GenericIssueErrorTypeFormModelContextParameterMissingTitleAndDescription        GenericIssueErrorType = "FormModelContextParameterMissingTitleAndDescription"
+	GenericIssueErrorTypeFormModelContextMissingToolName                            GenericIssueErrorType = "FormModelContextMissingToolName"
+	GenericIssueErrorTypeFormModelContextMissingToolDescription                     GenericIssueErrorType = "FormModelContextMissingToolDescription"
+	GenericIssueErrorTypeFormModelContextRequiredParameterMissingName               GenericIssueErrorType = "FormModelContextRequiredParameterMissingName"
+	GenericIssueErrorTypeFormModelContextParameterMissingName                       GenericIssueErrorType = "FormModelContextParameterMissingName"
 )
 
 // UnmarshalJSON satisfies [json.Unmarshaler].
@@ -1194,6 +1214,8 @@ func (t *GenericIssueErrorType) UnmarshalJSON(buf []byte) error {
 		*t = GenericIssueErrorTypeResponseWasBlockedByORB
 	case GenericIssueErrorTypeNavigationEntryMarkedSkippable:
 		*t = GenericIssueErrorTypeNavigationEntryMarkedSkippable
+	case GenericIssueErrorTypeBackUINavigationWouldSkipAd:
+		*t = GenericIssueErrorTypeBackUINavigationWouldSkipAd
 	case GenericIssueErrorTypeAutofillAndManualTextPolicyControlledFeaturesInfo:
 		*t = GenericIssueErrorTypeAutofillAndManualTextPolicyControlledFeaturesInfo
 	case GenericIssueErrorTypeAutofillPolicyControlledFeatureInfo:
@@ -1202,6 +1224,14 @@ func (t *GenericIssueErrorType) UnmarshalJSON(buf []byte) error {
 		*t = GenericIssueErrorTypeManualTextPolicyControlledFeatureInfo
 	case GenericIssueErrorTypeFormModelContextParameterMissingTitleAndDescription:
 		*t = GenericIssueErrorTypeFormModelContextParameterMissingTitleAndDescription
+	case GenericIssueErrorTypeFormModelContextMissingToolName:
+		*t = GenericIssueErrorTypeFormModelContextMissingToolName
+	case GenericIssueErrorTypeFormModelContextMissingToolDescription:
+		*t = GenericIssueErrorTypeFormModelContextMissingToolDescription
+	case GenericIssueErrorTypeFormModelContextRequiredParameterMissingName:
+		*t = GenericIssueErrorTypeFormModelContextRequiredParameterMissingName
+	case GenericIssueErrorTypeFormModelContextParameterMissingName:
+		*t = GenericIssueErrorTypeFormModelContextParameterMissingName
 	default:
 		return fmt.Errorf("unknown GenericIssueErrorType value: %v", s)
 	}
@@ -1515,6 +1545,213 @@ func (t *FederatedAuthUserInfoRequestIssueReason) UnmarshalJSON(buf []byte) erro
 	return nil
 }
 
+// EmailVerificationRequestIssueDetails [no description].
+//
+// See: https://chromedevtools.github.io/devtools-protocol/tot/Audits#type-EmailVerificationRequestIssueDetails
+type EmailVerificationRequestIssueDetails struct {
+	EmailVerificationRequestIssueReason EmailVerificationRequestIssueReason `json:"emailVerificationRequestIssueReason"`
+}
+
+// EmailVerificationRequestIssueReason represents the failure reason when an
+// email verification request fails. Should be updated alongside
+// EmailVerificationRequestResult in
+// third_party/blink/public/mojom/devtools/inspector_issue.mojom.
+//
+// See: https://chromedevtools.github.io/devtools-protocol/tot/Audits#type-EmailVerificationRequestIssueReason
+type EmailVerificationRequestIssueReason string
+
+// String returns the EmailVerificationRequestIssueReason as string value.
+func (t EmailVerificationRequestIssueReason) String() string {
+	return string(t)
+}
+
+// EmailVerificationRequestIssueReason values.
+const (
+	EmailVerificationRequestIssueReasonInvalidEmail                                 EmailVerificationRequestIssueReason = "InvalidEmail"
+	EmailVerificationRequestIssueReasonDNSFetchFailed                               EmailVerificationRequestIssueReason = "DnsFetchFailed"
+	EmailVerificationRequestIssueReasonDNSInvalidRecord                             EmailVerificationRequestIssueReason = "DnsInvalidRecord"
+	EmailVerificationRequestIssueReasonWellKnownHTTPNotFound                        EmailVerificationRequestIssueReason = "WellKnownHttpNotFound"
+	EmailVerificationRequestIssueReasonWellKnownNoResponse                          EmailVerificationRequestIssueReason = "WellKnownNoResponse"
+	EmailVerificationRequestIssueReasonWellKnownInvalidResponse                     EmailVerificationRequestIssueReason = "WellKnownInvalidResponse"
+	EmailVerificationRequestIssueReasonWellKnownListEmpty                           EmailVerificationRequestIssueReason = "WellKnownListEmpty"
+	EmailVerificationRequestIssueReasonWellKnownInvalidContentType                  EmailVerificationRequestIssueReason = "WellKnownInvalidContentType"
+	EmailVerificationRequestIssueReasonWellKnownMissingIssuanceEndpoint             EmailVerificationRequestIssueReason = "WellKnownMissingIssuanceEndpoint"
+	EmailVerificationRequestIssueReasonWellKnownIssuanceEndpointCrossOrigin         EmailVerificationRequestIssueReason = "WellKnownIssuanceEndpointCrossOrigin"
+	EmailVerificationRequestIssueReasonWellKnownUnsupportedSigningAlgorithm         EmailVerificationRequestIssueReason = "WellKnownUnsupportedSigningAlgorithm"
+	EmailVerificationRequestIssueReasonTokenHTTPNotFound                            EmailVerificationRequestIssueReason = "TokenHttpNotFound"
+	EmailVerificationRequestIssueReasonTokenNoResponse                              EmailVerificationRequestIssueReason = "TokenNoResponse"
+	EmailVerificationRequestIssueReasonTokenInvalidResponse                         EmailVerificationRequestIssueReason = "TokenInvalidResponse"
+	EmailVerificationRequestIssueReasonTokenInvalidContentType                      EmailVerificationRequestIssueReason = "TokenInvalidContentType"
+	EmailVerificationRequestIssueReasonTokenMalformedSdJwt                          EmailVerificationRequestIssueReason = "TokenMalformedSdJwt"
+	EmailVerificationRequestIssueReasonTokenInvalidSdJwt                            EmailVerificationRequestIssueReason = "TokenInvalidSdJwt"
+	EmailVerificationRequestIssueReasonKeyBindingSigningFailed                      EmailVerificationRequestIssueReason = "KeyBindingSigningFailed"
+	EmailVerificationRequestIssueReasonRpOriginIsOpaque                             EmailVerificationRequestIssueReason = "RpOriginIsOpaque"
+	EmailVerificationRequestIssueReasonWellKnownMissingAccountsEndpoint             EmailVerificationRequestIssueReason = "WellKnownMissingAccountsEndpoint"
+	EmailVerificationRequestIssueReasonUserLoggedOut                                EmailVerificationRequestIssueReason = "UserLoggedOut"
+	EmailVerificationRequestIssueReasonWellKnownAccountsEndpointCrossOrigin         EmailVerificationRequestIssueReason = "WellKnownAccountsEndpointCrossOrigin"
+	EmailVerificationRequestIssueReasonAccountsHTTPNotFound                         EmailVerificationRequestIssueReason = "AccountsHttpNotFound"
+	EmailVerificationRequestIssueReasonAccountsNoResponse                           EmailVerificationRequestIssueReason = "AccountsNoResponse"
+	EmailVerificationRequestIssueReasonAccountsInvalidResponse                      EmailVerificationRequestIssueReason = "AccountsInvalidResponse"
+	EmailVerificationRequestIssueReasonAccountsInvalidContentType                   EmailVerificationRequestIssueReason = "AccountsInvalidContentType"
+	EmailVerificationRequestIssueReasonAccountsEmptyList                            EmailVerificationRequestIssueReason = "AccountsEmptyList"
+	EmailVerificationRequestIssueReasonEmailVerificationWellKnownHTTPNotFound       EmailVerificationRequestIssueReason = "EmailVerificationWellKnownHttpNotFound"
+	EmailVerificationRequestIssueReasonEmailVerificationWellKnownNoResponse         EmailVerificationRequestIssueReason = "EmailVerificationWellKnownNoResponse"
+	EmailVerificationRequestIssueReasonEmailVerificationWellKnownInvalidResponse    EmailVerificationRequestIssueReason = "EmailVerificationWellKnownInvalidResponse"
+	EmailVerificationRequestIssueReasonEmailVerificationWellKnownInvalidContentType EmailVerificationRequestIssueReason = "EmailVerificationWellKnownInvalidContentType"
+	EmailVerificationRequestIssueReasonJwksHTTPNotFound                             EmailVerificationRequestIssueReason = "JwksHttpNotFound"
+	EmailVerificationRequestIssueReasonJwksInvalidResponse                          EmailVerificationRequestIssueReason = "JwksInvalidResponse"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtUnsupportedHeaderAlg   EmailVerificationRequestIssueReason = "TokenVerificationSdJwtUnsupportedHeaderAlg"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidTyp             EmailVerificationRequestIssueReason = "TokenVerificationSdJwtInvalidTyp"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingIss             EmailVerificationRequestIssueReason = "TokenVerificationSdJwtMissingIss"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingIat             EmailVerificationRequestIssueReason = "TokenVerificationSdJwtMissingIat"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingCnf             EmailVerificationRequestIssueReason = "TokenVerificationSdJwtMissingCnf"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingEmail           EmailVerificationRequestIssueReason = "TokenVerificationSdJwtMissingEmail"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidIssuedAt        EmailVerificationRequestIssueReason = "TokenVerificationSdJwtInvalidIssuedAt"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidIssuer          EmailVerificationRequestIssueReason = "TokenVerificationSdJwtInvalidIssuer"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtJwksMissingKeys        EmailVerificationRequestIssueReason = "TokenVerificationSdJwtJwksMissingKeys"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtSignatureFailed        EmailVerificationRequestIssueReason = "TokenVerificationSdJwtSignatureFailed"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidEmailVerified   EmailVerificationRequestIssueReason = "TokenVerificationSdJwtInvalidEmailVerified"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidEmail           EmailVerificationRequestIssueReason = "TokenVerificationSdJwtInvalidEmail"
+	EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidHolderKey       EmailVerificationRequestIssueReason = "TokenVerificationSdJwtInvalidHolderKey"
+	EmailVerificationRequestIssueReasonTokenVerificationKbInvalidTyp                EmailVerificationRequestIssueReason = "TokenVerificationKbInvalidTyp"
+	EmailVerificationRequestIssueReasonTokenVerificationKbMissingAud                EmailVerificationRequestIssueReason = "TokenVerificationKbMissingAud"
+	EmailVerificationRequestIssueReasonTokenVerificationKbMissingNonce              EmailVerificationRequestIssueReason = "TokenVerificationKbMissingNonce"
+	EmailVerificationRequestIssueReasonTokenVerificationKbMissingIat                EmailVerificationRequestIssueReason = "TokenVerificationKbMissingIat"
+	EmailVerificationRequestIssueReasonTokenVerificationKbMissingSdHash             EmailVerificationRequestIssueReason = "TokenVerificationKbMissingSdHash"
+	EmailVerificationRequestIssueReasonTokenVerificationKbInvalidIssuedAt           EmailVerificationRequestIssueReason = "TokenVerificationKbInvalidIssuedAt"
+	EmailVerificationRequestIssueReasonTokenVerificationKbInvalidAudience           EmailVerificationRequestIssueReason = "TokenVerificationKbInvalidAudience"
+	EmailVerificationRequestIssueReasonTokenVerificationKbInvalidNonce              EmailVerificationRequestIssueReason = "TokenVerificationKbInvalidNonce"
+	EmailVerificationRequestIssueReasonTokenVerificationKbInvalidSdHash             EmailVerificationRequestIssueReason = "TokenVerificationKbInvalidSdHash"
+	EmailVerificationRequestIssueReasonTokenVerificationKbMissingCnf                EmailVerificationRequestIssueReason = "TokenVerificationKbMissingCnf"
+	EmailVerificationRequestIssueReasonTokenVerificationKbSignatureFailed           EmailVerificationRequestIssueReason = "TokenVerificationKbSignatureFailed"
+)
+
+// UnmarshalJSON satisfies [json.Unmarshaler].
+func (t *EmailVerificationRequestIssueReason) UnmarshalJSON(buf []byte) error {
+	s := string(buf)
+	s = strings.TrimSuffix(strings.TrimPrefix(s, `"`), `"`)
+
+	switch EmailVerificationRequestIssueReason(s) {
+	case EmailVerificationRequestIssueReasonInvalidEmail:
+		*t = EmailVerificationRequestIssueReasonInvalidEmail
+	case EmailVerificationRequestIssueReasonDNSFetchFailed:
+		*t = EmailVerificationRequestIssueReasonDNSFetchFailed
+	case EmailVerificationRequestIssueReasonDNSInvalidRecord:
+		*t = EmailVerificationRequestIssueReasonDNSInvalidRecord
+	case EmailVerificationRequestIssueReasonWellKnownHTTPNotFound:
+		*t = EmailVerificationRequestIssueReasonWellKnownHTTPNotFound
+	case EmailVerificationRequestIssueReasonWellKnownNoResponse:
+		*t = EmailVerificationRequestIssueReasonWellKnownNoResponse
+	case EmailVerificationRequestIssueReasonWellKnownInvalidResponse:
+		*t = EmailVerificationRequestIssueReasonWellKnownInvalidResponse
+	case EmailVerificationRequestIssueReasonWellKnownListEmpty:
+		*t = EmailVerificationRequestIssueReasonWellKnownListEmpty
+	case EmailVerificationRequestIssueReasonWellKnownInvalidContentType:
+		*t = EmailVerificationRequestIssueReasonWellKnownInvalidContentType
+	case EmailVerificationRequestIssueReasonWellKnownMissingIssuanceEndpoint:
+		*t = EmailVerificationRequestIssueReasonWellKnownMissingIssuanceEndpoint
+	case EmailVerificationRequestIssueReasonWellKnownIssuanceEndpointCrossOrigin:
+		*t = EmailVerificationRequestIssueReasonWellKnownIssuanceEndpointCrossOrigin
+	case EmailVerificationRequestIssueReasonWellKnownUnsupportedSigningAlgorithm:
+		*t = EmailVerificationRequestIssueReasonWellKnownUnsupportedSigningAlgorithm
+	case EmailVerificationRequestIssueReasonTokenHTTPNotFound:
+		*t = EmailVerificationRequestIssueReasonTokenHTTPNotFound
+	case EmailVerificationRequestIssueReasonTokenNoResponse:
+		*t = EmailVerificationRequestIssueReasonTokenNoResponse
+	case EmailVerificationRequestIssueReasonTokenInvalidResponse:
+		*t = EmailVerificationRequestIssueReasonTokenInvalidResponse
+	case EmailVerificationRequestIssueReasonTokenInvalidContentType:
+		*t = EmailVerificationRequestIssueReasonTokenInvalidContentType
+	case EmailVerificationRequestIssueReasonTokenMalformedSdJwt:
+		*t = EmailVerificationRequestIssueReasonTokenMalformedSdJwt
+	case EmailVerificationRequestIssueReasonTokenInvalidSdJwt:
+		*t = EmailVerificationRequestIssueReasonTokenInvalidSdJwt
+	case EmailVerificationRequestIssueReasonKeyBindingSigningFailed:
+		*t = EmailVerificationRequestIssueReasonKeyBindingSigningFailed
+	case EmailVerificationRequestIssueReasonRpOriginIsOpaque:
+		*t = EmailVerificationRequestIssueReasonRpOriginIsOpaque
+	case EmailVerificationRequestIssueReasonWellKnownMissingAccountsEndpoint:
+		*t = EmailVerificationRequestIssueReasonWellKnownMissingAccountsEndpoint
+	case EmailVerificationRequestIssueReasonUserLoggedOut:
+		*t = EmailVerificationRequestIssueReasonUserLoggedOut
+	case EmailVerificationRequestIssueReasonWellKnownAccountsEndpointCrossOrigin:
+		*t = EmailVerificationRequestIssueReasonWellKnownAccountsEndpointCrossOrigin
+	case EmailVerificationRequestIssueReasonAccountsHTTPNotFound:
+		*t = EmailVerificationRequestIssueReasonAccountsHTTPNotFound
+	case EmailVerificationRequestIssueReasonAccountsNoResponse:
+		*t = EmailVerificationRequestIssueReasonAccountsNoResponse
+	case EmailVerificationRequestIssueReasonAccountsInvalidResponse:
+		*t = EmailVerificationRequestIssueReasonAccountsInvalidResponse
+	case EmailVerificationRequestIssueReasonAccountsInvalidContentType:
+		*t = EmailVerificationRequestIssueReasonAccountsInvalidContentType
+	case EmailVerificationRequestIssueReasonAccountsEmptyList:
+		*t = EmailVerificationRequestIssueReasonAccountsEmptyList
+	case EmailVerificationRequestIssueReasonEmailVerificationWellKnownHTTPNotFound:
+		*t = EmailVerificationRequestIssueReasonEmailVerificationWellKnownHTTPNotFound
+	case EmailVerificationRequestIssueReasonEmailVerificationWellKnownNoResponse:
+		*t = EmailVerificationRequestIssueReasonEmailVerificationWellKnownNoResponse
+	case EmailVerificationRequestIssueReasonEmailVerificationWellKnownInvalidResponse:
+		*t = EmailVerificationRequestIssueReasonEmailVerificationWellKnownInvalidResponse
+	case EmailVerificationRequestIssueReasonEmailVerificationWellKnownInvalidContentType:
+		*t = EmailVerificationRequestIssueReasonEmailVerificationWellKnownInvalidContentType
+	case EmailVerificationRequestIssueReasonJwksHTTPNotFound:
+		*t = EmailVerificationRequestIssueReasonJwksHTTPNotFound
+	case EmailVerificationRequestIssueReasonJwksInvalidResponse:
+		*t = EmailVerificationRequestIssueReasonJwksInvalidResponse
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtUnsupportedHeaderAlg:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtUnsupportedHeaderAlg
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidTyp:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidTyp
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingIss:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingIss
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingIat:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingIat
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingCnf:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingCnf
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingEmail:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtMissingEmail
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidIssuedAt:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidIssuedAt
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidIssuer:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidIssuer
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtJwksMissingKeys:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtJwksMissingKeys
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtSignatureFailed:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtSignatureFailed
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidEmailVerified:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidEmailVerified
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidEmail:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidEmail
+	case EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidHolderKey:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationSdJwtInvalidHolderKey
+	case EmailVerificationRequestIssueReasonTokenVerificationKbInvalidTyp:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbInvalidTyp
+	case EmailVerificationRequestIssueReasonTokenVerificationKbMissingAud:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbMissingAud
+	case EmailVerificationRequestIssueReasonTokenVerificationKbMissingNonce:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbMissingNonce
+	case EmailVerificationRequestIssueReasonTokenVerificationKbMissingIat:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbMissingIat
+	case EmailVerificationRequestIssueReasonTokenVerificationKbMissingSdHash:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbMissingSdHash
+	case EmailVerificationRequestIssueReasonTokenVerificationKbInvalidIssuedAt:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbInvalidIssuedAt
+	case EmailVerificationRequestIssueReasonTokenVerificationKbInvalidAudience:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbInvalidAudience
+	case EmailVerificationRequestIssueReasonTokenVerificationKbInvalidNonce:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbInvalidNonce
+	case EmailVerificationRequestIssueReasonTokenVerificationKbInvalidSdHash:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbInvalidSdHash
+	case EmailVerificationRequestIssueReasonTokenVerificationKbMissingCnf:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbMissingCnf
+	case EmailVerificationRequestIssueReasonTokenVerificationKbSignatureFailed:
+		*t = EmailVerificationRequestIssueReasonTokenVerificationKbSignatureFailed
+	default:
+		return fmt.Errorf("unknown EmailVerificationRequestIssueReason value: %v", s)
+	}
+	return nil
+}
+
 // ClientHintIssueDetails this issue tracks client hints related issues. It's
 // used to deprecate old features, encourage the use of new ones, and provide
 // general guidance.
@@ -1775,27 +2012,29 @@ func (t PermissionElementIssueType) String() string {
 
 // PermissionElementIssueType values.
 const (
-	PermissionElementIssueTypeInvalidType               PermissionElementIssueType = "InvalidType"
-	PermissionElementIssueTypeFencedFrameDisallowed     PermissionElementIssueType = "FencedFrameDisallowed"
-	PermissionElementIssueTypeCspFrameAncestorsMissing  PermissionElementIssueType = "CspFrameAncestorsMissing"
-	PermissionElementIssueTypePermissionsPolicyBlocked  PermissionElementIssueType = "PermissionsPolicyBlocked"
-	PermissionElementIssueTypePaddingRightUnsupported   PermissionElementIssueType = "PaddingRightUnsupported"
-	PermissionElementIssueTypePaddingBottomUnsupported  PermissionElementIssueType = "PaddingBottomUnsupported"
-	PermissionElementIssueTypeInsetBoxShadowUnsupported PermissionElementIssueType = "InsetBoxShadowUnsupported"
-	PermissionElementIssueTypeRequestInProgress         PermissionElementIssueType = "RequestInProgress"
-	PermissionElementIssueTypeUntrustedEvent            PermissionElementIssueType = "UntrustedEvent"
-	PermissionElementIssueTypeRegistrationFailed        PermissionElementIssueType = "RegistrationFailed"
-	PermissionElementIssueTypeTypeNotSupported          PermissionElementIssueType = "TypeNotSupported"
-	PermissionElementIssueTypeInvalidTypeActivation     PermissionElementIssueType = "InvalidTypeActivation"
-	PermissionElementIssueTypeSecurityChecksFailed      PermissionElementIssueType = "SecurityChecksFailed"
-	PermissionElementIssueTypeActivationDisabled        PermissionElementIssueType = "ActivationDisabled"
-	PermissionElementIssueTypeGeolocationDeprecated     PermissionElementIssueType = "GeolocationDeprecated"
-	PermissionElementIssueTypeInvalidDisplayStyle       PermissionElementIssueType = "InvalidDisplayStyle"
-	PermissionElementIssueTypeNonOpaqueColor            PermissionElementIssueType = "NonOpaqueColor"
-	PermissionElementIssueTypeLowContrast               PermissionElementIssueType = "LowContrast"
-	PermissionElementIssueTypeFontSizeTooSmall          PermissionElementIssueType = "FontSizeTooSmall"
-	PermissionElementIssueTypeFontSizeTooLarge          PermissionElementIssueType = "FontSizeTooLarge"
-	PermissionElementIssueTypeInvalidSizeValue          PermissionElementIssueType = "InvalidSizeValue"
+	PermissionElementIssueTypeInvalidType                    PermissionElementIssueType = "InvalidType"
+	PermissionElementIssueTypeFencedFrameDisallowed          PermissionElementIssueType = "FencedFrameDisallowed"
+	PermissionElementIssueTypeCspFrameAncestorsMissing       PermissionElementIssueType = "CspFrameAncestorsMissing"
+	PermissionElementIssueTypePermissionsPolicyBlocked       PermissionElementIssueType = "PermissionsPolicyBlocked"
+	PermissionElementIssueTypePaddingRightUnsupported        PermissionElementIssueType = "PaddingRightUnsupported"
+	PermissionElementIssueTypePaddingBottomUnsupported       PermissionElementIssueType = "PaddingBottomUnsupported"
+	PermissionElementIssueTypeInsetBoxShadowUnsupported      PermissionElementIssueType = "InsetBoxShadowUnsupported"
+	PermissionElementIssueTypeRequestInProgress              PermissionElementIssueType = "RequestInProgress"
+	PermissionElementIssueTypeUntrustedEvent                 PermissionElementIssueType = "UntrustedEvent"
+	PermissionElementIssueTypeRegistrationFailed             PermissionElementIssueType = "RegistrationFailed"
+	PermissionElementIssueTypeTypeNotSupported               PermissionElementIssueType = "TypeNotSupported"
+	PermissionElementIssueTypeInvalidTypeActivation          PermissionElementIssueType = "InvalidTypeActivation"
+	PermissionElementIssueTypeSecurityChecksFailed           PermissionElementIssueType = "SecurityChecksFailed"
+	PermissionElementIssueTypeActivationDisabled             PermissionElementIssueType = "ActivationDisabled"
+	PermissionElementIssueTypeGeolocationDeprecated          PermissionElementIssueType = "GeolocationDeprecated"
+	PermissionElementIssueTypeInvalidDisplayStyle            PermissionElementIssueType = "InvalidDisplayStyle"
+	PermissionElementIssueTypeNonOpaqueColor                 PermissionElementIssueType = "NonOpaqueColor"
+	PermissionElementIssueTypeLowContrast                    PermissionElementIssueType = "LowContrast"
+	PermissionElementIssueTypeFontSizeTooSmall               PermissionElementIssueType = "FontSizeTooSmall"
+	PermissionElementIssueTypeFontSizeTooLarge               PermissionElementIssueType = "FontSizeTooLarge"
+	PermissionElementIssueTypeInvalidSizeValue               PermissionElementIssueType = "InvalidSizeValue"
+	PermissionElementIssueTypeNonSecureContext               PermissionElementIssueType = "NonSecureContext"
+	PermissionElementIssueTypeMissingTransientUserActivation PermissionElementIssueType = "MissingTransientUserActivation"
 )
 
 // UnmarshalJSON satisfies [json.Unmarshaler].
@@ -1846,6 +2085,10 @@ func (t *PermissionElementIssueType) UnmarshalJSON(buf []byte) error {
 		*t = PermissionElementIssueTypeFontSizeTooLarge
 	case PermissionElementIssueTypeInvalidSizeValue:
 		*t = PermissionElementIssueTypeInvalidSizeValue
+	case PermissionElementIssueTypeNonSecureContext:
+		*t = PermissionElementIssueTypeNonSecureContext
+	case PermissionElementIssueTypeMissingTransientUserActivation:
+		*t = PermissionElementIssueTypeMissingTransientUserActivation
 	default:
 		return fmt.Errorf("unknown PermissionElementIssueType value: %v", s)
 	}
@@ -1920,6 +2163,7 @@ const (
 	InspectorIssueCodePermissionElementIssue                InspectorIssueCode = "PermissionElementIssue"
 	InspectorIssueCodePerformanceIssue                      InspectorIssueCode = "PerformanceIssue"
 	InspectorIssueCodeSelectivePermissionsInterventionIssue InspectorIssueCode = "SelectivePermissionsInterventionIssue"
+	InspectorIssueCodeEmailVerificationRequestIssue         InspectorIssueCode = "EmailVerificationRequestIssue"
 )
 
 // UnmarshalJSON satisfies [json.Unmarshaler].
@@ -1986,6 +2230,8 @@ func (t *InspectorIssueCode) UnmarshalJSON(buf []byte) error {
 		*t = InspectorIssueCodePerformanceIssue
 	case InspectorIssueCodeSelectivePermissionsInterventionIssue:
 		*t = InspectorIssueCodeSelectivePermissionsInterventionIssue
+	case InspectorIssueCodeEmailVerificationRequestIssue:
+		*t = InspectorIssueCodeEmailVerificationRequestIssue
 	default:
 		return fmt.Errorf("unknown InspectorIssueCode value: %v", s)
 	}
@@ -2026,6 +2272,7 @@ type InspectorIssueDetails struct {
 	PermissionElementIssueDetails                *PermissionElementIssueDetails                `json:"permissionElementIssueDetails,omitempty,omitzero"`
 	PerformanceIssueDetails                      *PerformanceIssueDetails                      `json:"performanceIssueDetails,omitempty,omitzero"`
 	SelectivePermissionsInterventionIssueDetails *SelectivePermissionsInterventionIssueDetails `json:"selectivePermissionsInterventionIssueDetails,omitempty,omitzero"`
+	EmailVerificationRequestIssueDetails         *EmailVerificationRequestIssueDetails         `json:"emailVerificationRequestIssueDetails,omitempty,omitzero"`
 }
 
 // IssueID a unique id for a DevTools inspector issue. Allows other entities

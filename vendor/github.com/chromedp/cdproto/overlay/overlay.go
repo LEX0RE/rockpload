@@ -776,6 +776,32 @@ func (p *SetShowHingeParams) Do(ctx context.Context) (err error) {
 	return cdp.Execute(ctx, CommandSetShowHinge, p, nil)
 }
 
+// SetShowDisplayCutoutParams add a display cutout overlay.
+type SetShowDisplayCutoutParams struct {
+	DisplayCutoutConfig *DisplayCutoutConfig `json:"displayCutoutConfig,omitempty,omitzero"` // display cutout data, null means hide display cutout
+}
+
+// SetShowDisplayCutout add a display cutout overlay.
+//
+// See: https://chromedevtools.github.io/devtools-protocol/tot/Overlay#method-setShowDisplayCutout
+//
+// parameters:
+func SetShowDisplayCutout() *SetShowDisplayCutoutParams {
+	return &SetShowDisplayCutoutParams{}
+}
+
+// WithDisplayCutoutConfig display cutout data, null means hide display
+// cutout.
+func (p SetShowDisplayCutoutParams) WithDisplayCutoutConfig(displayCutoutConfig *DisplayCutoutConfig) *SetShowDisplayCutoutParams {
+	p.DisplayCutoutConfig = displayCutoutConfig
+	return &p
+}
+
+// Do executes Overlay.setShowDisplayCutout against the provided context.
+func (p *SetShowDisplayCutoutParams) Do(ctx context.Context) (err error) {
+	return cdp.Execute(ctx, CommandSetShowDisplayCutout, p, nil)
+}
+
 // SetShowIsolatedElementsParams show elements in isolation mode with
 // overlays.
 type SetShowIsolatedElementsParams struct {
@@ -853,6 +879,7 @@ const (
 	CommandSetShowScrollBottleneckRects         = "Overlay.setShowScrollBottleneckRects"
 	CommandSetShowViewportSizeOnResize          = "Overlay.setShowViewportSizeOnResize"
 	CommandSetShowHinge                         = "Overlay.setShowHinge"
+	CommandSetShowDisplayCutout                 = "Overlay.setShowDisplayCutout"
 	CommandSetShowIsolatedElements              = "Overlay.setShowIsolatedElements"
 	CommandSetShowWindowControlsOverlay         = "Overlay.setShowWindowControlsOverlay"
 )

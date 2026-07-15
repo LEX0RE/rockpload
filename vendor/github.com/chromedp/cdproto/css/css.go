@@ -1137,44 +1137,44 @@ func (p *SetMediaTextParams) Do(ctx context.Context) (media *Media, err error) {
 	return res.Media, nil
 }
 
-// SetContainerQueryTextParams modifies the expression of a container query.
-type SetContainerQueryTextParams struct {
+// SetContainerQueryConditionTextParams [no description].
+type SetContainerQueryConditionTextParams struct {
 	StyleSheetID cdp.StyleSheetID `json:"styleSheetId"`
 	Range        *SourceRange     `json:"range"`
 	Text         string           `json:"text"`
 }
 
-// SetContainerQueryText modifies the expression of a container query.
+// SetContainerQueryConditionText [no description].
 //
-// See: https://chromedevtools.github.io/devtools-protocol/tot/CSS#method-setContainerQueryText
+// See: https://chromedevtools.github.io/devtools-protocol/tot/CSS#method-setContainerQueryConditionText
 //
 // parameters:
 //
 //	styleSheetID
 //	range
 //	text
-func SetContainerQueryText(styleSheetID cdp.StyleSheetID, rangeVal *SourceRange, text string) *SetContainerQueryTextParams {
-	return &SetContainerQueryTextParams{
+func SetContainerQueryConditionText(styleSheetID cdp.StyleSheetID, rangeVal *SourceRange, text string) *SetContainerQueryConditionTextParams {
+	return &SetContainerQueryConditionTextParams{
 		StyleSheetID: styleSheetID,
 		Range:        rangeVal,
 		Text:         text,
 	}
 }
 
-// SetContainerQueryTextReturns return values.
-type SetContainerQueryTextReturns struct {
+// SetContainerQueryConditionTextReturns return values.
+type SetContainerQueryConditionTextReturns struct {
 	ContainerQuery *ContainerQuery `json:"containerQuery,omitempty,omitzero"` // The resulting CSS container query rule after modification.
 }
 
-// Do executes CSS.setContainerQueryText against the provided context.
+// Do executes CSS.setContainerQueryConditionText against the provided context.
 //
 // returns:
 //
 //	containerQuery - The resulting CSS container query rule after modification.
-func (p *SetContainerQueryTextParams) Do(ctx context.Context) (containerQuery *ContainerQuery, err error) {
+func (p *SetContainerQueryConditionTextParams) Do(ctx context.Context) (containerQuery *ContainerQuery, err error) {
 	// execute
-	var res SetContainerQueryTextReturns
-	err = cdp.Execute(ctx, CommandSetContainerQueryText, p, &res)
+	var res SetContainerQueryConditionTextReturns
+	err = cdp.Execute(ctx, CommandSetContainerQueryConditionText, p, &res)
 	if err != nil {
 		return nil, err
 	}
@@ -1595,7 +1595,7 @@ const (
 	CommandSetPropertyRulePropertyName      = "CSS.setPropertyRulePropertyName"
 	CommandSetKeyframeKey                   = "CSS.setKeyframeKey"
 	CommandSetMediaText                     = "CSS.setMediaText"
-	CommandSetContainerQueryText            = "CSS.setContainerQueryText"
+	CommandSetContainerQueryConditionText   = "CSS.setContainerQueryConditionText"
 	CommandSetSupportsText                  = "CSS.setSupportsText"
 	CommandSetNavigationText                = "CSS.setNavigationText"
 	CommandSetScopeText                     = "CSS.setScopeText"

@@ -72,7 +72,6 @@ const (
 	PermissionsPolicyFeatureDigitalCredentialsGet        PermissionsPolicyFeature = "digital-credentials-get"
 	PermissionsPolicyFeatureDirectSockets                PermissionsPolicyFeature = "direct-sockets"
 	PermissionsPolicyFeatureDirectSocketsMulticast       PermissionsPolicyFeature = "direct-sockets-multicast"
-	PermissionsPolicyFeatureDirectSocketsPrivate         PermissionsPolicyFeature = "direct-sockets-private"
 	PermissionsPolicyFeatureDisplayCapture               PermissionsPolicyFeature = "display-capture"
 	PermissionsPolicyFeatureDocumentDomain               PermissionsPolicyFeature = "document-domain"
 	PermissionsPolicyFeatureEncryptedMedia               PermissionsPolicyFeature = "encrypted-media"
@@ -123,12 +122,14 @@ const (
 	PermissionsPolicyFeatureSubApps                      PermissionsPolicyFeature = "sub-apps"
 	PermissionsPolicyFeatureSummarizer                   PermissionsPolicyFeature = "summarizer"
 	PermissionsPolicyFeatureSyncXhr                      PermissionsPolicyFeature = "sync-xhr"
+	PermissionsPolicyFeatureTools                        PermissionsPolicyFeature = "tools"
 	PermissionsPolicyFeatureTranslator                   PermissionsPolicyFeature = "translator"
 	PermissionsPolicyFeatureUnload                       PermissionsPolicyFeature = "unload"
 	PermissionsPolicyFeatureUsb                          PermissionsPolicyFeature = "usb"
 	PermissionsPolicyFeatureUsbUnrestricted              PermissionsPolicyFeature = "usb-unrestricted"
 	PermissionsPolicyFeatureVerticalScroll               PermissionsPolicyFeature = "vertical-scroll"
 	PermissionsPolicyFeatureWebAppInstallation           PermissionsPolicyFeature = "web-app-installation"
+	PermissionsPolicyFeatureWebnn                        PermissionsPolicyFeature = "webnn"
 	PermissionsPolicyFeatureWebPrinting                  PermissionsPolicyFeature = "web-printing"
 	PermissionsPolicyFeatureWebShare                     PermissionsPolicyFeature = "web-share"
 	PermissionsPolicyFeatureWindowManagement             PermissionsPolicyFeature = "window-management"
@@ -236,8 +237,6 @@ func (t *PermissionsPolicyFeature) UnmarshalJSON(buf []byte) error {
 		*t = PermissionsPolicyFeatureDirectSockets
 	case PermissionsPolicyFeatureDirectSocketsMulticast:
 		*t = PermissionsPolicyFeatureDirectSocketsMulticast
-	case PermissionsPolicyFeatureDirectSocketsPrivate:
-		*t = PermissionsPolicyFeatureDirectSocketsPrivate
 	case PermissionsPolicyFeatureDisplayCapture:
 		*t = PermissionsPolicyFeatureDisplayCapture
 	case PermissionsPolicyFeatureDocumentDomain:
@@ -338,6 +337,8 @@ func (t *PermissionsPolicyFeature) UnmarshalJSON(buf []byte) error {
 		*t = PermissionsPolicyFeatureSummarizer
 	case PermissionsPolicyFeatureSyncXhr:
 		*t = PermissionsPolicyFeatureSyncXhr
+	case PermissionsPolicyFeatureTools:
+		*t = PermissionsPolicyFeatureTools
 	case PermissionsPolicyFeatureTranslator:
 		*t = PermissionsPolicyFeatureTranslator
 	case PermissionsPolicyFeatureUnload:
@@ -350,6 +351,8 @@ func (t *PermissionsPolicyFeature) UnmarshalJSON(buf []byte) error {
 		*t = PermissionsPolicyFeatureVerticalScroll
 	case PermissionsPolicyFeatureWebAppInstallation:
 		*t = PermissionsPolicyFeatureWebAppInstallation
+	case PermissionsPolicyFeatureWebnn:
+		*t = PermissionsPolicyFeatureWebnn
 	case PermissionsPolicyFeatureWebPrinting:
 		*t = PermissionsPolicyFeatureWebPrinting
 	case PermissionsPolicyFeatureWebShare:
@@ -1145,6 +1148,7 @@ const (
 	BackForwardCacheNotRestoredReasonEmbedderExtensionMessaging                               BackForwardCacheNotRestoredReason = "EmbedderExtensionMessaging"
 	BackForwardCacheNotRestoredReasonEmbedderExtensionMessagingForOpenPort                    BackForwardCacheNotRestoredReason = "EmbedderExtensionMessagingForOpenPort"
 	BackForwardCacheNotRestoredReasonEmbedderExtensionSentMessageToCachedFrame                BackForwardCacheNotRestoredReason = "EmbedderExtensionSentMessageToCachedFrame"
+	BackForwardCacheNotRestoredReasonEmbedderExtensionFrame                                   BackForwardCacheNotRestoredReason = "EmbedderExtensionFrame"
 	BackForwardCacheNotRestoredReasonRequestedByWebViewClient                                 BackForwardCacheNotRestoredReason = "RequestedByWebViewClient"
 	BackForwardCacheNotRestoredReasonPostMessageByWebViewClient                               BackForwardCacheNotRestoredReason = "PostMessageByWebViewClient"
 	BackForwardCacheNotRestoredReasonCacheControlNoStoreDeviceBoundSessionTerminated          BackForwardCacheNotRestoredReason = "CacheControlNoStoreDeviceBoundSessionTerminated"
@@ -1442,6 +1446,8 @@ func (t *BackForwardCacheNotRestoredReason) UnmarshalJSON(buf []byte) error {
 		*t = BackForwardCacheNotRestoredReasonEmbedderExtensionMessagingForOpenPort
 	case BackForwardCacheNotRestoredReasonEmbedderExtensionSentMessageToCachedFrame:
 		*t = BackForwardCacheNotRestoredReasonEmbedderExtensionSentMessageToCachedFrame
+	case BackForwardCacheNotRestoredReasonEmbedderExtensionFrame:
+		*t = BackForwardCacheNotRestoredReasonEmbedderExtensionFrame
 	case BackForwardCacheNotRestoredReasonRequestedByWebViewClient:
 		*t = BackForwardCacheNotRestoredReasonRequestedByWebViewClient
 	case BackForwardCacheNotRestoredReasonPostMessageByWebViewClient:

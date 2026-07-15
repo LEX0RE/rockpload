@@ -182,8 +182,10 @@ type StartParams struct {
 	StreamFormat                 StreamFormat      `json:"streamFormat,omitempty,omitzero"`                 // Trace data format to use. This only applies when using ReturnAsStream transfer mode (defaults to json).
 	StreamCompression            StreamCompression `json:"streamCompression,omitempty,omitzero"`            // Compression format to use. This only applies when using ReturnAsStream transfer mode (defaults to none)
 	TraceConfig                  *TraceConfig      `json:"traceConfig,omitempty,omitzero"`
-	PerfettoConfig               string            `json:"perfettoConfig,omitempty,omitzero"` // Base64-encoded serialized perfetto.protos.TraceConfig protobuf message When specified, the parameters categories, options, traceConfig are ignored.
-	TracingBackend               Backend           `json:"tracingBackend,omitempty,omitzero"` // Backend type (defaults to auto)
+	PerfettoConfig               string            `json:"perfettoConfig,omitempty,omitzero"`     // Base64-encoded serialized perfetto.protos.TraceConfig protobuf message When specified, the parameters categories, options, traceConfig are ignored.
+	TracingBackend               Backend           `json:"tracingBackend,omitempty,omitzero"`     // Backend type (defaults to auto)
+	ScreenshotMaxSize            int64             `json:"screenshotMaxSize,omitempty,omitzero"`  // Maximum width and height (in pixels) of each captured screenshot. Only used when the disabled-by-default-devtools.screenshot category is enabled. Defaults to 500. The combined memory footprint of screenshots (screenshotMaxSize * screenshotMaxSize * 4 * screenshotMaxCount) is clamped to the existing per-session budget.
+	ScreenshotMaxCount           int64             `json:"screenshotMaxCount,omitempty,omitzero"` // Maximum number of screenshots captured during a single tracing session. Only used when the disabled-by-default-devtools.screenshot category is enabled. Defaults to 450. Clamped together with screenshotMaxSize to stay within the per-session screenshot memory budget.
 }
 
 // Start start trace events collection.
@@ -240,6 +242,27 @@ func (p StartParams) WithPerfettoConfig(perfettoConfig string) *StartParams {
 // WithTracingBackend backend type (defaults to auto).
 func (p StartParams) WithTracingBackend(tracingBackend Backend) *StartParams {
 	p.TracingBackend = tracingBackend
+	return &p
+}
+
+// WithScreenshotMaxSize maximum width and height (in pixels) of each
+// captured screenshot. Only used when the
+// disabled-by-default-devtools.screenshot category is enabled. Defaults to 500.
+// The combined memory footprint of screenshots (screenshotMaxSize *
+// screenshotMaxSize * 4 * screenshotMaxCount) is clamped to the existing
+// per-session budget.
+func (p StartParams) WithScreenshotMaxSize(screenshotMaxSize int64) *StartParams {
+	p.ScreenshotMaxSize = screenshotMaxSize
+	return &p
+}
+
+// WithScreenshotMaxCount maximum number of screenshots captured during a
+// single tracing session. Only used when the
+// disabled-by-default-devtools.screenshot category is enabled. Defaults to 450.
+// Clamped together with screenshotMaxSize to stay within the per-session
+// screenshot memory budget.
+func (p StartParams) WithScreenshotMaxCount(screenshotMaxCount int64) *StartParams {
+	p.ScreenshotMaxCount = screenshotMaxCount
 	return &p
 }
 
