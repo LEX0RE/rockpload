@@ -239,9 +239,10 @@ func (p *CaptureSnapshotParams) Do(ctx context.Context) (data string, err error)
 
 // CreateIsolatedWorldParams creates an isolated world for the given frame.
 type CreateIsolatedWorldParams struct {
-	FrameID             cdp.FrameID `json:"frameId"`                      // Id of the frame in which the isolated world should be created.
-	WorldName           string      `json:"worldName,omitempty,omitzero"` // An optional name which is reported in the Execution Context.
-	GrantUniveralAccess bool        `json:"grantUniveralAccess"`          // Whether or not universal access should be granted to the isolated world. This is a powerful option, use with caution.
+	FrameID               cdp.FrameID `json:"frameId"`                                  // Id of the frame in which the isolated world should be created.
+	WorldName             string      `json:"worldName,omitempty,omitzero"`             // An optional name which is reported in the Execution Context.
+	GrantUniveralAccess   bool        `json:"grantUniveralAccess"`                      // Whether or not universal access should be granted to the isolated world. This is a powerful option, use with caution.
+	ContentSecurityPolicy string      `json:"contentSecurityPolicy,omitempty,omitzero"` // An optional content security policy to set for the isolated world. If omitted, any existing CSP for the world will be cleared. Note that clearing or updating the CSP does not immediately affect the active context in the same document because LocalDOMWindow caches the ContentSecurityPolicy object. The change takes effect on subsequent navigations when a new window context is created.
 }
 
 // CreateIsolatedWorld creates an isolated world for the given frame.
@@ -268,6 +269,17 @@ func (p CreateIsolatedWorldParams) WithWorldName(worldName string) *CreateIsolat
 // to the isolated world. This is a powerful option, use with caution.
 func (p CreateIsolatedWorldParams) WithGrantUniveralAccess(grantUniveralAccess bool) *CreateIsolatedWorldParams {
 	p.GrantUniveralAccess = grantUniveralAccess
+	return &p
+}
+
+// WithContentSecurityPolicy an optional content security policy to set for
+// the isolated world. If omitted, any existing CSP for the world will be
+// cleared. Note that clearing or updating the CSP does not immediately affect
+// the active context in the same document because LocalDOMWindow caches the
+// ContentSecurityPolicy object. The change takes effect on subsequent
+// navigations when a new window context is created.
+func (p CreateIsolatedWorldParams) WithContentSecurityPolicy(contentSecurityPolicy string) *CreateIsolatedWorldParams {
+	p.ContentSecurityPolicy = contentSecurityPolicy
 	return &p
 }
 

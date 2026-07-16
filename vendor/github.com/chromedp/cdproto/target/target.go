@@ -312,7 +312,7 @@ type CreateTargetParams struct {
 	Background              bool                 `json:"background"`                          // Whether to create the target in background or foreground (false by default, not supported by headless shell).
 	ForTab                  bool                 `json:"forTab"`                              // Whether to create the target of type "tab".
 	Hidden                  bool                 `json:"hidden"`                              // Whether to create a hidden target. The hidden target is observable via protocol, but not present in the tab UI strip. Cannot be created with forTab: true, newWindow: true or background: false. The life-time of the tab is limited to the life-time of the session.
-	Focus                   bool                 `json:"focus"`                               // If specified, the option is used to determine if the new target should be focused or not. By default, the focus behavior depends on the value of the background field. For example, background=false and focus=false will result in the target tab being opened but the browser window remain unchanged (if it was in the background, it will remain in the background) and background=false with focus=undefined will result in the window being focused. Using background: true and focus: true is not supported and will result in an error.
+	Focus                   bool                 `json:"focus"`                               // If specified, determines whether the new target should be focused. By default, the focus behavior depends on the background parameter: - If background is false (default) and focus is omitted, the new target is focused and the browser window is brought to the foreground. - If background is false and focus is false, the target is opened but the browser window's focus remains unchanged (e.g., if the window was in the background, it stays there). - If background is true, setting focus to true is not supported and will result in an error.
 }
 
 // CreateTarget creates a new page.
@@ -412,14 +412,14 @@ func (p CreateTargetParams) WithHidden(hidden bool) *CreateTargetParams {
 	return &p
 }
 
-// WithFocus if specified, the option is used to determine if the new target
-// should be focused or not. By default, the focus behavior depends on the value
-// of the background field. For example, background=false and focus=false will
-// result in the target tab being opened but the browser window remain unchanged
-// (if it was in the background, it will remain in the background) and
-// background=false with focus=undefined will result in the window being
-// focused. Using background: true and focus: true is not supported and will
-// result in an error.
+// WithFocus if specified, determines whether the new target should be
+// focused. By default, the focus behavior depends on the background parameter:
+// - If background is false (default) and focus is omitted, the new target is
+// focused and the browser window is brought to the foreground. - If background
+// is false and focus is false, the target is opened but the browser window's
+// focus remains unchanged (e.g., if the window was in the background, it stays
+// there). - If background is true, setting focus to true is not supported and
+// will result in an error.
 func (p CreateTargetParams) WithFocus(focus bool) *CreateTargetParams {
 	p.Focus = focus
 	return &p
@@ -782,7 +782,7 @@ func (p *GetDevToolsTargetParams) Do(ctx context.Context) (targetID ID, err erro
 // OpenDevToolsParams opens a DevTools window for the target.
 type OpenDevToolsParams struct {
 	TargetID ID     `json:"targetId"`                   // This can be the page or tab target ID.
-	PanelID  string `json:"panelId,omitempty,omitzero"` // The id of the panel we want DevTools to open initially. Currently supported panels are elements, console, network, sources, resources and performance.
+	PanelID  string `json:"panelId,omitempty,omitzero"` // The id of the panel we want DevTools to open initially. Currently supported panels are elements, console, network, sources, resources, timeline, chrome-recorder, heap-profiler, lighthouse, and security.
 }
 
 // OpenDevTools opens a DevTools window for the target.
@@ -799,8 +799,9 @@ func OpenDevTools(targetID ID) *OpenDevToolsParams {
 }
 
 // WithPanelID the id of the panel we want DevTools to open initially.
-// Currently supported panels are elements, console, network, sources, resources
-// and performance.
+// Currently supported panels are elements, console, network, sources,
+// resources, timeline, chrome-recorder, heap-profiler, lighthouse, and
+// security.
 func (p OpenDevToolsParams) WithPanelID(panelID string) *OpenDevToolsParams {
 	p.PanelID = panelID
 	return &p

@@ -172,7 +172,7 @@ const (
 	PseudoTypeAfter                       PseudoType = "after"
 	PseudoTypeExpandIcon                  PseudoType = "expand-icon"
 	PseudoTypePickerIcon                  PseudoType = "picker-icon"
-	PseudoTypeInterestHint                PseudoType = "interest-hint"
+	PseudoTypeInterestButton              PseudoType = "interest-button"
 	PseudoTypeMarker                      PseudoType = "marker"
 	PseudoTypeBackdrop                    PseudoType = "backdrop"
 	PseudoTypeColumn                      PseudoType = "column"
@@ -204,8 +204,11 @@ const (
 	PseudoTypeFileSelectorButton          PseudoType = "file-selector-button"
 	PseudoTypeDetailsContent              PseudoType = "details-content"
 	PseudoTypePicker                      PseudoType = "picker"
+	PseudoTypeSelectListbox               PseudoType = "select-listbox"
 	PseudoTypePermissionIcon              PseudoType = "permission-icon"
 	PseudoTypeOverscrollAreaParent        PseudoType = "overscroll-area-parent"
+	PseudoTypeOverscrollBackdrop          PseudoType = "overscroll-backdrop"
+	PseudoTypeSkeleton                    PseudoType = "skeleton"
 )
 
 // UnmarshalJSON satisfies [json.Unmarshaler].
@@ -228,8 +231,8 @@ func (t *PseudoType) UnmarshalJSON(buf []byte) error {
 		*t = PseudoTypeExpandIcon
 	case PseudoTypePickerIcon:
 		*t = PseudoTypePickerIcon
-	case PseudoTypeInterestHint:
-		*t = PseudoTypeInterestHint
+	case PseudoTypeInterestButton:
+		*t = PseudoTypeInterestButton
 	case PseudoTypeMarker:
 		*t = PseudoTypeMarker
 	case PseudoTypeBackdrop:
@@ -292,10 +295,16 @@ func (t *PseudoType) UnmarshalJSON(buf []byte) error {
 		*t = PseudoTypeDetailsContent
 	case PseudoTypePicker:
 		*t = PseudoTypePicker
+	case PseudoTypeSelectListbox:
+		*t = PseudoTypeSelectListbox
 	case PseudoTypePermissionIcon:
 		*t = PseudoTypePermissionIcon
 	case PseudoTypeOverscrollAreaParent:
 		*t = PseudoTypeOverscrollAreaParent
+	case PseudoTypeOverscrollBackdrop:
+		*t = PseudoTypeOverscrollBackdrop
+	case PseudoTypeSkeleton:
+		*t = PseudoTypeSkeleton
 	default:
 		return fmt.Errorf("unknown PseudoType value: %v", s)
 	}
