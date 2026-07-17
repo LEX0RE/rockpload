@@ -168,7 +168,7 @@ var LOCALHOST_STORAGE = &StorageConfig{
 	Token:        "",
 	SendPing:     false,
 	PingPath:     "/",
-	SendReplay:   true,
+	SendReplay:   false,
 	ReplayPath:   "/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	SendLive:     false,
