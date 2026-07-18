@@ -72,7 +72,6 @@ func (c *UploadCache) Add(id string) {
 	c.items = append(c.items, id)
 	c.index[id] = true
 
-	c.ensureCapacity()
 	c.Save()
 }
 
@@ -91,7 +90,7 @@ func (c *UploadCache) Save() error {
 
 	c.ensureCapacity()
 
-	f, err := os.OpenFile(c.cachePath(), os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(c.cachePath(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		panic(err)
 	}
