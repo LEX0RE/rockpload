@@ -2,6 +2,7 @@ package rocket_network
 
 import (
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -26,12 +27,21 @@ func (pl PlayerList) ToPlayerIDs() []rlapi.PlayerID {
 	return playerIds
 }
 
+type CachedMatchEntry struct {
+	MatchGUID            string `json:"match_guid"`
+	RecordStartTimestamp int64  `json:"record_start_timestamp"`
+	Playlist             int    `json:"playlist"`
+	Team0Score           int    `json:"team0_score"`
+	Team1Score           int    `json:"team1_score"`
+}
+
 type Player struct {
-	PlayerName      string             `json:"player_name"`
-	Auth            *Auth              `json:"auth"`
-	PlayerID        *rlapi.PlayerID    `json:"player_id,omitempty"`
-	MatchHistory    []rlapi.MatchEntry `json:"-"`
-	LastCheckOnline bool               `json:"-"`
+	PlayerName         string             `json:"player_name"`
+	Auth               *Auth              `json:"auth"`
+	PlayerID           *rlapi.PlayerID    `json:"player_id,omitempty"`
+	MatchHistory       []rlapi.MatchEntry `json:"-"`
+	CachedMatchHistory []CachedMatchEntry `json:"cached_match_history,omitempty"`
+	LastCheckOnline    bool               `json:"-"`
 
 	rpcMu  sync.Mutex `json:"-"`
 	authMu sync.Mutex `json:"-"`
@@ -55,6 +65,7 @@ func (p *Player) Reset() {
 	p.PlayerName = "Player"
 	p.PlayerID = nil
 	p.MatchHistory = nil
+	p.CachedMatchHistory = nil
 
 	p.Auth.clearToken()
 }
@@ -94,6 +105,17 @@ func (p *Player) GetInfo(psyNet *rlapi.PsyNet) (err error) {
 	sort.Slice(p.MatchHistory, func(i, j int) bool {
 		return p.MatchHistory[i].Match.RecordStartTimestamp > p.MatchHistory[j].Match.RecordStartTimestamp
 	})
+
+	p.CachedMatchHistory = make([]CachedMatchEntry, 0, len(p.MatchHistory))
+	for _, entry := range p.MatchHistory {
+		p.CachedMatchHistory = append(p.CachedMatchHistory, CachedMatchEntry{
+			MatchGUID:            entry.Match.MatchGUID,
+			RecordStartTimestamp: entry.Match.RecordStartTimestamp,
+			Playlist:             entry.Match.Playlist,
+			Team0Score:           entry.Match.Team0Score,
+			Team1Score:           entry.Match.Team1Score,
+		})
+	}
 
 	return nil
 }
@@ -217,4 +239,12 @@ func (p *Player) EqualStringID(otherPlayerStringID string) bool {
 	}
 
 	return strings.EqualFold(p.PlayerID.String(), otherPlayerStringID)
+}
+
+func (p *Player) GetMatchHistoryIndex(matchGUID string) int {
+	logger.FuncDebug()
+
+	return slices.IndexFunc(p.MatchHistory, func(m rlapi.MatchEntry) bool {
+		return m.Match.MatchGUID == matchGUID
+	})
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -228,9 +229,13 @@ func NewBehaviorSettingPopup(p *Popup) *BehaviorSettingPopup {
 	settingsScroll := container.NewVScroll(sp.settingsBox)
 	bottom := container.NewVBox(widget.NewSeparator(), saveBtn)
 
+	clearCacheBtn := createClearCacheBtn(p)
+
 	var top fyne.CanvasObject
 	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
-		top = container.NewVBox(createExportLogBtn(p), widget.NewSeparator())
+		top = container.NewVBox(createExportLogBtn(p), clearCacheBtn, widget.NewSeparator())
+	} else {
+		top = container.NewVBox(clearCacheBtn, widget.NewSeparator())
 	}
 	content := container.NewBorder(top, bottom, nil, nil, settingsScroll)
 
@@ -290,6 +295,26 @@ func (sp *BehaviorSettingPopup) refreshChildren(settingType config.BehaviorSetti
 			}
 		}
 	}
+}
+
+func createClearCacheBtn(p *Popup) *widget.Button {
+	logger.FuncDebug()
+
+	btn := widget.NewButton("Clear Match History Cache", func() {
+		dialog.ShowConfirm("Clear Match History Cache", "Are you sure you want to delete match history cache ?", func(confirmed bool) {
+			if !confirmed {
+				return
+			}
+
+			for _, website := range p.appConfig.StorageSettings.Get() {
+				upload.LoadUploadedCache(website.Name, 0).Clear()
+			}
+		}, p.parentWindow)
+	})
+
+	btn.Importance = widget.DangerImportance
+
+	return btn
 }
 
 func createExportLogBtn(p *Popup) *widget.Button {

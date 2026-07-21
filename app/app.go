@@ -14,6 +14,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/dialog"
 )
 
 //go:embed assets/logo.png
@@ -171,6 +172,75 @@ func (a *App) initEvents() {
 
 	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD, tools.Listener{IsSync: false, Callback: func(data any) {
 		a.uploader.Run()
+	}})
+
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD_FILE, tools.Listener{IsSync: false, Callback: func(data any) {
+		filePath, ok := data.(string)
+		if !ok {
+			return
+		}
+
+		a.uploader.UploadLocalFile(filePath)
+	}})
+
+	a.uploader.EventManager.Subscribe(upload.EventSingleUploadCompleted, tools.Listener{IsSync: false, Callback: func(data any) {
+		if data == nil {
+			dialog.ShowInformation("Upload Complete", "The replay was uploaded successfully.", a.window)
+			return
+		}
+
+		if err, ok := data.(error); ok {
+			dialog.ShowError(err, a.window)
+		}
+	}})
+
+	a.uploader.EventManager.Subscribe(upload.EventMatchUploadCompleted, tools.Listener{IsSync: false, Callback: func(data any) {
+		if err, ok := data.(error); ok && err != nil {
+			dialog.ShowError(err, a.window)
+			return
+		}
+
+		a.gui.UpdateState()
+	}})
+
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_FETCH_HISTORY, tools.Listener{IsSync: false, Callback: func(data any) {
+		go func() {
+			selectedAccount := a.accountManager.GetSelected()
+			err := a.accountManager.RefreshMatchHistory(selectedAccount)
+
+			if err == nil {
+				a.appConfig.Save()
+			}
+
+			fyne.Do(func() {
+				if err != nil {
+					dialog.ShowError(err, a.window)
+					return
+				}
+
+				a.gui.UpdateState()
+			})
+		}()
+	}})
+
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD_MATCH, tools.Listener{IsSync: false, Callback: func(data any) {
+		matchGUID, ok := data.(string)
+		if !ok {
+			return
+		}
+
+		selectedAccount := a.accountManager.GetSelected()
+		if selectedAccount == nil {
+			return
+		}
+
+		matchIndex := selectedAccount.Player.GetMatchHistoryIndex(matchGUID)
+		if matchIndex == -1 {
+			dialog.ShowInformation("Fetch needed", "Fetch match history first to upload this replay.", a.window)
+			return
+		}
+
+		a.uploader.UploadMatchEntry(selectedAccount, selectedAccount.Player.MatchHistory[matchIndex])
 	}})
 
 	guiAccountManagerEventList := []tools.EventType{manager.EVENT_SELECT_ACCOUNT, manager.EVENT_ADD_ACCOUNT, manager.EVENT_DELETE_ACCOUNT}

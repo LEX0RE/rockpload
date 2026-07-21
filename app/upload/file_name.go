@@ -33,7 +33,7 @@ func replayUploadFileName(filePath string, template string, replayUpload ReplayU
 		replayTime = timeFromReplayTimestamp(replayUpload.Replay.Match.RecordStartTimestamp)
 	}
 
-	win := replayUpload.playerWon()
+	win := replayUpload.PlayerWon()
 	winLoss := ""
 	wl := ""
 
@@ -48,7 +48,7 @@ func replayUploadFileName(filePath string, template string, replayUpload ReplayU
 
 	replacements := map[string]string{
 		"{PLAYER}":  replayUpload.PlayerName,
-		"{MODE}":    playlistName(replayUpload.Replay.Match.Playlist),
+		"{MODE}":    PlaylistName(replayUpload.Replay.Match.Playlist),
 		"{NUM}":     strconv.Itoa(replayUploadSequenceIndex),
 		"{YEAR}":    strconv.Itoa(replayTime.Year()),
 		"{MONTH}":   fmt.Sprintf("%02d", replayTime.Month()),
@@ -88,7 +88,7 @@ func timeFromReplayTimestamp(timestamp int64) time.Time {
 	}
 }
 
-func (ru ReplayUpload) playerWon() int {
+func (ru ReplayUpload) PlayerWon() int {
 	if ru.Replay.Match.WinningTeam == -1 {
 		return -1
 	}
@@ -122,7 +122,7 @@ func sanitizeFileName(fileName string) string {
 }
 
 // Based from https://bakkesplugins.com/wiki/bakkesmod-sdk/enums/playlistids
-func playlistName(playlist int) string {
+func PlaylistName(playlist int) string {
 	switch playlist {
 	case -1337:
 		return "Unknown"

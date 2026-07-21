@@ -2,6 +2,7 @@ package manager
 
 import (
 	"cmp"
+	"fmt"
 	"log/slog"
 	"slices"
 
@@ -237,6 +238,16 @@ func (am *AccountManager) Delete(accountId int) {
 
 		am.EventManager.Notify(EVENT_DELETE_ACCOUNT, deletedId)
 	}
+}
+
+func (am *AccountManager) RefreshMatchHistory(ac *rocket_network.Account) error {
+	logger.FuncDebug()
+
+	if ac == nil {
+		return fmt.Errorf("no account selected")
+	}
+
+	return ac.Player.GetInfo(am.currentPsyNet())
 }
 
 func (am *AccountManager) RefreshInfo() {

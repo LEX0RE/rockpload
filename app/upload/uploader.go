@@ -1,6 +1,8 @@
 package upload
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"sort"
@@ -22,6 +24,8 @@ const (
 	EventUploadPlayerCompleted tools.EventType = "upload_player_completed"
 	EventUploadProgress        tools.EventType = "upload_progress"
 	EventReplayUploaded        tools.EventType = "replay_uploaded"
+	EventSingleUploadCompleted tools.EventType = "single_upload_completed"
+	EventMatchUploadCompleted  tools.EventType = "match_upload_completed"
 
 	uploadSleep = time.Second // Ballchasing PATCH is 2 req/sec max, so don't go below that
 )
@@ -47,10 +51,11 @@ type UploadStorage interface {
 type Uploader struct {
 	*rtime.Looper
 
-	lockInUpload     sync.Mutex
-	lockInLiveUpload sync.Mutex
-	lockInAutoUpload sync.Mutex
-	lockInRunRLAPI   sync.Mutex
+	lockInUpload       sync.Mutex
+	lockInLiveUpload   sync.Mutex
+	lockInAutoUpload   sync.Mutex
+	lockInRunRLAPI     sync.Mutex
+	lockInSingleUpload sync.Mutex
 
 	appConfig      *config.AppConfig
 	accountManager *manager.AccountManager
@@ -136,6 +141,89 @@ func (u *Uploader) UploadLiveStats(liveStats *rocket_network.LiveStats) {
 			storage.UploadLive(liveStats)
 		}
 	}
+}
+
+func (u *Uploader) UploadLocalFile(filePath string) {
+	logger.FuncDebug()
+
+	if !u.lockInSingleUpload.TryLock() {
+		logger.Rlogger.Debug("Duplicate single replay upload request at the same time, skipping")
+		u.EventManager.Notify(EventSingleUploadCompleted, fmt.Errorf("an upload is already in progress"))
+		return
+	}
+
+	go func() {
+		defer u.lockInSingleUpload.Unlock()
+		defer os.Remove(filePath)
+
+		logger.Rlogger.Info("Start Single Replay Upload", slog.Any("filePath", filePath))
+
+		storages := u.getStorages()
+		if len(storages) == 0 {
+			u.EventManager.Notify(EventSingleUploadCompleted, fmt.Errorf("no storage is configured to receive replays"))
+			return
+		}
+
+		var uploadErrors []error
+		for _, storage := range storages {
+			if err := storage.UploadReplay(filePath, ReplayUpload{}); err != nil {
+				logger.Rlogger.Error("Single replay upload error:", slog.Any("storage", storage.GetConfig().Name), slog.Any("err", err))
+				uploadErrors = append(uploadErrors, fmt.Errorf("%s: %w", storage.GetConfig().Name, err))
+			}
+		}
+
+		u.EventManager.Notify(EventSingleUploadCompleted, errors.Join(uploadErrors...))
+	}()
+}
+
+func (u *Uploader) UploadMatchEntry(ac *rocket_network.Account, match rlapi.MatchEntry) {
+	logger.FuncDebug()
+
+	if !u.lockInSingleUpload.TryLock() {
+		logger.Rlogger.Debug("Duplicate single replay upload request at the same time, skipping")
+		u.EventManager.Notify(EventMatchUploadCompleted, fmt.Errorf("an upload is already in progress"))
+		return
+	}
+
+	go func() {
+		defer u.lockInSingleUpload.Unlock()
+
+		logger.Rlogger.Info("Start Single Match Upload", slog.Any("matchGUID", match.Match.MatchGUID))
+
+		storages := u.getStorages()
+		if len(storages) == 0 {
+			u.EventManager.Notify(EventMatchUploadCompleted, fmt.Errorf("no storage is configured to receive replays"))
+			return
+		}
+
+		filePath, err := downloadFile(match.ReplayUrl)
+		if err != nil {
+			u.EventManager.Notify(EventMatchUploadCompleted, fmt.Errorf("failed to download replay: %w", err))
+			return
+		}
+		defer os.Remove(filePath)
+
+		playerID := ""
+		if ac.Player.PlayerID != nil {
+			playerID = ac.Player.PlayerID.String()
+		}
+
+		replayUpload := ReplayUpload{PlayerName: ac.Player.PlayerName, PlayerID: playerID, Replay: match}
+
+		var uploadErrors []error
+
+		for _, storage := range storages {
+			if err := storage.UploadReplay(filePath, replayUpload); err != nil {
+				logger.Rlogger.Error("Single match upload error:", slog.Any("storage", storage.GetConfig().Name), slog.Any("err", err))
+				uploadErrors = append(uploadErrors, fmt.Errorf("%s: %w", storage.GetConfig().Name, err))
+				continue
+			}
+
+			LoadUploadedCache(storage.GetConfig().Name, len(u.appConfig.AccountSettings.Get())).Add(match.Match.MatchGUID)
+		}
+
+		u.EventManager.Notify(EventMatchUploadCompleted, errors.Join(uploadErrors...))
+	}()
 }
 
 func (u *Uploader) upload(uploadCtx *uploadCtx) {
@@ -232,7 +320,7 @@ func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string
 
 	if os.Getenv("FAKE_UPLOAD") == "true" {
 		logger.Rlogger.Debug("FAKE UPLOAD - ", slog.Any("Account", ac.AccountName()), slog.Any("Storage", storage.GetConfig().Name), slog.Any("matchGUID", match.Match.MatchGUID))
-		ac.AddToMatchHistory(match.Match.MatchGUID)
+		uploadCache.Add(match.Match.MatchGUID)
 		return
 	}
 
@@ -260,13 +348,11 @@ func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string
 			logger.Rlogger.Error("Upload error:", slog.Any("err", err))
 		} else {
 			uploadCache.Add(match.Match.MatchGUID)
-			ac.AddToMatchHistory(match.Match.MatchGUID)
 		}
 
 		time.Sleep(uploadSleep)
 	} else {
 		logger.Rlogger.Debug("Skipping replay as it was already uploaded", slog.Any("Storage", storage.GetConfig().Name))
-		ac.AddToMatchHistory(match.Match.MatchGUID)
 	}
 
 	uploadCache.Save()
