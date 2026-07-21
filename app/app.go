@@ -208,6 +208,10 @@ func (a *App) initEvents() {
 			selectedAccount := a.accountManager.GetSelected()
 			err := a.accountManager.RefreshMatchHistory(selectedAccount)
 
+			if err == nil {
+				a.appConfig.Save()
+			}
+
 			fyne.Do(func() {
 				if err != nil {
 					dialog.ShowError(err, a.window)
@@ -220,17 +224,23 @@ func (a *App) initEvents() {
 	}})
 
 	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD_MATCH, tools.Listener{IsSync: false, Callback: func(data any) {
-		index, ok := data.(int)
+		matchGUID, ok := data.(string)
 		if !ok {
 			return
 		}
 
 		selectedAccount := a.accountManager.GetSelected()
-		if selectedAccount == nil || index < 0 || index >= len(selectedAccount.Player.MatchHistory) {
+		if selectedAccount == nil {
 			return
 		}
 
-		a.uploader.UploadMatchEntry(selectedAccount, selectedAccount.Player.MatchHistory[index])
+		matchIndex := selectedAccount.Player.GetMatchHistoryIndex(matchGUID)
+		if matchIndex == -1 {
+			dialog.ShowInformation("Fetch needed", "Fetch match history first to upload this replay.", a.window)
+			return
+		}
+
+		a.uploader.UploadMatchEntry(selectedAccount, selectedAccount.Player.MatchHistory[matchIndex])
 	}})
 
 	guiAccountManagerEventList := []tools.EventType{manager.EVENT_SELECT_ACCOUNT, manager.EVENT_ADD_ACCOUNT, manager.EVENT_DELETE_ACCOUNT}

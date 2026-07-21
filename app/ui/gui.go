@@ -38,8 +38,9 @@ const (
 )
 
 type matchHistoryRow struct {
-	label    string
-	uploaded bool
+	label     string
+	matchGUID string
+	uploaded  bool
 }
 
 type GUI struct {
@@ -144,21 +145,23 @@ func (g *GUI) UpdateState() {
 			g.rlConnectedWarning.Hide()
 		}
 
-		if selectedAccount.Player.MatchHistory != nil {
+		if len(selectedAccount.Player.CachedMatchHistory) > 0 {
 			g.matchHistoryData = []matchHistoryRow{}
 
 			cacheSet := upload.LoadActiveUploadedCaches(g.appConfig.StorageSettings.Get(), len(g.appConfig.AccountSettings.Get()))
 
-			for _, match := range selectedAccount.Player.MatchHistory {
-				matchLabel := "[" + match.Match.MatchGUID[:2] + "..." + match.Match.MatchGUID[len(match.Match.MatchGUID)-2:] + "] "
+			for _, match := range selectedAccount.Player.CachedMatchHistory {
+				matchLabel := "[" + match.MatchGUID[:2] + "..." + match.MatchGUID[len(match.MatchGUID)-2:] + "] "
+				matchLabel += upload.PlaylistName(match.Playlist) + " • "
 
-				matchDate := time.Unix(match.Match.RecordStartTimestamp, 0).Format("2006-01-02 15:04:05")
-				matchScore := strconv.Itoa(match.Match.Team0Score) + " - " + strconv.Itoa(match.Match.Team1Score)
-				matchLabel += matchDate + " : " + matchScore
+				matchDate := time.Unix(match.RecordStartTimestamp, 0).Format("2006-01-02 15:04")
+				matchScore := strconv.Itoa(match.Team0Score) + " - " + strconv.Itoa(match.Team1Score)
+				matchLabel += matchDate + " • " + matchScore
 
 				g.matchHistoryData = append(g.matchHistoryData, matchHistoryRow{
-					label:    matchLabel,
-					uploaded: cacheSet.IsUploadedEverywhere(match.Match.MatchGUID),
+					label:     matchLabel,
+					matchGUID: match.MatchGUID,
+					uploaded:  cacheSet.IsUploadedEverywhere(match.MatchGUID),
 				})
 			}
 			g.matchHistoryList.Refresh()
@@ -324,7 +327,7 @@ func (g *GUI) createPlayerUI() {
 			}
 
 			rowUploadBtn.OnTapped = func() {
-				g.EventManager.Notify(EVENT_CLICK_UPLOAD_MATCH, i)
+				g.EventManager.Notify(EVENT_CLICK_UPLOAD_MATCH, data.matchGUID)
 			}
 		},
 	)
@@ -351,30 +354,13 @@ func (g *GUI) createPlayerUI() {
 		}, g.window)
 	})
 
-	clearCacheBtn := widget.NewButton("Clear History Cache", func() {
-		dialog.ShowConfirm("Clear History Cache", "Are you sure you want to delete match history cache ?", func(confirmed bool) {
-			if confirmed {
-				storage := g.appConfig.StorageSettings.Get()
-
-				for _, website := range storage {
-					uploadCache := upload.LoadUploadedCache(website.Name, 0)
-					uploadCache.Clear()
-				}
-
-				if g.uploadStatus != nil {
-					g.uploadStatus.SetText(g.lastUploadStatusText())
-				}
-			}
-		}, g.window)
-	})
-
 	var connectionContainer *fyne.Container
 	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
-		buttonContainer := container.New(NewCenterWrapLayout(), disconnectBtn, clearCacheBtn, uploadFileBtn, uploadBtn)
+		buttonContainer := container.New(NewCenterWrapLayout(), disconnectBtn, uploadFileBtn, uploadBtn)
 		connectionContainer = container.NewBorder(nil, buttonContainer, g.connectedLabel, nil, nil)
 	} else {
 		rightButtons := container.NewHBox(uploadFileBtn, uploadBtn)
-		buttonContainer := container.NewBorder(nil, nil, disconnectBtn, rightButtons, clearCacheBtn)
+		buttonContainer := container.NewBorder(nil, nil, disconnectBtn, rightButtons)
 		connectionContainer = container.NewBorder(nil, nil, g.connectedLabel, buttonContainer, nil)
 	}
 
