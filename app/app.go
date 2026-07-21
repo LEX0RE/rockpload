@@ -14,6 +14,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/dialog"
 )
 
 //go:embed assets/logo.png
@@ -171,6 +172,26 @@ func (a *App) initEvents() {
 
 	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD, tools.Listener{IsSync: false, Callback: func(data any) {
 		a.uploader.Run()
+	}})
+
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD_FILE, tools.Listener{IsSync: false, Callback: func(data any) {
+		filePath, ok := data.(string)
+		if !ok {
+			return
+		}
+
+		a.uploader.UploadLocalFile(filePath)
+	}})
+
+	a.uploader.EventManager.Subscribe(upload.EventSingleUploadCompleted, tools.Listener{IsSync: false, Callback: func(data any) {
+		if data == nil {
+			dialog.ShowInformation("Upload Complete", "The replay file was uploaded successfully.", a.window)
+			return
+		}
+
+		if err, ok := data.(error); ok {
+			dialog.ShowError(err, a.window)
+		}
 	}})
 
 	guiAccountManagerEventList := []tools.EventType{manager.EVENT_SELECT_ACCOUNT, manager.EVENT_ADD_ACCOUNT, manager.EVENT_DELETE_ACCOUNT}

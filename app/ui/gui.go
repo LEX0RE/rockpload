@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"io"
 	"log/slog"
 	"os"
 	"runtime"
@@ -23,12 +24,14 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
 const (
-	EVENT_CLICK_UPLOAD tools.EventType = "click_upload"
+	EVENT_CLICK_UPLOAD      tools.EventType = "click_upload"
+	EVENT_CLICK_UPLOAD_FILE tools.EventType = "click_upload_file"
 
 	waitBeforeOpenBrowser = 5 * time.Second
 )
@@ -297,6 +300,10 @@ func (g *GUI) createPlayerUI() {
 		g.EventManager.Notify(EVENT_CLICK_UPLOAD, nil)
 	})
 
+	uploadFileBtn := widget.NewButton("Upload File", func() {
+		g.showUploadReplayFileDialog()
+	})
+
 	disconnectBtn := widget.NewButton("Disconnect", func() {
 		dialog.ShowConfirm("Disconnect", "Are you sure you want to disconnect this account ?", func(confirmed bool) {
 			if confirmed {
@@ -326,10 +333,11 @@ func (g *GUI) createPlayerUI() {
 
 	var connectionContainer *fyne.Container
 	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
-		buttonContainer := container.New(NewCenterWrapLayout(), disconnectBtn, clearCacheBtn, uploadBtn)
+		buttonContainer := container.New(NewCenterWrapLayout(), disconnectBtn, clearCacheBtn, uploadFileBtn, uploadBtn)
 		connectionContainer = container.NewBorder(nil, buttonContainer, g.connectedLabel, nil, nil)
 	} else {
-		buttonContainer := container.NewBorder(nil, nil, disconnectBtn, uploadBtn, clearCacheBtn)
+		rightButtons := container.NewHBox(uploadFileBtn, uploadBtn)
+		buttonContainer := container.NewBorder(nil, nil, disconnectBtn, rightButtons, clearCacheBtn)
 		connectionContainer = container.NewBorder(nil, nil, g.connectedLabel, buttonContainer, nil)
 	}
 
@@ -346,6 +354,42 @@ func (g *GUI) createPlayerUI() {
 		nil,
 		container.NewBorder(centerTopBox, nil, nil, nil, widget.NewAccordion(matchHistoryAccordion)),
 	)
+}
+
+func (g *GUI) showUploadReplayFileDialog() {
+	logger.FuncDebug()
+
+	fileDialog := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if err != nil {
+			dialog.ShowError(err, g.window)
+			return
+		}
+
+		if reader == nil {
+			return
+		}
+		defer reader.Close()
+
+		tmpFile, err := os.CreateTemp("", "*.replay")
+		if err != nil {
+			dialog.ShowError(err, g.window)
+			return
+		}
+		tmpPath := tmpFile.Name()
+
+		_, err = io.Copy(tmpFile, reader)
+		tmpFile.Close()
+		if err != nil {
+			os.Remove(tmpPath)
+			dialog.ShowError(err, g.window)
+			return
+		}
+
+		g.EventManager.Notify(EVENT_CLICK_UPLOAD_FILE, tmpPath)
+	}, g.window)
+
+	fileDialog.SetFilter(storage.NewExtensionFileFilter([]string{".replay"}))
+	fileDialog.Show()
 }
 
 func (g *GUI) UpdateUploadProgress(progress float64) {

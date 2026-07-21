@@ -1,6 +1,8 @@
 package upload
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"sort"
@@ -22,6 +24,7 @@ const (
 	EventUploadPlayerCompleted tools.EventType = "upload_player_completed"
 	EventUploadProgress        tools.EventType = "upload_progress"
 	EventReplayUploaded        tools.EventType = "replay_uploaded"
+	EventSingleUploadCompleted tools.EventType = "single_upload_completed"
 
 	uploadSleep = time.Second // Ballchasing PATCH is 2 req/sec max, so don't go below that
 )
@@ -47,10 +50,11 @@ type UploadStorage interface {
 type Uploader struct {
 	*rtime.Looper
 
-	lockInUpload     sync.Mutex
-	lockInLiveUpload sync.Mutex
-	lockInAutoUpload sync.Mutex
-	lockInRunRLAPI   sync.Mutex
+	lockInUpload       sync.Mutex
+	lockInLiveUpload   sync.Mutex
+	lockInAutoUpload   sync.Mutex
+	lockInRunRLAPI     sync.Mutex
+	lockInSingleUpload sync.Mutex
 
 	appConfig      *config.AppConfig
 	accountManager *manager.AccountManager
@@ -136,6 +140,39 @@ func (u *Uploader) UploadLiveStats(liveStats *rocket_network.LiveStats) {
 			storage.UploadLive(liveStats)
 		}
 	}
+}
+
+func (u *Uploader) UploadLocalFile(filePath string) {
+	logger.FuncDebug()
+
+	if !u.lockInSingleUpload.TryLock() {
+		logger.Rlogger.Debug("Duplicate single replay upload request at the same time, skipping")
+		u.EventManager.Notify(EventSingleUploadCompleted, fmt.Errorf("an upload is already in progress"))
+		return
+	}
+
+	go func() {
+		defer u.lockInSingleUpload.Unlock()
+		defer os.Remove(filePath)
+
+		logger.Rlogger.Info("Start Single Replay Upload", slog.Any("filePath", filePath))
+
+		storages := u.getStorages()
+		if len(storages) == 0 {
+			u.EventManager.Notify(EventSingleUploadCompleted, fmt.Errorf("no storage is configured to receive replays"))
+			return
+		}
+
+		var uploadErrors []error
+		for _, storage := range storages {
+			if err := storage.UploadReplay(filePath, ReplayUpload{}); err != nil {
+				logger.Rlogger.Error("Single replay upload error:", slog.Any("storage", storage.GetConfig().Name), slog.Any("err", err))
+				uploadErrors = append(uploadErrors, fmt.Errorf("%s: %w", storage.GetConfig().Name, err))
+			}
+		}
+
+		u.EventManager.Notify(EventSingleUploadCompleted, errors.Join(uploadErrors...))
+	}()
 }
 
 func (u *Uploader) upload(uploadCtx *uploadCtx) {
