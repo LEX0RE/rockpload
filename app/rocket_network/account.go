@@ -2,16 +2,14 @@ package rocket_network
 
 import (
 	"encoding/json"
-	"slices"
 	"strconv"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
 type Account struct {
-	Player        *Player  `json:"player"`
-	IsUnused      bool     `json:"is_unused,omitempty"`
-	HistorySended []string `json:"-"`
+	Player   *Player `json:"player"`
+	IsUnused bool    `json:"is_unused,omitempty"`
 }
 
 func NewAccount(profileId int) *Account {
@@ -27,15 +25,7 @@ func (ac *Account) UnmarshalJSON(data []byte) error {
 	type Alias Account
 	aux := (*Alias)(ac)
 
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	if ac.HistorySended == nil {
-		ac.HistorySended = make([]string, 0)
-	}
-
-	return nil
+	return json.Unmarshal(data, &aux)
 }
 
 func (ac *Account) AccountName() string {
@@ -53,14 +43,6 @@ func (ac *Account) AccountName() string {
 	}
 
 	return ac.Player.PlayerName + " (ID: " + strconv.Itoa(ac.Player.Auth.ProfileId) + ")"
-}
-
-func (ac *Account) AddToMatchHistory(matchGUID string) {
-	logger.FuncDebug()
-
-	if !slices.Contains(ac.HistorySended, matchGUID) {
-		ac.HistorySended = append(ac.HistorySended, matchGUID)
-	}
 }
 
 func (ac *Account) IsConnected() bool {

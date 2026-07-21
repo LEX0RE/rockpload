@@ -185,13 +185,52 @@ func (a *App) initEvents() {
 
 	a.uploader.EventManager.Subscribe(upload.EventSingleUploadCompleted, tools.Listener{IsSync: false, Callback: func(data any) {
 		if data == nil {
-			dialog.ShowInformation("Upload Complete", "The replay file was uploaded successfully.", a.window)
+			dialog.ShowInformation("Upload Complete", "The replay was uploaded successfully.", a.window)
 			return
 		}
 
 		if err, ok := data.(error); ok {
 			dialog.ShowError(err, a.window)
 		}
+	}})
+
+	a.uploader.EventManager.Subscribe(upload.EventMatchUploadCompleted, tools.Listener{IsSync: false, Callback: func(data any) {
+		if err, ok := data.(error); ok && err != nil {
+			dialog.ShowError(err, a.window)
+			return
+		}
+
+		a.gui.UpdateState()
+	}})
+
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_FETCH_HISTORY, tools.Listener{IsSync: false, Callback: func(data any) {
+		go func() {
+			selectedAccount := a.accountManager.GetSelected()
+			err := a.accountManager.RefreshMatchHistory(selectedAccount)
+
+			fyne.Do(func() {
+				if err != nil {
+					dialog.ShowError(err, a.window)
+					return
+				}
+
+				a.gui.UpdateState()
+			})
+		}()
+	}})
+
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD_MATCH, tools.Listener{IsSync: false, Callback: func(data any) {
+		index, ok := data.(int)
+		if !ok {
+			return
+		}
+
+		selectedAccount := a.accountManager.GetSelected()
+		if selectedAccount == nil || index < 0 || index >= len(selectedAccount.Player.MatchHistory) {
+			return
+		}
+
+		a.uploader.UploadMatchEntry(selectedAccount, selectedAccount.Player.MatchHistory[index])
 	}})
 
 	guiAccountManagerEventList := []tools.EventType{manager.EVENT_SELECT_ACCOUNT, manager.EVENT_ADD_ACCOUNT, manager.EVENT_DELETE_ACCOUNT}

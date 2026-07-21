@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
@@ -21,6 +22,41 @@ type UploadCache struct {
 	items     []string
 	index     map[string]bool
 	max       int
+}
+
+type UploadedCacheSet struct {
+	caches []*UploadCache
+}
+
+func LoadActiveUploadedCaches(storageConfigs []*config.StorageConfig, nAccount int) *UploadedCacheSet {
+	logger.FuncDebug()
+
+	set := &UploadedCacheSet{}
+	for _, storageConfig := range storageConfigs {
+		if !storageConfig.SendReplay {
+			continue
+		}
+
+		set.caches = append(set.caches, LoadUploadedCache(storageConfig.Name, nAccount))
+	}
+
+	return set
+}
+
+func (s *UploadedCacheSet) IsUploadedEverywhere(matchGUID string) bool {
+	logger.FuncDebug()
+
+	if s == nil || len(s.caches) == 0 {
+		return false
+	}
+
+	for _, c := range s.caches {
+		if !c.index[matchGUID] {
+			return false
+		}
+	}
+
+	return true
 }
 
 func LoadUploadedCache(indexName string, nAccount int) *UploadCache {

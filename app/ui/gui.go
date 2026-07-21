@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -30,11 +29,18 @@ import (
 )
 
 const (
-	EVENT_CLICK_UPLOAD      tools.EventType = "click_upload"
-	EVENT_CLICK_UPLOAD_FILE tools.EventType = "click_upload_file"
+	EVENT_CLICK_UPLOAD        tools.EventType = "click_upload"
+	EVENT_CLICK_UPLOAD_FILE   tools.EventType = "click_upload_file"
+	EVENT_CLICK_FETCH_HISTORY tools.EventType = "click_fetch_history"
+	EVENT_CLICK_UPLOAD_MATCH  tools.EventType = "click_upload_match"
 
 	waitBeforeOpenBrowser = 5 * time.Second
 )
+
+type matchHistoryRow struct {
+	label    string
+	uploaded bool
+}
 
 type GUI struct {
 	window         fyne.Window
@@ -48,7 +54,7 @@ type GUI struct {
 
 	tokenEntry         *widget.Entry
 	connectedLabel     *widget.Label
-	matchHistoryData   []string
+	matchHistoryData   []matchHistoryRow
 	matchHistoryList   *widget.List
 	uploadStatus       *widget.Label
 	uploadProgress     *widget.ProgressBar
@@ -139,7 +145,9 @@ func (g *GUI) UpdateState() {
 		}
 
 		if selectedAccount.Player.MatchHistory != nil {
-			g.matchHistoryData = []string{}
+			g.matchHistoryData = []matchHistoryRow{}
+
+			cacheSet := upload.LoadActiveUploadedCaches(g.appConfig.StorageSettings.Get(), len(g.appConfig.AccountSettings.Get()))
 
 			for _, match := range selectedAccount.Player.MatchHistory {
 				matchLabel := "[" + match.Match.MatchGUID[:2] + "..." + match.Match.MatchGUID[len(match.Match.MatchGUID)-2:] + "] "
@@ -148,15 +156,14 @@ func (g *GUI) UpdateState() {
 				matchScore := strconv.Itoa(match.Match.Team0Score) + " - " + strconv.Itoa(match.Match.Team1Score)
 				matchLabel += matchDate + " : " + matchScore
 
-				if slices.Contains(selectedAccount.HistorySended, match.Match.MatchGUID) {
-					matchLabel += "   (Uploaded)"
-				}
-
-				g.matchHistoryData = append(g.matchHistoryData, matchLabel)
+				g.matchHistoryData = append(g.matchHistoryData, matchHistoryRow{
+					label:    matchLabel,
+					uploaded: cacheSet.IsUploadedEverywhere(match.Match.MatchGUID),
+				})
 			}
 			g.matchHistoryList.Refresh()
 		} else {
-			g.matchHistoryData = []string{}
+			g.matchHistoryData = []matchHistoryRow{}
 			g.matchHistoryList.Refresh()
 		}
 	} else {
@@ -175,7 +182,7 @@ func (g *GUI) UpdateState() {
 			g.retryConnectionBtn.Hide()
 		}
 
-		g.matchHistoryData = []string{}
+		g.matchHistoryData = []matchHistoryRow{}
 		g.matchHistoryList.Refresh()
 	}
 }
@@ -283,18 +290,48 @@ func (g *GUI) createPlayerUI() {
 	g.rlConnectedWarning = container.NewStack(warningBackground, warningRLConnectedLabel)
 	g.rlConnectedWarning.Hide()
 
-	g.matchHistoryData = []string{}
+	g.matchHistoryData = []matchHistoryRow{}
 	g.matchHistoryList = widget.NewList(
 		func() int {
 			return len(g.matchHistoryData)
 		},
 		func() fyne.CanvasObject {
-			return widget.NewLabel("")
+			label := widget.NewLabel("")
+
+			uploadedIcon := widget.NewIcon(theme.ConfirmIcon())
+			uploadedIcon.Hide()
+
+			rowUploadBtn := widget.NewButtonWithIcon("", theme.UploadIcon(), nil)
+			rowUploadBtn.Importance = widget.LowImportance
+
+			rightBox := container.NewHBox(uploadedIcon, rowUploadBtn)
+			return container.NewBorder(nil, nil, nil, rightBox, label)
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(g.matchHistoryData[i])
+			row := o.(*fyne.Container)
+			label := row.Objects[0].(*widget.Label)
+			rightBox := row.Objects[1].(*fyne.Container)
+			uploadedIcon := rightBox.Objects[0].(*widget.Icon)
+			rowUploadBtn := rightBox.Objects[1].(*widget.Button)
+
+			data := g.matchHistoryData[i]
+			label.SetText(data.label)
+
+			if data.uploaded {
+				uploadedIcon.Show()
+			} else {
+				uploadedIcon.Hide()
+			}
+
+			rowUploadBtn.OnTapped = func() {
+				g.EventManager.Notify(EVENT_CLICK_UPLOAD_MATCH, i)
+			}
 		},
 	)
+
+	fetchHistoryBtn := widget.NewButton("Fetch Match History", func() {
+		g.EventManager.Notify(EVENT_CLICK_FETCH_HISTORY, nil)
+	})
 
 	uploadBtn := widget.NewButton("Upload Now", func() {
 		g.EventManager.Notify(EVENT_CLICK_UPLOAD, nil)
@@ -341,7 +378,8 @@ func (g *GUI) createPlayerUI() {
 		connectionContainer = container.NewBorder(nil, nil, g.connectedLabel, buttonContainer, nil)
 	}
 
-	matchHistoryAccordion := widget.NewAccordionItem("Match History", g.matchHistoryList)
+	matchHistoryBox := container.NewBorder(fetchHistoryBtn, nil, nil, nil, g.matchHistoryList)
+	matchHistoryAccordion := widget.NewAccordionItem("Match History", matchHistoryBox)
 	matchHistoryAccordion.Open = false
 
 	uploadProgressBox := container.NewBorder(nil, nil, g.uploadStatus, nil, g.uploadProgress)
