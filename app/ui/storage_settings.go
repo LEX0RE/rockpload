@@ -377,7 +377,6 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.infoContainer.urlEntry.Disable()
 		wsp.infoContainer.storageTypeSelect.Disable()
 		wsp.infoContainer.needTokenCheck.Disable()
-		wsp.infoContainer.sendPingCheck.Disable()
 		wsp.infoContainer.pingPathEntry.Disable()
 		wsp.infoContainer.livePathEntry.Disable()
 		wsp.infoContainer.sendLiveCheck.Disable()
@@ -389,9 +388,11 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 			wsp.infoContainer.tokenEntry.Disable()
 			wsp.infoContainer.templateNameEntry.Disable()
 			wsp.infoContainer.replayPathEntry.Disable()
+			wsp.infoContainer.sendPingCheck.Disable()
 		} else {
 			switch wsp.currentWebsite.StorageType {
 			case config.FileSystemConfig:
+				wsp.infoContainer.sendPingCheck.Disable()
 			default:
 				fallthrough
 			case config.WebsiteConfig:
