@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. v1.5.0). Defaults to the triggering git ref.'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -15,9 +21,14 @@ jobs:
     permissions:
       contents: write
 
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -35,8 +46,8 @@ jobs:
         run: |
           bash ./scripts/set-version.sh --check
           expected_tag="$(bash ./scripts/set-version.sh --print-tag)"
-          if [ "$expected_tag" != "$GITHUB_REF_NAME" ]; then
-            echo "Release tag $GITHUB_REF_NAME does not match VERSION tag $expected_tag"
+          if [ "$expected_tag" != "$RELEASE_TAG" ]; then
+            echo "Release tag $RELEASE_TAG does not match VERSION tag $expected_tag"
             exit 1
           fi
 
@@ -90,7 +101,7 @@ jobs:
 
       - name: Build with Script
         env:
-          ROCKPLOAD_VERSION: ${{ github.ref_name }}
+          ROCKPLOAD_VERSION: ${{ env.RELEASE_TAG }}
           BUILD_ANDROID: "true"
           ANDROID_APP_BUILD: ${{ github.run_number }}
           ROCKPLOAD_KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
@@ -116,7 +127,7 @@ jobs:
             --key-pass=pass:$KEYSTORE_PASS
             
           unzip Rockpload.apks -d apks_dir
-          mv apks_dir/universal.apk releases/rockpload_${{ github.ref_name }}-android.apk
+          mv apks_dir/universal.apk releases/rockpload_${{ env.RELEASE_TAG }}-android.apk
 
       - name: Check generated files
         run: |
@@ -126,15 +137,16 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(env.RELEASE_TAG, '-') }}
           files: |
             releases/rockpload_*
 
       - name: Update stable branch
-        if: ${{ !contains(github.ref_name, '-') }}
+        if: ${{ !contains(env.RELEASE_TAG, '-') }}
         run: git push origin HEAD:refs/heads/stable --force
 
       - name: Update beta branch
-        if: ${{ contains(github.ref_name, '-') }}
+        if: ${{ contains(env.RELEASE_TAG, '-') }}
         run: git push origin HEAD:refs/heads/beta --force
