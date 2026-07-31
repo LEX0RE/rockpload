@@ -373,6 +373,8 @@ func (u *Uploader) getStorages() []UploadStorage {
 		switch storageConfig.StorageType {
 		case config.FileSystemConfig:
 			backend = NewFileSystem(storageConfig)
+		case config.BlastConfig:
+			backend = NewBlast(storageConfig)
 		default:
 			fallthrough
 		case config.WebsiteConfig:

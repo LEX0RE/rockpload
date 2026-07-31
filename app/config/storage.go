@@ -14,6 +14,7 @@ import (
 
 const (
 	BALLCHASING_NAME = "Ballchasing"
+	BLAST_NAME       = "BLAST.tv"
 	LOCALHOST_NAME   = "Localhost"
 	FILE_SYSTEM_NAME = "FileSystem"
 )
@@ -41,6 +42,16 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 		temp[ballchasingIndex].IsPredefined = BALLCHASING_STORAGE.IsPredefined
 		temp[ballchasingIndex].IsTemporary = BALLCHASING_STORAGE.IsTemporary
 		temp[ballchasingIndex].StorageType = BALLCHASING_STORAGE.StorageType
+	}
+
+	blastIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == BLAST_NAME })
+	if blastIndex == -1 {
+		temp = append(temp, BLAST_STORAGE)
+	} else {
+		temp[blastIndex].IsPrimary = BLAST_STORAGE.IsPrimary
+		temp[blastIndex].IsPredefined = BLAST_STORAGE.IsPredefined
+		temp[blastIndex].IsTemporary = BLAST_STORAGE.IsTemporary
+		temp[blastIndex].StorageType = BLAST_STORAGE.StorageType
 	}
 
 	fileSystemIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == FILE_SYSTEM_NAME })
@@ -71,6 +82,7 @@ type StorageConfigType int
 const (
 	WebsiteConfig StorageConfigType = iota
 	FileSystemConfig
+	BlastConfig
 )
 
 type StorageConfig struct {
@@ -95,6 +107,7 @@ type StorageConfig struct {
 var STORAGE_PRESET = map[string]*StorageConfig{
 	ROCKY_STORAGE.Name: ROCKY_STORAGE,
 	BALLCHASING_NAME:   BALLCHASING_STORAGE,
+	BLAST_NAME:         BLAST_STORAGE,
 	FILE_SYSTEM_NAME:   FILE_SYSTEM_STORAGE,
 }
 
@@ -132,6 +145,27 @@ var BALLCHASING_STORAGE = &StorageConfig{
 	SendReplay:   false,
 	ReplayPath:   "/v2/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
+	SendLive:     false,
+	LivePath:     "",
+}
+
+// The replay is uploaded through an upload session: the API only answers with a short
+// lived presigned URL, so it accepts neither a file name nor URI params.
+var BLAST_STORAGE = &StorageConfig{
+	Name:         BLAST_NAME,
+	URL:          "https://api.blast.tv",
+	IsPrimary:    false,
+	IsPredefined: true,
+	IsTemporary:  false,
+	StorageType:  BlastConfig,
+	URIParams:    map[string]string{},
+	NeedToken:    true,
+	Token:        "",
+	SendPing:     false,
+	PingPath:     "",
+	SendReplay:   false,
+	ReplayPath:   "/v1/community-stats/rl/replays/upload-session",
+	TemplateName: "",
 	SendLive:     false,
 	LivePath:     "",
 }
