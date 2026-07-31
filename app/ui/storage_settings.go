@@ -75,13 +75,15 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	wsp.btnDelete.Disable()
 
 	wsp.editForm = wsp.createInfoContainer()
-	// A hidden child takes no room in a VBox, so the link leaves no trace on the storages
-	// that don't hand out their own tokens.
-	scrollableForm := container.NewVScroll(container.NewVBox(wsp.editForm, wsp.infoContainer.profileLinkBox))
+	scrollableForm := container.NewVScroll(wsp.editForm)
 	buttonsBox := container.NewHBox(layout.NewSpacer(), wsp.btnSave, wsp.btnDelete)
 
 	wsp.detailPanel = container.NewBorder(
-		container.NewVBox(wsp.infoContainer.titleLabel, widget.NewSeparator()),
+		// The token link belongs to the header instead of the form: the form arranges its rows
+		// in a two column grid, so anything added around it lines up with neither the labels
+		// nor the inputs. A hidden child takes no room in a VBox, so it leaves no trace on the
+		// storages that don't hand out their own tokens.
+		container.NewVBox(wsp.infoContainer.titleLabel, wsp.infoContainer.profileLinkBox, widget.NewSeparator()),
 		buttonsBox,
 		nil, nil,
 		scrollableForm,
@@ -173,10 +175,10 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.tokenEntry = widget.NewPasswordEntry()
 	wsp.infoContainer.tokenEntry.SetPlaceHolder("")
 
-	// Only shown for the BLAST.tv storage: its token is generated on the profile page,
-	// so the settings send the user straight there instead of describing the way. It lives
-	// outside the form because a form row only collapses once its label is hidden too,
-	// which a FormItem gives no handle on: hiding the widget alone strands the label.
+	// Only shown for the BLAST.tv storage: its token is generated on the profile page, so the
+	// settings send the user straight there instead of describing the way. It is centered under
+	// the title it belongs to, and kept out of the form because a form row only collapses once
+	// its label is hidden too, which a FormItem gives no handle on.
 	profileLink := widget.NewHyperlink("Create one on blast.tv/profile", nil)
 	if profileURL, err := url.Parse(config.BLAST_PROFILE_URL); err == nil {
 		profileLink.SetURL(profileURL)
@@ -184,7 +186,9 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 		logger.Rlogger.Debug("Failed to parse the BLAST.tv profile url", "err", err)
 	}
 
-	wsp.infoContainer.profileLinkBox = container.NewHBox(widget.NewLabel("Need a token?"), profileLink)
+	wsp.infoContainer.profileLinkBox = container.NewCenter(
+		container.NewHBox(widget.NewLabel("Need a token?"), profileLink),
+	)
 	wsp.infoContainer.profileLinkBox.Hide()
 
 	wsp.infoContainer.sendPingCheck = widget.NewCheck("", func(v bool) {
@@ -292,6 +296,9 @@ func (wsp *StorageSettingsPopup) reload() {
 	wsp.reloadEnable()
 
 	wsp.editForm.Refresh()
+	// Showing a container only clears its hidden flag, so the header has to be laid out again
+	// for the token link to take (or give back) its room.
+	wsp.detailPanel.Refresh()
 }
 
 func (wsp *StorageSettingsPopup) reloadShow() {
