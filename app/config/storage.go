@@ -19,6 +19,12 @@ const (
 	FILE_SYSTEM_NAME = "FileSystem"
 )
 
+// Upload tokens are created and revoked from the BLAST.tv profile page, so the storage
+// settings link to it rather than explaining where to find one. Opening a link from a desktop
+// app sends no referrer, so the campaign parameters are the only thing separating these
+// visits from direct traffic.
+const BLAST_PROFILE_URL = "https://blast.tv/profile?utm_source=rockpload&utm_medium=desktop-app&utm_campaign=upload-token"
+
 type storageListConfig []*StorageConfig
 
 func (wls *storageListConfig) UnmarshalJSON(data []byte) error {

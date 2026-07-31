@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/LEX0RE/rockpload/app/config"
@@ -29,6 +30,7 @@ type StorageInfoContainer struct {
 	templateNameEntry *widget.Entry
 	sendLiveCheck     *widget.Check
 	livePathEntry     *widget.Entry
+	profileLinkBox    *fyne.Container
 
 	urlForm          *widget.FormItem
 	storageTypeForm  *widget.FormItem
@@ -77,7 +79,11 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	buttonsBox := container.NewHBox(layout.NewSpacer(), wsp.btnSave, wsp.btnDelete)
 
 	wsp.detailPanel = container.NewBorder(
-		container.NewVBox(wsp.infoContainer.titleLabel, widget.NewSeparator()),
+		// The token link belongs to the header instead of the form: the form arranges its rows
+		// in a two column grid, so anything added around it lines up with neither the labels
+		// nor the inputs. A hidden child takes no room in a VBox, so it leaves no trace on the
+		// storages that don't hand out their own tokens.
+		container.NewVBox(wsp.infoContainer.titleLabel, wsp.infoContainer.profileLinkBox, widget.NewSeparator()),
 		buttonsBox,
 		nil, nil,
 		scrollableForm,
@@ -168,6 +174,22 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 
 	wsp.infoContainer.tokenEntry = widget.NewPasswordEntry()
 	wsp.infoContainer.tokenEntry.SetPlaceHolder("")
+
+	// Only shown for the BLAST.tv storage: its token is generated on the profile page, so the
+	// settings send the user straight there instead of describing the way. It is centered under
+	// the title it belongs to, and kept out of the form because a form row only collapses once
+	// its label is hidden too, which a FormItem gives no handle on.
+	profileLink := widget.NewHyperlink("Create one on blast.tv/profile", nil)
+	if profileURL, err := url.Parse(config.BLAST_PROFILE_URL); err == nil {
+		profileLink.SetURL(profileURL)
+	} else {
+		logger.Rlogger.Debug("Failed to parse the BLAST.tv profile url", "err", err)
+	}
+
+	wsp.infoContainer.profileLinkBox = container.NewCenter(
+		container.NewHBox(widget.NewLabel("Need a token?"), profileLink),
+	)
+	wsp.infoContainer.profileLinkBox.Hide()
 
 	wsp.infoContainer.sendPingCheck = widget.NewCheck("", func(v bool) {
 		wsp.currentWebsite.SendPing = v
@@ -274,6 +296,9 @@ func (wsp *StorageSettingsPopup) reload() {
 	wsp.reloadEnable()
 
 	wsp.editForm.Refresh()
+	// Showing a container only clears its hidden flag, so the header has to be laid out again
+	// for the token link to take (or give back) its room.
+	wsp.detailPanel.Refresh()
 }
 
 func (wsp *StorageSettingsPopup) reloadShow() {
@@ -284,6 +309,8 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	wsp.infoContainer.uriParamsForm.Widget.Show()
 	wsp.infoContainer.needTokenForm.Widget.Show()
 	wsp.infoContainer.tokenForm.Widget.Show()
+	// Shown again below for the BLAST.tv storage, the only one handing out its own tokens.
+	wsp.infoContainer.profileLinkBox.Hide()
 	wsp.infoContainer.sendPingForm.Widget.Show()
 	wsp.infoContainer.pingPathForm.Widget.Show()
 	wsp.infoContainer.sendReplayForm.Widget.Show()
@@ -332,6 +359,10 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.pingPathForm.Widget.Hide()
 		wsp.infoContainer.sendLiveForm.Widget.Hide()
 		wsp.infoContainer.livePathForm.Widget.Hide()
+
+		if wsp.infoContainer.needTokenCheck.Checked {
+			wsp.infoContainer.profileLinkBox.Show()
+		}
 	default:
 		fallthrough
 	case config.WebsiteConfig:
