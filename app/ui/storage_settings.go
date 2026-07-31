@@ -143,10 +143,12 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 
 	wsp.infoContainer.urlEntry = widget.NewEntry()
 
-	wsp.infoContainer.storageTypeSelect = widget.NewSelect([]string{"Website", "File System"}, func(v string) {
+	wsp.infoContainer.storageTypeSelect = widget.NewSelect([]string{"Website", "File System", config.BLAST_NAME}, func(v string) {
 		switch v {
 		case "File System":
 			wsp.currentWebsite.StorageType = config.FileSystemConfig
+		case config.BLAST_NAME:
+			wsp.currentWebsite.StorageType = config.BlastConfig
 		default:
 			fallthrough
 		case "Website":
@@ -238,6 +240,8 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	switch wsp.currentWebsite.StorageType {
 	case config.FileSystemConfig:
 		wsp.infoContainer.storageTypeSelect.SetSelected("File System")
+	case config.BlastConfig:
+		wsp.infoContainer.storageTypeSelect.SetSelected(config.BLAST_NAME)
 	default:
 		fallthrough
 	case config.WebsiteConfig:
@@ -320,6 +324,14 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.pingPathForm.Widget.Hide()
 		wsp.infoContainer.sendLiveForm.Widget.Hide()
 		wsp.infoContainer.livePathForm.Widget.Hide()
+	case config.BlastConfig:
+		// The upload session route names the replay itself and takes no URI param, and
+		// its ping path is fixed as it is only used to validate the token.
+		wsp.infoContainer.templateNameForm.Widget.Hide()
+		wsp.infoContainer.uriParamsForm.Widget.Hide()
+		wsp.infoContainer.pingPathForm.Widget.Hide()
+		wsp.infoContainer.sendLiveForm.Widget.Hide()
+		wsp.infoContainer.livePathForm.Widget.Hide()
 	default:
 		fallthrough
 	case config.WebsiteConfig:
@@ -363,6 +375,12 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.infoContainer.needTokenCheck.Disable()
 		wsp.infoContainer.tokenEntry.Disable()
 		wsp.infoContainer.sendPingCheck.Disable()
+		wsp.infoContainer.pingPathEntry.Disable()
+		wsp.infoContainer.sendLiveCheck.Disable()
+		wsp.infoContainer.livePathEntry.Disable()
+	case config.BlastConfig:
+		wsp.infoContainer.templateNameEntry.Disable()
+		wsp.infoContainer.uriParamsEntry.Disable()
 		wsp.infoContainer.pingPathEntry.Disable()
 		wsp.infoContainer.sendLiveCheck.Disable()
 		wsp.infoContainer.livePathEntry.Disable()
@@ -444,6 +462,8 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	switch wsp.infoContainer.storageTypeSelect.Selected {
 	case "File System":
 		site.StorageType = config.FileSystemConfig
+	case config.BLAST_NAME:
+		site.StorageType = config.BlastConfig
 	default:
 		fallthrough
 	case "Website":
