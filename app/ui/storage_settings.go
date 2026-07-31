@@ -30,14 +30,13 @@ type StorageInfoContainer struct {
 	templateNameEntry *widget.Entry
 	sendLiveCheck     *widget.Check
 	livePathEntry     *widget.Entry
-	profileLink       *widget.Hyperlink
+	profileLinkBox    *fyne.Container
 
 	urlForm          *widget.FormItem
 	storageTypeForm  *widget.FormItem
 	uriParamsForm    *widget.FormItem
 	needTokenForm    *widget.FormItem
 	tokenForm        *widget.FormItem
-	profileLinkForm  *widget.FormItem
 	sendPingForm     *widget.FormItem
 	pingPathForm     *widget.FormItem
 	sendReplayForm   *widget.FormItem
@@ -76,7 +75,9 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	wsp.btnDelete.Disable()
 
 	wsp.editForm = wsp.createInfoContainer()
-	scrollableForm := container.NewVScroll(wsp.editForm)
+	// A hidden child takes no room in a VBox, so the link leaves no trace on the storages
+	// that don't hand out their own tokens.
+	scrollableForm := container.NewVScroll(container.NewVBox(wsp.editForm, wsp.infoContainer.profileLinkBox))
 	buttonsBox := container.NewHBox(layout.NewSpacer(), wsp.btnSave, wsp.btnDelete)
 
 	wsp.detailPanel = container.NewBorder(
@@ -173,13 +174,18 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.tokenEntry.SetPlaceHolder("")
 
 	// Only shown for the BLAST.tv storage: its token is generated on the profile page,
-	// so the settings send the user straight there instead of describing the way.
-	wsp.infoContainer.profileLink = widget.NewHyperlink("Create one on blast.tv/profile", nil)
+	// so the settings send the user straight there instead of describing the way. It lives
+	// outside the form because a form row only collapses once its label is hidden too,
+	// which a FormItem gives no handle on: hiding the widget alone strands the label.
+	profileLink := widget.NewHyperlink("Create one on blast.tv/profile", nil)
 	if profileURL, err := url.Parse(config.BLAST_PROFILE_URL); err == nil {
-		wsp.infoContainer.profileLink.SetURL(profileURL)
+		profileLink.SetURL(profileURL)
 	} else {
 		logger.Rlogger.Debug("Failed to parse the BLAST.tv profile url", "err", err)
 	}
+
+	wsp.infoContainer.profileLinkBox = container.NewHBox(widget.NewLabel("Need a token?"), profileLink)
+	wsp.infoContainer.profileLinkBox.Hide()
 
 	wsp.infoContainer.sendPingCheck = widget.NewCheck("", func(v bool) {
 		wsp.currentWebsite.SendPing = v
@@ -206,7 +212,6 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.uriParamsForm = widget.NewFormItem("URI Params", wsp.infoContainer.uriParamsEntry)
 	wsp.infoContainer.needTokenForm = widget.NewFormItem("Need Token", wsp.infoContainer.needTokenCheck)
 	wsp.infoContainer.tokenForm = widget.NewFormItem("Token", wsp.infoContainer.tokenEntry)
-	wsp.infoContainer.profileLinkForm = widget.NewFormItem("Need a token?", wsp.infoContainer.profileLink)
 	wsp.infoContainer.sendPingForm = widget.NewFormItem("Send Ping", wsp.infoContainer.sendPingCheck)
 	wsp.infoContainer.pingPathForm = widget.NewFormItem("Ping Path", wsp.infoContainer.pingPathEntry)
 	wsp.infoContainer.sendReplayForm = widget.NewFormItem("Send Replay", wsp.infoContainer.sendReplayCheck)
@@ -223,7 +228,6 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 		wsp.infoContainer.storageTypeForm,
 		wsp.infoContainer.needTokenForm,
 		wsp.infoContainer.tokenForm,
-		wsp.infoContainer.profileLinkForm,
 		wsp.infoContainer.sendPingForm,
 		wsp.infoContainer.pingPathForm,
 		wsp.infoContainer.uriParamsForm,
@@ -299,7 +303,7 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	wsp.infoContainer.needTokenForm.Widget.Show()
 	wsp.infoContainer.tokenForm.Widget.Show()
 	// Shown again below for the BLAST.tv storage, the only one handing out its own tokens.
-	wsp.infoContainer.profileLinkForm.Widget.Hide()
+	wsp.infoContainer.profileLinkBox.Hide()
 	wsp.infoContainer.sendPingForm.Widget.Show()
 	wsp.infoContainer.pingPathForm.Widget.Show()
 	wsp.infoContainer.sendReplayForm.Widget.Show()
@@ -350,7 +354,7 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.livePathForm.Widget.Hide()
 
 		if wsp.infoContainer.needTokenCheck.Checked {
-			wsp.infoContainer.profileLinkForm.Widget.Show()
+			wsp.infoContainer.profileLinkBox.Show()
 		}
 	default:
 		fallthrough
