@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/LEX0RE/rockpload/app/config"
@@ -29,12 +30,14 @@ type StorageInfoContainer struct {
 	templateNameEntry *widget.Entry
 	sendLiveCheck     *widget.Check
 	livePathEntry     *widget.Entry
+	profileLink       *widget.Hyperlink
 
 	urlForm          *widget.FormItem
 	storageTypeForm  *widget.FormItem
 	uriParamsForm    *widget.FormItem
 	needTokenForm    *widget.FormItem
 	tokenForm        *widget.FormItem
+	profileLinkForm  *widget.FormItem
 	sendPingForm     *widget.FormItem
 	pingPathForm     *widget.FormItem
 	sendReplayForm   *widget.FormItem
@@ -169,6 +172,15 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.tokenEntry = widget.NewPasswordEntry()
 	wsp.infoContainer.tokenEntry.SetPlaceHolder("")
 
+	// Only shown for the BLAST.tv storage: its token is generated on the profile page,
+	// so the settings send the user straight there instead of describing the way.
+	wsp.infoContainer.profileLink = widget.NewHyperlink("Create one on blast.tv/profile", nil)
+	if profileURL, err := url.Parse(config.BLAST_PROFILE_URL); err == nil {
+		wsp.infoContainer.profileLink.SetURL(profileURL)
+	} else {
+		logger.Rlogger.Debug("Failed to parse the BLAST.tv profile url", "err", err)
+	}
+
 	wsp.infoContainer.sendPingCheck = widget.NewCheck("", func(v bool) {
 		wsp.currentWebsite.SendPing = v
 		wsp.reload()
@@ -194,6 +206,7 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.uriParamsForm = widget.NewFormItem("URI Params", wsp.infoContainer.uriParamsEntry)
 	wsp.infoContainer.needTokenForm = widget.NewFormItem("Need Token", wsp.infoContainer.needTokenCheck)
 	wsp.infoContainer.tokenForm = widget.NewFormItem("Token", wsp.infoContainer.tokenEntry)
+	wsp.infoContainer.profileLinkForm = widget.NewFormItem("Need a token?", wsp.infoContainer.profileLink)
 	wsp.infoContainer.sendPingForm = widget.NewFormItem("Send Ping", wsp.infoContainer.sendPingCheck)
 	wsp.infoContainer.pingPathForm = widget.NewFormItem("Ping Path", wsp.infoContainer.pingPathEntry)
 	wsp.infoContainer.sendReplayForm = widget.NewFormItem("Send Replay", wsp.infoContainer.sendReplayCheck)
@@ -210,6 +223,7 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 		wsp.infoContainer.storageTypeForm,
 		wsp.infoContainer.needTokenForm,
 		wsp.infoContainer.tokenForm,
+		wsp.infoContainer.profileLinkForm,
 		wsp.infoContainer.sendPingForm,
 		wsp.infoContainer.pingPathForm,
 		wsp.infoContainer.uriParamsForm,
@@ -284,6 +298,8 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	wsp.infoContainer.uriParamsForm.Widget.Show()
 	wsp.infoContainer.needTokenForm.Widget.Show()
 	wsp.infoContainer.tokenForm.Widget.Show()
+	// Shown again below for the BLAST.tv storage, the only one handing out its own tokens.
+	wsp.infoContainer.profileLinkForm.Widget.Hide()
 	wsp.infoContainer.sendPingForm.Widget.Show()
 	wsp.infoContainer.pingPathForm.Widget.Show()
 	wsp.infoContainer.sendReplayForm.Widget.Show()
@@ -332,6 +348,10 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.pingPathForm.Widget.Hide()
 		wsp.infoContainer.sendLiveForm.Widget.Hide()
 		wsp.infoContainer.livePathForm.Widget.Hide()
+
+		if wsp.infoContainer.needTokenCheck.Checked {
+			wsp.infoContainer.profileLinkForm.Widget.Show()
+		}
 	default:
 		fallthrough
 	case config.WebsiteConfig:
