@@ -22,7 +22,7 @@ func NewFileSystem(config *config.StorageConfig) *FileSystem {
 func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) error {
 	logger.FuncDebug()
 
-	if !fs.config.SendReplay {
+	if fs.config.UploadStyle == config.UploadDisabled {
 		return nil
 	}
 
@@ -69,7 +69,7 @@ func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) e
 }
 
 func (w *FileSystem) UploadLive(liveStats *rocket_network.LiveStats) error {
-	if !w.config.SendLive {
+	if w.config.LiveStyle == config.LiveDisabled {
 		return nil
 	}
 
@@ -77,7 +77,7 @@ func (w *FileSystem) UploadLive(liveStats *rocket_network.LiveStats) error {
 }
 
 func (w *FileSystem) Ping() error {
-	if !w.config.SendPing {
+	if w.config.PingStyle == config.PingDisabled {
 		return nil
 	}
 

@@ -16,33 +16,47 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+func parseHelpURL(raw string) (*url.URL, bool) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, false
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return nil, false
+	}
+
+	return parsed, true
+}
+
 type StorageInfoContainer struct {
 	titleLabel        *widget.Label
+	descContainer     *fyne.Container
 	urlEntry          *widget.Entry
-	storageTypeSelect *widget.Select
+	uploadStyleSelect *widget.Select
+	pingStyleSelect   *widget.Select
 	uriParamsEntry    *widget.Entry
-	needTokenCheck    *widget.Check
+	tokenStyleSelect  *widget.Select
 	tokenEntry        *widget.Entry
-	sendPingCheck     *widget.Check
 	pingPathEntry     *widget.Entry
-	sendReplayCheck   *widget.Check
+	pingProbeIDEntry  *widget.Entry
 	replayPathEntry   *widget.Entry
 	templateNameEntry *widget.Entry
-	sendLiveCheck     *widget.Check
+	liveStyleSelect   *widget.Select
 	livePathEntry     *widget.Entry
-	profileLinkBox    *fyne.Container
+	helpLink          *widget.Hyperlink
 
 	urlForm          *widget.FormItem
-	storageTypeForm  *widget.FormItem
+	uploadStyleForm  *widget.FormItem
+	pingStyleForm    *widget.FormItem
 	uriParamsForm    *widget.FormItem
-	needTokenForm    *widget.FormItem
+	tokenStyleForm   *widget.FormItem
 	tokenForm        *widget.FormItem
-	sendPingForm     *widget.FormItem
 	pingPathForm     *widget.FormItem
-	sendReplayForm   *widget.FormItem
+	pingProbeIDForm  *widget.FormItem
 	replayPathForm   *widget.FormItem
 	templateNameForm *widget.FormItem
-	sendLiveForm     *widget.FormItem
+	liveStyleForm    *widget.FormItem
 	livePathForm     *widget.FormItem
 }
 
@@ -79,11 +93,7 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	buttonsBox := container.NewHBox(layout.NewSpacer(), wsp.btnSave, wsp.btnDelete)
 
 	wsp.detailPanel = container.NewBorder(
-		// The token link belongs to the header instead of the form: the form arranges its rows
-		// in a two column grid, so anything added around it lines up with neither the labels
-		// nor the inputs. A hidden child takes no room in a VBox, so it leaves no trace on the
-		// storages that don't hand out their own tokens.
-		container.NewVBox(wsp.infoContainer.titleLabel, wsp.infoContainer.profileLinkBox, widget.NewSeparator()),
+		container.NewVBox(wsp.infoContainer.titleLabel, wsp.infoContainer.descContainer, widget.NewSeparator()),
 		buttonsBox,
 		nil, nil,
 		scrollableForm,
@@ -99,7 +109,7 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 			site := wsp.appConfig.StorageSettings.Get()[i]
 
 			style := widget.RichTextStyleInline
-			if !site.SendReplay {
+			if site.UploadStyle == config.UploadDisabled {
 				style.ColorName = theme.ColorNameError
 			} else {
 				style.ColorName = theme.ColorNameForeground
@@ -149,61 +159,50 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 
 	wsp.infoContainer.urlEntry = widget.NewEntry()
 
-	wsp.infoContainer.storageTypeSelect = widget.NewSelect([]string{"Website", "File System", config.BLAST_NAME}, func(v string) {
-		switch v {
-		case "File System":
-			wsp.currentWebsite.StorageType = config.FileSystemConfig
-		case config.BLAST_NAME:
-			wsp.currentWebsite.StorageType = config.BlastConfig
-		default:
-			fallthrough
-		case "Website":
-			wsp.currentWebsite.StorageType = config.WebsiteConfig
-		}
+	wsp.infoContainer.uploadStyleSelect = widget.NewSelect(config.UploadStyleLabels[:], func(v string) {
+		wsp.currentWebsite.UploadStyle = config.UploadStyleFromLabel(v)
+		wsp.reload()
+	})
 
+	wsp.infoContainer.pingStyleSelect = widget.NewSelect(config.PingStyleLabels[:], func(v string) {
+		wsp.currentWebsite.PingStyle = config.PingStyleFromLabel(v)
 		wsp.reload()
 	})
 
 	wsp.infoContainer.uriParamsEntry = widget.NewMultiLineEntry()
 	wsp.infoContainer.uriParamsEntry.SetPlaceHolder("")
 
-	wsp.infoContainer.needTokenCheck = widget.NewCheck("", func(v bool) {
-		wsp.currentWebsite.NeedToken = v
+	wsp.infoContainer.tokenStyleSelect = widget.NewSelect(config.TokenStyleLabels[:], func(v string) {
+		wsp.currentWebsite.TokenStyle = config.TokenStyleFromLabel(v)
 		wsp.reload()
 	})
 
 	wsp.infoContainer.tokenEntry = widget.NewPasswordEntry()
 	wsp.infoContainer.tokenEntry.SetPlaceHolder("")
 
-	// Only shown for the BLAST.tv storage: its token is generated on the profile page, so the
-	// settings send the user straight there instead of describing the way. It is centered under
-	// the title it belongs to, and kept out of the form because a form row only collapses once
-	// its label is hidden too, which a FormItem gives no handle on.
-	profileLink := widget.NewHyperlink("Create one on blast.tv/profile", nil)
-	if profileURL, err := url.Parse(config.BLAST_PROFILE_URL); err == nil {
-		profileLink.SetURL(profileURL)
-	} else {
-		logger.Rlogger.Debug("Failed to parse the BLAST.tv profile url", "err", err)
+	wsp.infoContainer.helpLink = widget.NewHyperlink("", nil)
+	wsp.infoContainer.helpLink.OnTapped = func() {
+		parsed, ok := parseHelpURL(wsp.currentWebsite.HelpURL)
+		if !ok {
+			return
+		}
+
+		dialog.ShowConfirm("Open external link?", "This will open the following link in your browser:\n\n"+parsed.String(),
+			func(confirmed bool) {
+				if confirmed {
+					fyne.CurrentApp().OpenURL(parsed)
+				}
+			}, wsp.parentWindow)
 	}
 
-	wsp.infoContainer.profileLinkBox = container.NewCenter(
-		container.NewHBox(widget.NewLabel("Need a token?"), profileLink),
-	)
-	wsp.infoContainer.profileLinkBox.Hide()
+	wsp.infoContainer.descContainer = container.NewCenter(wsp.infoContainer.helpLink)
+	wsp.infoContainer.descContainer.Hide()
 
-	wsp.infoContainer.sendPingCheck = widget.NewCheck("", func(v bool) {
-		wsp.currentWebsite.SendPing = v
-		wsp.reload()
-	})
 	wsp.infoContainer.pingPathEntry = widget.NewEntry()
+	wsp.infoContainer.pingProbeIDEntry = widget.NewEntry()
 
-	wsp.infoContainer.sendReplayCheck = widget.NewCheck("", func(v bool) {
-		wsp.currentWebsite.SendReplay = v
-		wsp.reload()
-	})
-
-	wsp.infoContainer.sendLiveCheck = widget.NewCheck("", func(v bool) {
-		wsp.currentWebsite.SendLive = v
+	wsp.infoContainer.liveStyleSelect = widget.NewSelect(config.LiveStyleLabels[:], func(v string) {
+		wsp.currentWebsite.LiveStyle = config.LiveStyleFromLabel(v)
 		wsp.reload()
 	})
 	wsp.infoContainer.livePathEntry = widget.NewEntry()
@@ -212,32 +211,70 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.templateNameEntry = widget.NewEntry()
 
 	wsp.infoContainer.urlForm = widget.NewFormItem("URL", wsp.infoContainer.urlEntry)
-	wsp.infoContainer.storageTypeForm = widget.NewFormItem("Storage Type", wsp.infoContainer.storageTypeSelect)
+	wsp.infoContainer.uploadStyleForm = widget.NewFormItem("Upload Style", wsp.infoContainer.uploadStyleSelect)
+	wsp.infoContainer.pingStyleForm = widget.NewFormItem("Ping Style", wsp.infoContainer.pingStyleSelect)
 	wsp.infoContainer.uriParamsForm = widget.NewFormItem("URI Params", wsp.infoContainer.uriParamsEntry)
-	wsp.infoContainer.needTokenForm = widget.NewFormItem("Need Token", wsp.infoContainer.needTokenCheck)
+	wsp.infoContainer.tokenStyleForm = widget.NewFormItem("Token Style", wsp.infoContainer.tokenStyleSelect)
 	wsp.infoContainer.tokenForm = widget.NewFormItem("Token", wsp.infoContainer.tokenEntry)
-	wsp.infoContainer.sendPingForm = widget.NewFormItem("Send Ping", wsp.infoContainer.sendPingCheck)
 	wsp.infoContainer.pingPathForm = widget.NewFormItem("Ping Path", wsp.infoContainer.pingPathEntry)
-	wsp.infoContainer.sendReplayForm = widget.NewFormItem("Send Replay", wsp.infoContainer.sendReplayCheck)
+	wsp.infoContainer.pingProbeIDForm = widget.NewFormItem("Ping Probe ID", wsp.infoContainer.pingProbeIDEntry)
 	wsp.infoContainer.replayPathForm = widget.NewFormItem("Replay Path", wsp.infoContainer.replayPathEntry)
 	wsp.infoContainer.templateNameForm = widget.NewFormItem("Name Template", wsp.infoContainer.templateNameEntry)
-	wsp.infoContainer.sendLiveForm = widget.NewFormItem("Send Live", wsp.infoContainer.sendLiveCheck)
+	wsp.infoContainer.liveStyleForm = widget.NewFormItem("Live Style", wsp.infoContainer.liveStyleSelect)
 	wsp.infoContainer.livePathForm = widget.NewFormItem("Live Path", wsp.infoContainer.livePathEntry)
 
 	return widget.NewForm(
-		wsp.infoContainer.sendReplayForm,
+		wsp.infoContainer.uploadStyleForm,
 		wsp.infoContainer.replayPathForm,
 		wsp.infoContainer.templateNameForm,
 		wsp.infoContainer.urlForm,
-		wsp.infoContainer.storageTypeForm,
-		wsp.infoContainer.needTokenForm,
+		wsp.infoContainer.tokenStyleForm,
 		wsp.infoContainer.tokenForm,
-		wsp.infoContainer.sendPingForm,
+		wsp.infoContainer.pingStyleForm,
 		wsp.infoContainer.pingPathForm,
+		wsp.infoContainer.pingProbeIDForm,
 		wsp.infoContainer.uriParamsForm,
-		wsp.infoContainer.sendLiveForm,
+		wsp.infoContainer.liveStyleForm,
 		wsp.infoContainer.livePathForm,
 	)
+}
+
+func (wsp *StorageSettingsPopup) currentPreset() *config.StorageConfig {
+	logger.FuncDebug()
+
+	if !wsp.currentWebsite.IsPredefined {
+		return nil
+	}
+
+	return config.STORAGE_PRESET[wsp.currentWebsite.Name]
+}
+
+func (wsp *StorageSettingsPopup) reloadOptions() {
+	logger.FuncDebug()
+
+	preset := wsp.currentPreset()
+	if preset == nil {
+		wsp.infoContainer.uploadStyleSelect.SetOptions(config.UploadStyleLabels[:])
+		wsp.infoContainer.pingStyleSelect.SetOptions(config.PingStyleLabels[:])
+		wsp.infoContainer.tokenStyleSelect.SetOptions(config.TokenStyleLabels[:])
+		wsp.infoContainer.liveStyleSelect.SetOptions(config.LiveStyleLabels[:])
+		return
+	}
+
+	wsp.infoContainer.uploadStyleSelect.SetOptions([]string{
+		config.UploadDisabled.Label(),
+		preset.UploadStyle.Label(),
+	})
+	wsp.infoContainer.pingStyleSelect.SetOptions([]string{
+		config.PingDisabled.Label(),
+		preset.PingStyle.Label(),
+	})
+	wsp.infoContainer.tokenStyleSelect.SetOptions([]string{
+		preset.TokenStyle.Label(),
+	})
+	wsp.infoContainer.liveStyleSelect.SetOptions([]string{
+		preset.LiveStyle.Label(),
+	})
 }
 
 func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
@@ -253,31 +290,22 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 
 	wsp.appConfig.BehaviorConfig.SelectedStorageId.Set(formatedId)
 	wsp.currentWebsite = *storages[formatedId]
+	wsp.reloadOptions()
 
 	wsp.list.Select(formatedId)
 
 	wsp.infoContainer.titleLabel.SetText(wsp.currentWebsite.Name)
 	wsp.infoContainer.urlEntry.SetText(wsp.currentWebsite.URL)
+	wsp.infoContainer.uploadStyleSelect.SetSelected(wsp.currentWebsite.UploadStyle.Label())
+	wsp.infoContainer.pingStyleSelect.SetSelected(wsp.currentWebsite.PingStyle.Label())
 
-	switch wsp.currentWebsite.StorageType {
-	case config.FileSystemConfig:
-		wsp.infoContainer.storageTypeSelect.SetSelected("File System")
-	case config.BlastConfig:
-		wsp.infoContainer.storageTypeSelect.SetSelected(config.BLAST_NAME)
-	default:
-		fallthrough
-	case config.WebsiteConfig:
-		wsp.infoContainer.storageTypeSelect.SetSelected("Website")
-	}
-
-	wsp.infoContainer.needTokenCheck.SetChecked(wsp.currentWebsite.NeedToken)
+	wsp.infoContainer.tokenStyleSelect.SetSelected(wsp.currentWebsite.TokenStyle.Label())
 	wsp.infoContainer.tokenEntry.SetText(wsp.currentWebsite.Token)
-	wsp.infoContainer.sendPingCheck.SetChecked(wsp.currentWebsite.SendPing)
 	wsp.infoContainer.pingPathEntry.SetText(wsp.currentWebsite.PingPath)
-	wsp.infoContainer.sendReplayCheck.SetChecked(wsp.currentWebsite.SendReplay)
+	wsp.infoContainer.pingProbeIDEntry.SetText(wsp.currentWebsite.PingProbeID)
 	wsp.infoContainer.replayPathEntry.SetText(wsp.currentWebsite.ReplayPath)
 	wsp.infoContainer.templateNameEntry.SetText(wsp.currentWebsite.TemplateName)
-	wsp.infoContainer.sendLiveCheck.SetChecked(wsp.appConfig.BehaviorConfig.SendLiveStat.Get() && wsp.currentWebsite.SendLive)
+	wsp.infoContainer.liveStyleSelect.SetSelected(wsp.currentWebsite.LiveStyle.Label())
 	wsp.infoContainer.livePathEntry.SetText(wsp.currentWebsite.LivePath)
 
 	var paramsStr strings.Builder
@@ -292,12 +320,11 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 func (wsp *StorageSettingsPopup) reload() {
 	logger.FuncDebug()
 
+	wsp.reloadOptions()
 	wsp.reloadShow()
 	wsp.reloadEnable()
 
 	wsp.editForm.Refresh()
-	// Showing a container only clears its hidden flag, so the header has to be laid out again
-	// for the token link to take (or give back) its room.
 	wsp.detailPanel.Refresh()
 }
 
@@ -305,67 +332,67 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	logger.FuncDebug()
 
 	wsp.infoContainer.urlForm.Widget.Show()
-	wsp.infoContainer.storageTypeForm.Widget.Show()
+	wsp.infoContainer.uploadStyleForm.Widget.Show()
+	wsp.infoContainer.pingStyleForm.Widget.Show()
 	wsp.infoContainer.uriParamsForm.Widget.Show()
-	wsp.infoContainer.needTokenForm.Widget.Show()
+	wsp.infoContainer.tokenStyleForm.Widget.Show()
 	wsp.infoContainer.tokenForm.Widget.Show()
-	// Shown again below for the BLAST.tv storage, the only one handing out its own tokens.
-	wsp.infoContainer.profileLinkBox.Hide()
-	wsp.infoContainer.sendPingForm.Widget.Show()
 	wsp.infoContainer.pingPathForm.Widget.Show()
-	wsp.infoContainer.sendReplayForm.Widget.Show()
+	wsp.infoContainer.pingProbeIDForm.Widget.Show()
 	wsp.infoContainer.replayPathForm.Widget.Show()
 	wsp.infoContainer.templateNameForm.Widget.Show()
-	wsp.infoContainer.sendLiveForm.Widget.Show()
+	wsp.infoContainer.liveStyleForm.Widget.Show()
 	wsp.infoContainer.livePathForm.Widget.Show()
 
-	if !wsp.infoContainer.needTokenCheck.Checked {
+	wsp.infoContainer.helpLink.Text = wsp.currentWebsite.HelpText
+	wsp.infoContainer.helpLink.Refresh()
+
+	if _, ok := parseHelpURL(wsp.currentWebsite.HelpURL); ok {
+		wsp.infoContainer.descContainer.Show()
+	} else {
+		wsp.infoContainer.descContainer.Hide()
+	}
+
+	if wsp.currentWebsite.TokenStyle == config.NoToken {
 		wsp.infoContainer.tokenForm.Widget.Hide()
 	}
 
-	if !wsp.infoContainer.sendPingCheck.Checked {
+	if wsp.currentWebsite.PingStyle == config.PingDisabled {
 		wsp.infoContainer.pingPathForm.Widget.Hide()
 	}
 
-	if !wsp.infoContainer.sendLiveCheck.Checked {
+	if wsp.currentWebsite.PingStyle != config.PingNotFoundIsValid {
+		wsp.infoContainer.pingProbeIDForm.Widget.Hide()
+	}
+
+	if wsp.currentWebsite.LiveStyle == config.LiveDisabled {
 		wsp.infoContainer.livePathForm.Widget.Hide()
 	}
 
 	if !wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
-		wsp.infoContainer.sendLiveForm.Widget.Hide()
+		wsp.infoContainer.liveStyleForm.Widget.Hide()
 		wsp.infoContainer.livePathForm.Widget.Hide()
 	}
 
-	if !wsp.infoContainer.sendReplayCheck.Checked {
+	if wsp.currentWebsite.UploadStyle == config.UploadDisabled {
 		wsp.infoContainer.replayPathForm.Widget.Hide()
 		wsp.infoContainer.templateNameForm.Widget.Hide()
 	}
 
-	switch wsp.currentWebsite.StorageType {
-	case config.FileSystemConfig:
+	switch wsp.currentWebsite.UploadStyle {
+	case config.LocalFileCopy:
 		wsp.infoContainer.urlForm.Widget.Hide()
 		wsp.infoContainer.uriParamsForm.Widget.Hide()
-		wsp.infoContainer.needTokenForm.Widget.Hide()
+		wsp.infoContainer.tokenStyleForm.Widget.Hide()
 		wsp.infoContainer.tokenForm.Widget.Hide()
-		wsp.infoContainer.sendPingForm.Widget.Hide()
+		wsp.infoContainer.pingStyleForm.Widget.Hide()
 		wsp.infoContainer.pingPathForm.Widget.Hide()
-		wsp.infoContainer.sendLiveForm.Widget.Hide()
+		wsp.infoContainer.pingProbeIDForm.Widget.Hide()
+		wsp.infoContainer.liveStyleForm.Widget.Hide()
 		wsp.infoContainer.livePathForm.Widget.Hide()
-	case config.BlastConfig:
-		// The upload session route names the replay itself and takes no URI param, and
-		// its ping path is fixed as it is only used to validate the token.
+	case config.PresignedSessionUpload:
 		wsp.infoContainer.templateNameForm.Widget.Hide()
-		wsp.infoContainer.uriParamsForm.Widget.Hide()
-		wsp.infoContainer.pingPathForm.Widget.Hide()
-		wsp.infoContainer.sendLiveForm.Widget.Hide()
-		wsp.infoContainer.livePathForm.Widget.Hide()
-
-		if wsp.infoContainer.needTokenCheck.Checked {
-			wsp.infoContainer.profileLinkBox.Show()
-		}
 	default:
-		fallthrough
-	case config.WebsiteConfig:
 	}
 
 	if wsp.currentWebsite.IsPredefined {
@@ -382,71 +409,59 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 	wsp.btnDelete.Enable()
 
 	wsp.infoContainer.urlEntry.Enable()
-	wsp.infoContainer.storageTypeSelect.Enable()
+	wsp.infoContainer.uploadStyleSelect.Enable()
+	wsp.infoContainer.pingStyleSelect.Enable()
 	wsp.infoContainer.uriParamsEntry.Enable()
-	wsp.infoContainer.needTokenCheck.Enable()
+	wsp.infoContainer.tokenStyleSelect.Enable()
 	wsp.infoContainer.tokenEntry.Enable()
-	wsp.infoContainer.sendPingCheck.Enable()
 	wsp.infoContainer.pingPathEntry.Enable()
-	wsp.infoContainer.sendReplayCheck.Enable()
+	wsp.infoContainer.pingProbeIDEntry.Enable()
 	wsp.infoContainer.replayPathEntry.Enable()
 	wsp.infoContainer.templateNameEntry.Enable()
-	wsp.infoContainer.sendLiveCheck.Enable()
+	wsp.infoContainer.liveStyleSelect.Enable()
 	wsp.infoContainer.livePathEntry.Enable()
 
 	if !wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
-		wsp.infoContainer.sendLiveCheck.Disable()
+		wsp.infoContainer.liveStyleSelect.Disable()
 		wsp.infoContainer.livePathEntry.Disable()
 	}
 
-	switch wsp.currentWebsite.StorageType {
-	case config.FileSystemConfig:
+	switch wsp.currentWebsite.UploadStyle {
+	case config.LocalFileCopy:
 		wsp.infoContainer.urlEntry.Disable()
 		wsp.infoContainer.uriParamsEntry.Disable()
-		wsp.infoContainer.needTokenCheck.Disable()
+		wsp.infoContainer.tokenStyleSelect.Disable()
 		wsp.infoContainer.tokenEntry.Disable()
-		wsp.infoContainer.sendPingCheck.Disable()
+		wsp.infoContainer.pingStyleSelect.Disable()
 		wsp.infoContainer.pingPathEntry.Disable()
-		wsp.infoContainer.sendLiveCheck.Disable()
+		wsp.infoContainer.pingProbeIDEntry.Disable()
+		wsp.infoContainer.liveStyleSelect.Disable()
 		wsp.infoContainer.livePathEntry.Disable()
-	case config.BlastConfig:
+	case config.PresignedSessionUpload:
 		wsp.infoContainer.templateNameEntry.Disable()
-		wsp.infoContainer.uriParamsEntry.Disable()
-		wsp.infoContainer.pingPathEntry.Disable()
-		wsp.infoContainer.sendLiveCheck.Disable()
-		wsp.infoContainer.livePathEntry.Disable()
 	default:
-		fallthrough
-	case config.WebsiteConfig:
 	}
 
 	if wsp.currentWebsite.IsPredefined {
 		wsp.btnDelete.Disable()
 
 		wsp.infoContainer.urlEntry.Disable()
-		wsp.infoContainer.storageTypeSelect.Disable()
-		wsp.infoContainer.needTokenCheck.Disable()
+		wsp.infoContainer.tokenStyleSelect.Disable()
 		wsp.infoContainer.pingPathEntry.Disable()
+		wsp.infoContainer.pingProbeIDEntry.Disable()
 		wsp.infoContainer.livePathEntry.Disable()
-		wsp.infoContainer.sendLiveCheck.Disable()
+		wsp.infoContainer.liveStyleSelect.Disable()
 
 		if wsp.currentWebsite.IsPrimary {
 			wsp.btnSave.Disable()
-			wsp.infoContainer.sendReplayCheck.Disable()
+			wsp.infoContainer.uploadStyleSelect.Disable()
+			wsp.infoContainer.pingStyleSelect.Disable()
 			wsp.infoContainer.uriParamsEntry.Disable()
 			wsp.infoContainer.tokenEntry.Disable()
 			wsp.infoContainer.templateNameEntry.Disable()
 			wsp.infoContainer.replayPathEntry.Disable()
-			wsp.infoContainer.sendPingCheck.Disable()
-		} else {
-			switch wsp.currentWebsite.StorageType {
-			case config.FileSystemConfig:
-				wsp.infoContainer.sendPingCheck.Disable()
-			default:
-				fallthrough
-			case config.WebsiteConfig:
-				wsp.infoContainer.replayPathEntry.Disable()
-			}
+		} else if preset := wsp.currentPreset(); preset != nil && preset.UploadStyle != config.LocalFileCopy {
+			wsp.infoContainer.replayPathEntry.Disable()
 		}
 	}
 }
@@ -460,16 +475,16 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	wsp.currentWebsite = config.StorageConfig{}
 
 	wsp.infoContainer.urlEntry.SetText("")
-	wsp.infoContainer.storageTypeSelect.ClearSelected()
-	wsp.infoContainer.needTokenCheck.SetChecked(false)
+	wsp.infoContainer.uploadStyleSelect.ClearSelected()
+	wsp.infoContainer.pingStyleSelect.ClearSelected()
+	wsp.infoContainer.tokenStyleSelect.ClearSelected()
 	wsp.infoContainer.tokenEntry.SetText("")
-	wsp.infoContainer.sendPingCheck.SetChecked(false)
 	wsp.infoContainer.pingPathEntry.SetText("")
-	wsp.infoContainer.sendReplayCheck.SetChecked(false)
+	wsp.infoContainer.pingProbeIDEntry.SetText("")
 	wsp.infoContainer.replayPathEntry.SetText("")
 	wsp.infoContainer.templateNameEntry.SetText("")
 	wsp.infoContainer.uriParamsEntry.SetText("")
-	wsp.infoContainer.sendLiveCheck.SetChecked(false)
+	wsp.infoContainer.liveStyleSelect.ClearSelected()
 	wsp.infoContainer.livePathEntry.SetText("")
 
 	wsp.btnDelete.Disable()
@@ -489,28 +504,18 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	site := storages[selectedIndex]
 
 	site.URL = wsp.infoContainer.urlEntry.Text
+	site.UploadStyle = config.UploadStyleFromLabel(wsp.infoContainer.uploadStyleSelect.Selected)
+	site.PingStyle = config.PingStyleFromLabel(wsp.infoContainer.pingStyleSelect.Selected)
 
-	switch wsp.infoContainer.storageTypeSelect.Selected {
-	case "File System":
-		site.StorageType = config.FileSystemConfig
-	case config.BLAST_NAME:
-		site.StorageType = config.BlastConfig
-	default:
-		fallthrough
-	case "Website":
-		site.StorageType = config.WebsiteConfig
-	}
-
-	site.NeedToken = wsp.infoContainer.needTokenCheck.Checked
+	site.TokenStyle = config.TokenStyleFromLabel(wsp.infoContainer.tokenStyleSelect.Selected)
 	site.Token = wsp.infoContainer.tokenEntry.Text
-	site.SendPing = wsp.infoContainer.sendPingCheck.Checked
 	site.PingPath = wsp.infoContainer.pingPathEntry.Text
-	site.SendReplay = wsp.infoContainer.sendReplayCheck.Checked
+	site.PingProbeID = wsp.infoContainer.pingProbeIDEntry.Text
 	site.ReplayPath = wsp.infoContainer.replayPathEntry.Text
 	site.TemplateName = wsp.infoContainer.templateNameEntry.Text
 
 	if wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
-		site.SendLive = wsp.infoContainer.sendLiveCheck.Checked
+		site.LiveStyle = config.LiveStyleFromLabel(wsp.infoContainer.liveStyleSelect.Selected)
 		site.LivePath = wsp.infoContainer.livePathEntry.Text
 	}
 
@@ -552,10 +557,10 @@ func (wsp *StorageSettingsPopup) onAddStorageBtn() {
 				URL:          "",
 				IsPrimary:    false,
 				IsPredefined: false,
-				StorageType:  config.WebsiteConfig,
-				NeedToken:    false,
-				SendPing:     false,
-				SendReplay:   false,
+				UploadStyle:  config.UploadDisabled,
+				PingStyle:    config.PingDisabled,
+				TokenStyle:   config.NoToken,
+				LiveStyle:    config.LiveDisabled,
 				URIParams:    make(map[string]string),
 			}
 

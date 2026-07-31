@@ -19,12 +19,6 @@ const (
 	FILE_SYSTEM_NAME = "FileSystem"
 )
 
-// Upload tokens are created and revoked from the BLAST.tv profile page, so the storage
-// settings link to it rather than explaining where to find one. Opening a link from a desktop
-// app sends no referrer, so the campaign parameters are the only thing separating these
-// visits from direct traffic.
-const BLAST_PROFILE_URL = "https://blast.tv/profile?utm_source=rockpload&utm_medium=desktop-app&utm_campaign=upload-token"
-
 type storageListConfig []*StorageConfig
 
 func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
@@ -42,33 +36,30 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 
 	ballchasingIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == BALLCHASING_NAME })
 	if ballchasingIndex == -1 {
-		temp = append(temp, BALLCHASING_STORAGE)
+		fresh := *BALLCHASING_STORAGE
+		fresh.UploadStyle = UploadDisabled
+		temp = append(temp, &fresh)
 	} else {
-		temp[ballchasingIndex].IsPrimary = BALLCHASING_STORAGE.IsPrimary
-		temp[ballchasingIndex].IsPredefined = BALLCHASING_STORAGE.IsPredefined
-		temp[ballchasingIndex].IsTemporary = BALLCHASING_STORAGE.IsTemporary
-		temp[ballchasingIndex].StorageType = BALLCHASING_STORAGE.StorageType
+		reconcilePreset(temp[ballchasingIndex], BALLCHASING_STORAGE)
 	}
 
 	blastIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == BLAST_NAME })
 	if blastIndex == -1 {
-		temp = append(temp, BLAST_STORAGE)
+		fresh := *BLAST_STORAGE
+		fresh.UploadStyle = UploadDisabled
+		temp = append(temp, &fresh)
 	} else {
-		temp[blastIndex].IsPrimary = BLAST_STORAGE.IsPrimary
-		temp[blastIndex].IsPredefined = BLAST_STORAGE.IsPredefined
-		temp[blastIndex].IsTemporary = BLAST_STORAGE.IsTemporary
-		temp[blastIndex].StorageType = BLAST_STORAGE.StorageType
+		reconcilePreset(temp[blastIndex], BLAST_STORAGE)
 	}
 
 	fileSystemIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == FILE_SYSTEM_NAME })
 	if fileSystemIndex == -1 {
-		temp = append(temp, FILE_SYSTEM_STORAGE)
-		temp[len(temp)-1].ReplayPath = constant.Paths.HomeDir
+		fresh := *FILE_SYSTEM_STORAGE
+		fresh.UploadStyle = UploadDisabled
+		fresh.ReplayPath = constant.Paths.HomeDir
+		temp = append(temp, &fresh)
 	} else {
-		temp[fileSystemIndex].IsPrimary = FILE_SYSTEM_STORAGE.IsPrimary
-		temp[fileSystemIndex].IsPredefined = FILE_SYSTEM_STORAGE.IsPredefined
-		temp[fileSystemIndex].IsTemporary = BALLCHASING_STORAGE.IsTemporary
-		temp[fileSystemIndex].StorageType = FILE_SYSTEM_STORAGE.StorageType
+		reconcilePreset(temp[fileSystemIndex], FILE_SYSTEM_STORAGE)
 	}
 
 	if os.Getenv("ADD_LOCALHOST") == "true" {
@@ -83,30 +74,188 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type StorageConfigType int
+func reconcilePreset(sc *StorageConfig, preset *StorageConfig) {
+	logger.FuncDebug()
+
+	sc.IsPrimary = preset.IsPrimary
+	sc.IsPredefined = preset.IsPredefined
+	sc.IsTemporary = preset.IsTemporary
+	sc.TokenStyle = preset.TokenStyle
+	sc.LiveStyle = preset.LiveStyle
+	sc.HelpText = preset.HelpText
+	sc.HelpURL = preset.HelpURL
+
+	if sc.UploadStyle != UploadDisabled && sc.UploadStyle != preset.UploadStyle {
+		sc.UploadStyle = preset.UploadStyle
+	}
+
+	if sc.PingStyle != PingDisabled && sc.PingStyle != preset.PingStyle {
+		sc.PingStyle = preset.PingStyle
+	}
+}
+
+type UploadStyleType int
 
 const (
-	WebsiteConfig StorageConfigType = iota
-	FileSystemConfig
-	BlastConfig
+	UploadDisabled UploadStyleType = iota
+	LocalFileCopy
+	MultipartUpload
+	PresignedSessionUpload
 )
+
+var UploadStyleLabels = [...]string{
+	UploadDisabled:         "Upload Disabled",
+	LocalFileCopy:          "Local File Copy",
+	MultipartUpload:        "Multipart Form POST",
+	PresignedSessionUpload: "Presigned Session (URL + status poll)",
+}
+
+func (s UploadStyleType) Label() string {
+	logger.FuncDebug()
+
+	if int(s) < 0 || int(s) >= len(UploadStyleLabels) {
+		return UploadStyleLabels[UploadDisabled]
+	}
+
+	return UploadStyleLabels[s]
+}
+
+func UploadStyleFromLabel(label string) UploadStyleType {
+	logger.FuncDebug()
+
+	for style, l := range UploadStyleLabels {
+		if l == label {
+			return UploadStyleType(style)
+		}
+	}
+
+	return UploadDisabled
+}
+
+type PingStyleType int
+
+const (
+	PingDisabled PingStyleType = iota
+	PingRequiresOK
+	PingNotFoundIsValid
+)
+
+var PingStyleLabels = [...]string{
+	PingDisabled:        "Ping Disabled",
+	PingRequiresOK:      "Requires 200 OK",
+	PingNotFoundIsValid: "404 counts as valid",
+}
+
+func (s PingStyleType) Label() string {
+	logger.FuncDebug()
+
+	if int(s) < 0 || int(s) >= len(PingStyleLabels) {
+		return PingStyleLabels[PingDisabled]
+	}
+
+	return PingStyleLabels[s]
+}
+
+func PingStyleFromLabel(label string) PingStyleType {
+	logger.FuncDebug()
+
+	for style, l := range PingStyleLabels {
+		if l == label {
+			return PingStyleType(style)
+		}
+	}
+
+	return PingDisabled
+}
+
+type TokenStyleType int
+
+const (
+	NoToken TokenStyleType = iota
+	RawToken
+	BearerToken
+)
+
+var TokenStyleLabels = [...]string{
+	NoToken:     "No Token",
+	RawToken:    "Raw Token",
+	BearerToken: "Bearer Token",
+}
+
+func (s TokenStyleType) Label() string {
+	logger.FuncDebug()
+
+	if int(s) < 0 || int(s) >= len(TokenStyleLabels) {
+		return TokenStyleLabels[NoToken]
+	}
+
+	return TokenStyleLabels[s]
+}
+
+func TokenStyleFromLabel(label string) TokenStyleType {
+	logger.FuncDebug()
+
+	for style, l := range TokenStyleLabels {
+		if l == label {
+			return TokenStyleType(style)
+		}
+	}
+
+	return NoToken
+}
+
+type LiveStyleType int
+
+const (
+	LiveDisabled LiveStyleType = iota
+	LiveEnabled
+)
+
+var LiveStyleLabels = [...]string{
+	LiveDisabled: "Live Disabled",
+	LiveEnabled:  "Live Enabled",
+}
+
+func (s LiveStyleType) Label() string {
+	logger.FuncDebug()
+
+	if int(s) < 0 || int(s) >= len(LiveStyleLabels) {
+		return LiveStyleLabels[LiveDisabled]
+	}
+
+	return LiveStyleLabels[s]
+}
+
+func LiveStyleFromLabel(label string) LiveStyleType {
+	logger.FuncDebug()
+
+	for style, l := range LiveStyleLabels {
+		if l == label {
+			return LiveStyleType(style)
+		}
+	}
+
+	return LiveDisabled
+}
 
 type StorageConfig struct {
 	Name         string            `json:"name" secret_id:"true"`
-	SendReplay   bool              `json:"send_replay"`
+	HelpText     string            `json:"help_text"`
+	HelpURL      string            `json:"help_url"`
+	UploadStyle  UploadStyleType   `json:"upload_style"`
 	ReplayPath   string            `json:"replay_path"`
 	TemplateName string            `json:"template_file"`
 	URL          string            `json:"url"`
 	IsPrimary    bool              `json:"-"`
 	IsPredefined bool              `json:"-"`
 	IsTemporary  bool              `json:"-"`
-	StorageType  StorageConfigType `json:"storage_type"`
 	URIParams    map[string]string `json:"uri_params"`
-	NeedToken    bool              `json:"need_token"`
+	TokenStyle   TokenStyleType    `json:"token_style"`
 	Token        string            `json:"token,omitempty" secret:"true"`
-	SendPing     bool              `json:"send_ping"`
+	PingStyle    PingStyleType     `json:"ping_style"`
 	PingPath     string            `json:"ping_path"`
-	SendLive     bool              `json:"send_live"`
+	PingProbeID  string            `json:"ping_probe_id"`
+	LiveStyle    LiveStyleType     `json:"live_style"`
 	LivePath     string            `json:"live_path"`
 }
 
@@ -119,103 +268,103 @@ var STORAGE_PRESET = map[string]*StorageConfig{
 
 var ROCKY_STORAGE = &StorageConfig{
 	Name:         "Rocky",
+	HelpText:     "Want to see the website? Click here",
+	HelpURL:      "https://lexore.ca/rocky",
 	URL:          "https://lexore.ca/rocky/api",
 	IsPrimary:    true,
 	IsPredefined: true,
 	IsTemporary:  false,
-	StorageType:  WebsiteConfig,
+	UploadStyle:  MultipartUpload,
 	URIParams:    map[string]string{},
-	NeedToken:    false,
+	TokenStyle:   NoToken,
 	Token:        "",
-	SendPing:     false,
+	PingStyle:    PingDisabled,
 	PingPath:     "/",
-	SendReplay:   true,
 	ReplayPath:   "/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	SendLive:     true,
+	LiveStyle:    LiveEnabled,
 	LivePath:     "/upload/live",
 }
 
 var BALLCHASING_STORAGE = &StorageConfig{
 	Name:         BALLCHASING_NAME,
+	UploadStyle:  MultipartUpload,
+	ReplayPath:   "/v2/upload",
 	URL:          "https://ballchasing.com/api",
 	IsPrimary:    false,
 	IsPredefined: true,
 	IsTemporary:  false,
-	StorageType:  WebsiteConfig,
 	URIParams:    map[string]string{"visibility": "public"},
-	NeedToken:    true,
+	TokenStyle:   RawToken,
 	Token:        "",
-	SendPing:     true,
+	PingStyle:    PingRequiresOK,
 	PingPath:     "/",
-	SendReplay:   false,
-	ReplayPath:   "/v2/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	SendLive:     false,
+	LiveStyle:    LiveDisabled,
 	LivePath:     "",
 }
 
-// The replay is uploaded through an upload session: the API only answers with a short
-// lived presigned URL, so it accepts neither a file name nor URI params.
 var BLAST_STORAGE = &StorageConfig{
 	Name:         BLAST_NAME,
-	URL:          "https://api.blast.tv",
+	HelpText:     "Need a token? Click here",
+	HelpURL:      "https://blast.tv/profile?utm_source=rockpload&utm_medium=desktop-app&utm_campaign=upload-token",
+	URL:          "https://api.blast.tv/v1/community-stats/rl/replays",
+	ReplayPath:   "/upload-session",
 	IsPrimary:    false,
 	IsPredefined: true,
 	IsTemporary:  false,
-	StorageType:  BlastConfig,
+	UploadStyle:  PresignedSessionUpload,
+	PingStyle:    PingNotFoundIsValid,
+	TokenStyle:   BearerToken,
 	URIParams:    map[string]string{},
-	NeedToken:    true,
 	Token:        "",
-	SendPing:     false,
-	PingPath:     "",
-	SendReplay:   false,
-	ReplayPath:   "/v1/community-stats/rl/replays/upload-session",
+	PingPath:     "/",
+	PingProbeID:  "00000000-0000-0000-0000-000000000000",
 	TemplateName: "",
-	SendLive:     false,
+	LiveStyle:    LiveDisabled,
 	LivePath:     "",
 }
 
 var FILE_SYSTEM_STORAGE = &StorageConfig{
 	Name:         FILE_SYSTEM_NAME,
+	UploadStyle:  LocalFileCopy,
+	ReplayPath:   "",
+	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	URL:          "",
 	IsPrimary:    false,
 	IsPredefined: true,
 	IsTemporary:  false,
-	StorageType:  FileSystemConfig,
 	URIParams:    map[string]string{},
-	NeedToken:    false,
+	TokenStyle:   NoToken,
 	Token:        "",
-	SendPing:     false,
+	PingStyle:    PingDisabled,
 	PingPath:     "/",
-	SendReplay:   false,
-	ReplayPath:   "",
-	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	SendLive:     false,
+	LiveStyle:    LiveDisabled,
 	LivePath:     "",
 }
 
 // Dev testing storage only
 var LOCALHOST_STORAGE = &StorageConfig{
 	Name:         LOCALHOST_NAME,
+	UploadStyle:  UploadDisabled,
+	ReplayPath:   "/upload",
+	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	URL:          "http://localhost:3000",
 	IsPrimary:    false,
 	IsPredefined: false,
 	IsTemporary:  true,
-	StorageType:  WebsiteConfig,
 	URIParams:    map[string]string{},
-	NeedToken:    false,
+	TokenStyle:   NoToken,
 	Token:        "",
-	SendPing:     false,
+	PingStyle:    PingDisabled,
 	PingPath:     "/",
-	SendReplay:   false,
-	ReplayPath:   "/upload",
-	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	SendLive:     false,
+	LiveStyle:    LiveDisabled,
 	LivePath:     "",
 }
 
 func (sc *StorageConfig) UnmarshalJSON(data []byte) error {
+	logger.FuncDebug()
+
 	var jsonMap map[string]json.RawMessage
 	if err := json.Unmarshal(data, &jsonMap); err != nil {
 		return err
@@ -243,18 +392,14 @@ func (sc *StorageConfig) UnmarshalJSON(data []byte) error {
 			if jsonTag == "" || jsonTag == "-" {
 				continue
 			}
-			jsonKey := strings.Split(jsonTag, ",")[0]
+			jsonKey, _, _ := strings.Cut(jsonTag, ",")
 
 			if _, present := jsonMap[jsonKey]; !present {
 				valSC.Field(i).Set(valPreset.Field(i))
 			}
 		}
 
-		// Force specific field to be sure the storage are in a good state
-		sc.IsPrimary = preset.IsPrimary
-		sc.IsPredefined = preset.IsPredefined
-		sc.IsTemporary = preset.IsTemporary
-		sc.StorageType = preset.StorageType
+		reconcilePreset(sc, preset)
 	}
 
 	return nil
