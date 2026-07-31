@@ -19,6 +19,10 @@ const (
 	FILE_SYSTEM_NAME = "FileSystem"
 )
 
+// Upload tokens are created and revoked from the BLAST.tv profile page, so the storage
+// settings link to it rather than explaining where to find one.
+const BLAST_PROFILE_URL = "https://blast.tv/profile"
+
 type storageListConfig []*StorageConfig
 
 func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
