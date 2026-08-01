@@ -44,6 +44,8 @@ type StorageInfoContainer struct {
 	templateNameEntry *widget.Entry
 	liveStyleSelect   *widget.Select
 	livePathEntry     *widget.Entry
+	renameStyleSelect *widget.Select
+	renamePathEntry   *widget.Entry
 	helpLink          *widget.Hyperlink
 
 	urlForm          *widget.FormItem
@@ -58,6 +60,8 @@ type StorageInfoContainer struct {
 	templateNameForm *widget.FormItem
 	liveStyleForm    *widget.FormItem
 	livePathForm     *widget.FormItem
+	renameStyleForm  *widget.FormItem
+	renamePathForm   *widget.FormItem
 }
 
 type StorageSettingsPopup struct {
@@ -210,6 +214,12 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.replayPathEntry = widget.NewEntry()
 	wsp.infoContainer.templateNameEntry = widget.NewEntry()
 
+	wsp.infoContainer.renameStyleSelect = widget.NewSelect(config.RenameStyleLabels[:], func(v string) {
+		wsp.currentWebsite.RenameStyle = config.RenameStyleFromLabel(v)
+		wsp.reload()
+	})
+	wsp.infoContainer.renamePathEntry = widget.NewEntry()
+
 	wsp.infoContainer.urlForm = widget.NewFormItem("URL", wsp.infoContainer.urlEntry)
 	wsp.infoContainer.uploadStyleForm = widget.NewFormItem("Upload Style", wsp.infoContainer.uploadStyleSelect)
 	wsp.infoContainer.pingStyleForm = widget.NewFormItem("Ping Style", wsp.infoContainer.pingStyleSelect)
@@ -222,11 +232,15 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.templateNameForm = widget.NewFormItem("Name Template", wsp.infoContainer.templateNameEntry)
 	wsp.infoContainer.liveStyleForm = widget.NewFormItem("Live Style", wsp.infoContainer.liveStyleSelect)
 	wsp.infoContainer.livePathForm = widget.NewFormItem("Live Path", wsp.infoContainer.livePathEntry)
+	wsp.infoContainer.renameStyleForm = widget.NewFormItem("Rename Style", wsp.infoContainer.renameStyleSelect)
+	wsp.infoContainer.renamePathForm = widget.NewFormItem("Rename Path", wsp.infoContainer.renamePathEntry)
 
 	return widget.NewForm(
 		wsp.infoContainer.uploadStyleForm,
 		wsp.infoContainer.replayPathForm,
 		wsp.infoContainer.templateNameForm,
+		wsp.infoContainer.renameStyleForm,
+		wsp.infoContainer.renamePathForm,
 		wsp.infoContainer.urlForm,
 		wsp.infoContainer.tokenStyleForm,
 		wsp.infoContainer.tokenForm,
@@ -258,6 +272,7 @@ func (wsp *StorageSettingsPopup) reloadOptions() {
 		wsp.infoContainer.pingStyleSelect.SetOptions(config.PingStyleLabels[:])
 		wsp.infoContainer.tokenStyleSelect.SetOptions(config.TokenStyleLabels[:])
 		wsp.infoContainer.liveStyleSelect.SetOptions(config.LiveStyleLabels[:])
+		wsp.infoContainer.renameStyleSelect.SetOptions(config.RenameStyleLabels[:])
 		return
 	}
 
@@ -274,6 +289,10 @@ func (wsp *StorageSettingsPopup) reloadOptions() {
 	})
 	wsp.infoContainer.liveStyleSelect.SetOptions([]string{
 		preset.LiveStyle.Label(),
+	})
+	wsp.infoContainer.renameStyleSelect.SetOptions([]string{
+		config.RenameDisabled.Label(),
+		preset.RenameStyle.Label(),
 	})
 }
 
@@ -307,6 +326,8 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	wsp.infoContainer.templateNameEntry.SetText(wsp.currentWebsite.TemplateName)
 	wsp.infoContainer.liveStyleSelect.SetSelected(wsp.currentWebsite.LiveStyle.Label())
 	wsp.infoContainer.livePathEntry.SetText(wsp.currentWebsite.LivePath)
+	wsp.infoContainer.renameStyleSelect.SetSelected(wsp.currentWebsite.RenameStyle.Label())
+	wsp.infoContainer.renamePathEntry.SetText(wsp.currentWebsite.RenamePath)
 
 	var paramsStr strings.Builder
 	for k, v := range wsp.currentWebsite.URIParams {
@@ -343,6 +364,8 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	wsp.infoContainer.templateNameForm.Widget.Show()
 	wsp.infoContainer.liveStyleForm.Widget.Show()
 	wsp.infoContainer.livePathForm.Widget.Show()
+	wsp.infoContainer.renameStyleForm.Widget.Show()
+	wsp.infoContainer.renamePathForm.Widget.Show()
 
 	wsp.infoContainer.helpLink.Text = wsp.currentWebsite.HelpText
 	wsp.infoContainer.helpLink.Refresh()
@@ -353,19 +376,30 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.descContainer.Hide()
 	}
 
-	if wsp.currentWebsite.TokenStyle == config.NoToken {
+	switch wsp.currentWebsite.TokenStyle {
+	case config.RawToken, config.BearerToken:
+	default:
+		fallthrough
+	case config.NoToken:
 		wsp.infoContainer.tokenForm.Widget.Hide()
 	}
 
-	if wsp.currentWebsite.PingStyle == config.PingDisabled {
+	switch wsp.currentWebsite.PingStyle {
+	case config.PingNotFoundIsValid:
+	case config.PingRequiresOK:
+		wsp.infoContainer.pingProbeIDForm.Widget.Hide()
+	default:
+		fallthrough
+	case config.PingDisabled:
 		wsp.infoContainer.pingPathForm.Widget.Hide()
-	}
-
-	if wsp.currentWebsite.PingStyle != config.PingNotFoundIsValid {
 		wsp.infoContainer.pingProbeIDForm.Widget.Hide()
 	}
 
-	if wsp.currentWebsite.LiveStyle == config.LiveDisabled {
+	switch wsp.currentWebsite.LiveStyle {
+	case config.LiveEnabled:
+	default:
+		fallthrough
+	case config.LiveDisabled:
 		wsp.infoContainer.livePathForm.Widget.Hide()
 	}
 
@@ -374,12 +408,16 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.livePathForm.Widget.Hide()
 	}
 
-	if wsp.currentWebsite.UploadStyle == config.UploadDisabled {
-		wsp.infoContainer.replayPathForm.Widget.Hide()
-		wsp.infoContainer.templateNameForm.Widget.Hide()
+	switch wsp.currentWebsite.RenameStyle {
+	case config.RenamePatchTitle:
+	default:
+		fallthrough
+	case config.RenameDisabled:
+		wsp.infoContainer.renamePathForm.Widget.Hide()
 	}
 
 	switch wsp.currentWebsite.UploadStyle {
+	case config.MultipartUpload:
 	case config.LocalFileCopy:
 		wsp.infoContainer.urlForm.Widget.Hide()
 		wsp.infoContainer.uriParamsForm.Widget.Hide()
@@ -390,9 +428,19 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.pingProbeIDForm.Widget.Hide()
 		wsp.infoContainer.liveStyleForm.Widget.Hide()
 		wsp.infoContainer.livePathForm.Widget.Hide()
+		wsp.infoContainer.renameStyleForm.Widget.Hide()
+		wsp.infoContainer.renamePathForm.Widget.Hide()
 	case config.PresignedSessionUpload:
 		wsp.infoContainer.templateNameForm.Widget.Hide()
+		wsp.infoContainer.renameStyleForm.Widget.Hide()
+		wsp.infoContainer.renamePathForm.Widget.Hide()
 	default:
+		fallthrough
+	case config.UploadDisabled:
+		wsp.infoContainer.replayPathForm.Widget.Hide()
+		wsp.infoContainer.templateNameForm.Widget.Hide()
+		wsp.infoContainer.renameStyleForm.Widget.Hide()
+		wsp.infoContainer.renamePathForm.Widget.Hide()
 	}
 
 	if wsp.currentWebsite.IsPredefined {
@@ -420,6 +468,8 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 	wsp.infoContainer.templateNameEntry.Enable()
 	wsp.infoContainer.liveStyleSelect.Enable()
 	wsp.infoContainer.livePathEntry.Enable()
+	wsp.infoContainer.renameStyleSelect.Enable()
+	wsp.infoContainer.renamePathEntry.Enable()
 
 	if !wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
 		wsp.infoContainer.liveStyleSelect.Disable()
@@ -427,6 +477,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 	}
 
 	switch wsp.currentWebsite.UploadStyle {
+	case config.MultipartUpload:
 	case config.LocalFileCopy:
 		wsp.infoContainer.urlEntry.Disable()
 		wsp.infoContainer.uriParamsEntry.Disable()
@@ -437,9 +488,19 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.infoContainer.pingProbeIDEntry.Disable()
 		wsp.infoContainer.liveStyleSelect.Disable()
 		wsp.infoContainer.livePathEntry.Disable()
+		wsp.infoContainer.renameStyleSelect.Disable()
+		wsp.infoContainer.renamePathEntry.Disable()
 	case config.PresignedSessionUpload:
 		wsp.infoContainer.templateNameEntry.Disable()
+		wsp.infoContainer.renameStyleSelect.Disable()
+		wsp.infoContainer.renamePathEntry.Disable()
 	default:
+		fallthrough
+	case config.UploadDisabled:
+		wsp.infoContainer.replayPathEntry.Disable()
+		wsp.infoContainer.templateNameEntry.Disable()
+		wsp.infoContainer.renameStyleSelect.Disable()
+		wsp.infoContainer.renamePathEntry.Disable()
 	}
 
 	if wsp.currentWebsite.IsPredefined {
@@ -451,6 +512,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.infoContainer.pingProbeIDEntry.Disable()
 		wsp.infoContainer.livePathEntry.Disable()
 		wsp.infoContainer.liveStyleSelect.Disable()
+		wsp.infoContainer.renamePathEntry.Disable()
 
 		if wsp.currentWebsite.IsPrimary {
 			wsp.btnSave.Disable()
@@ -460,6 +522,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 			wsp.infoContainer.tokenEntry.Disable()
 			wsp.infoContainer.templateNameEntry.Disable()
 			wsp.infoContainer.replayPathEntry.Disable()
+			wsp.infoContainer.renameStyleSelect.Disable()
 		} else if preset := wsp.currentPreset(); preset != nil && preset.UploadStyle != config.LocalFileCopy {
 			wsp.infoContainer.replayPathEntry.Disable()
 		}
@@ -486,6 +549,8 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	wsp.infoContainer.uriParamsEntry.SetText("")
 	wsp.infoContainer.liveStyleSelect.ClearSelected()
 	wsp.infoContainer.livePathEntry.SetText("")
+	wsp.infoContainer.renameStyleSelect.ClearSelected()
+	wsp.infoContainer.renamePathEntry.SetText("")
 
 	wsp.btnDelete.Disable()
 	wsp.btnSave.Disable()
@@ -513,6 +578,8 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 	site.PingProbeID = wsp.infoContainer.pingProbeIDEntry.Text
 	site.ReplayPath = wsp.infoContainer.replayPathEntry.Text
 	site.TemplateName = wsp.infoContainer.templateNameEntry.Text
+	site.RenameStyle = config.RenameStyleFromLabel(wsp.infoContainer.renameStyleSelect.Selected)
+	site.RenamePath = wsp.infoContainer.renamePathEntry.Text
 
 	if wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
 		site.LiveStyle = config.LiveStyleFromLabel(wsp.infoContainer.liveStyleSelect.Selected)
@@ -561,6 +628,7 @@ func (wsp *StorageSettingsPopup) onAddStorageBtn() {
 				PingStyle:    config.PingDisabled,
 				TokenStyle:   config.NoToken,
 				LiveStyle:    config.LiveDisabled,
+				RenameStyle:  config.RenameDisabled,
 				URIParams:    make(map[string]string),
 			}
 

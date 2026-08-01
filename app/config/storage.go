@@ -92,6 +92,10 @@ func reconcilePreset(sc *StorageConfig, preset *StorageConfig) {
 	if sc.PingStyle != PingDisabled && sc.PingStyle != preset.PingStyle {
 		sc.PingStyle = preset.PingStyle
 	}
+
+	if sc.RenameStyle != RenameDisabled && sc.RenameStyle != preset.RenameStyle {
+		sc.RenameStyle = preset.RenameStyle
+	}
 }
 
 type UploadStyleType int
@@ -238,6 +242,40 @@ func LiveStyleFromLabel(label string) LiveStyleType {
 	return LiveDisabled
 }
 
+type RenameStyleType int
+
+const (
+	RenameDisabled RenameStyleType = iota
+	RenamePatchTitle
+)
+
+var RenameStyleLabels = [...]string{
+	RenameDisabled:   "Rename Disabled",
+	RenamePatchTitle: "Patch Title After Upload",
+}
+
+func (s RenameStyleType) Label() string {
+	logger.FuncDebug()
+
+	if int(s) < 0 || int(s) >= len(RenameStyleLabels) {
+		return RenameStyleLabels[RenameDisabled]
+	}
+
+	return RenameStyleLabels[s]
+}
+
+func RenameStyleFromLabel(label string) RenameStyleType {
+	logger.FuncDebug()
+
+	for style, l := range RenameStyleLabels {
+		if l == label {
+			return RenameStyleType(style)
+		}
+	}
+
+	return RenameDisabled
+}
+
 type StorageConfig struct {
 	Name         string            `json:"name" secret_id:"true"`
 	HelpText     string            `json:"help_text"`
@@ -257,6 +295,8 @@ type StorageConfig struct {
 	PingProbeID  string            `json:"ping_probe_id"`
 	LiveStyle    LiveStyleType     `json:"live_style"`
 	LivePath     string            `json:"live_path"`
+	RenameStyle  RenameStyleType   `json:"rename_style"`
+	RenamePath   string            `json:"rename_path"`
 }
 
 var STORAGE_PRESET = map[string]*StorageConfig{
@@ -284,6 +324,7 @@ var ROCKY_STORAGE = &StorageConfig{
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	LiveStyle:    LiveEnabled,
 	LivePath:     "/upload/live",
+	RenameStyle:  RenameDisabled,
 }
 
 var BALLCHASING_STORAGE = &StorageConfig{
@@ -302,6 +343,8 @@ var BALLCHASING_STORAGE = &StorageConfig{
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	LiveStyle:    LiveDisabled,
 	LivePath:     "",
+	RenameStyle:  RenamePatchTitle,
+	RenamePath:   "/replays/",
 }
 
 var BLAST_STORAGE = &StorageConfig{
@@ -323,6 +366,7 @@ var BLAST_STORAGE = &StorageConfig{
 	TemplateName: "",
 	LiveStyle:    LiveDisabled,
 	LivePath:     "",
+	RenameStyle:  RenameDisabled,
 }
 
 var FILE_SYSTEM_STORAGE = &StorageConfig{
@@ -341,6 +385,7 @@ var FILE_SYSTEM_STORAGE = &StorageConfig{
 	PingPath:     "/",
 	LiveStyle:    LiveDisabled,
 	LivePath:     "",
+	RenameStyle:  RenameDisabled,
 }
 
 // Dev testing storage only
@@ -360,6 +405,7 @@ var LOCALHOST_STORAGE = &StorageConfig{
 	PingPath:     "/",
 	LiveStyle:    LiveDisabled,
 	LivePath:     "",
+	RenameStyle:  RenameDisabled,
 }
 
 func (sc *StorageConfig) UnmarshalJSON(data []byte) error {
