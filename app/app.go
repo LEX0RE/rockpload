@@ -106,7 +106,7 @@ func (a *App) Run() {
 	}
 	defer a.duplicateLock.Unlock()
 
-	a.setupAppUpdate()
+	updateAvailable := a.setupAppUpdate()
 
 	a.initManager()
 	a.initEvents()
@@ -114,7 +114,7 @@ func (a *App) Run() {
 
 	a.window.Resize(fyne.NewSize(700, 450))
 
-	if a.canRunInTray() && a.appConfig.BehaviorConfig.ExitInTray.Get() && a.appConfig.BehaviorConfig.StartInTray.Get() {
+	if !updateAvailable && a.canRunInTray() && a.appConfig.BehaviorConfig.ExitInTray.Get() && a.appConfig.BehaviorConfig.StartInTray.Get() {
 		a.app.Run()
 	} else {
 		a.window.ShowAndRun()
@@ -286,7 +286,7 @@ func (a *App) startManager() {
 	a.startPlatformManagers()
 }
 
-func (a *App) setupAppUpdate() {
+func (a *App) setupAppUpdate() bool {
 	logger.FuncDebug()
 
 	updater := NewUpdater()
@@ -296,24 +296,28 @@ func (a *App) setupAppUpdate() {
 	if err != nil {
 		logger.Rlogger.Error("Failed to check for update:", slog.Any("err", err))
 		a.updateInfo = nil
-		return
+		return false
 	}
 
 	a.updateInfo = updater.UpdateInfo
 
-	if needUpdate && skipUpdate != "true" {
-		updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig, a.accountManager), a.updateInfo.Version, func() {
-			err := updater.ApplyUpdate()
-			if err != nil {
-				logger.Rlogger.Error("Update failed", slog.Any("err", err))
-				return
-			}
-
-			a.restart()
-		})
-
-		updatePopup.Show()
+	if !needUpdate || skipUpdate == "true" {
+		return false
 	}
+
+	updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig, a.accountManager), a.updateInfo.Version, string(a.updateInfo.Source), func() {
+		err := updater.ApplyUpdate()
+		if err != nil {
+			logger.Rlogger.Error("Update failed", slog.Any("err", err))
+			return
+		}
+
+		a.restart()
+	})
+
+	updatePopup.Show()
+
+	return true
 }
 
 func (a *App) SetAutoUpload(value bool) {
