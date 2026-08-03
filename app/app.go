@@ -302,7 +302,7 @@ func (a *App) setupAppUpdate() {
 	a.updateInfo = updater.UpdateInfo
 
 	if needUpdate && skipUpdate != "true" {
-		updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig, a.accountManager), a.updateInfo.Version, func() {
+		updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig, a.accountManager), a.updateInfo.Version, string(a.updateInfo.Source), func() {
 			err := updater.ApplyUpdate()
 			if err != nil {
 				logger.Rlogger.Error("Update failed", slog.Any("err", err))

@@ -14,7 +14,7 @@ type UpdatePopup struct {
 	*Popup
 }
 
-func NewUpdatePopup(p *Popup, newVersion string, onAccept func()) *UpdatePopup {
+func NewUpdatePopup(p *Popup, newVersion string, source string, onAccept func()) *UpdatePopup {
 	logger.FuncDebug()
 
 	versionInfo := ""
@@ -22,9 +22,14 @@ func NewUpdatePopup(p *Popup, newVersion string, onAccept func()) *UpdatePopup {
 		versionInfo = " (v" + newVersion + ")"
 	}
 
+	sourceInfo := ""
+	if source != "" {
+		sourceInfo = " from " + source
+	}
+
 	up := &UpdatePopup{Popup: p}
 
-	description := widget.NewLabel("A new update " + versionInfo + " is ready to be install")
+	description := widget.NewLabel("A new update " + versionInfo + " is ready to be install" + sourceInfo)
 	description.Wrapping = fyne.TextWrapWord
 
 	btnLater := widget.NewButton("Later", func() {
