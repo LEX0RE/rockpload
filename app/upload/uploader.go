@@ -137,7 +137,7 @@ func (u *Uploader) UploadLiveStats(liveStats *rocket_network.LiveStats) {
 	}
 
 	for _, storage := range u.getStorages() {
-		if storage.GetConfig().SendLive {
+		if storage.GetConfig().LiveStyle != config.LiveDisabled {
 			storage.UploadLive(liveStats)
 		}
 	}
@@ -308,7 +308,7 @@ func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string
 
 	u.EventManager.Notify(EventUploadProgress, max(0, currentProgress-1)/maxProgress)
 
-	if !storage.GetConfig().SendReplay {
+	if storage.GetConfig().UploadStyle == config.UploadDisabled {
 		return
 	}
 
@@ -364,18 +364,18 @@ func (u *Uploader) getStorages() []UploadStorage {
 	var storages []UploadStorage
 
 	for _, storageConfig := range u.appConfig.StorageSettings.Get() {
-		if !storageConfig.SendReplay {
+		if storageConfig.UploadStyle == config.UploadDisabled {
 			continue
 		}
 
 		var backend UploadStorage
 
-		switch storageConfig.StorageType {
-		case config.FileSystemConfig:
+		switch storageConfig.UploadStyle {
+		case config.LocalFileCopy:
 			backend = NewFileSystem(storageConfig)
 		default:
 			fallthrough
-		case config.WebsiteConfig:
+		case config.MultipartUpload, config.PresignedSessionUpload:
 			backend = NewWebsite(storageConfig)
 		}
 

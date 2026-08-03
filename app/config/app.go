@@ -81,17 +81,9 @@ func (a *AppConfig) Load(prefs fyne.Preferences) error {
 		return err
 	}
 
-	//  --- MIGRATION SECTION ---
-
-	// TODO Deprecated, Fyne Pref will be removed
-	a.importFynePreferences(prefs)
-
-	// TODO Deprecated, there won't have any migration of previous config
-	if err := a.migrateSecretSettings(); err != nil {
+	if err := a.migrateDepreciated(prefs); err != nil {
 		return err
 	}
-
-	// --- END OF MIGRATION SECTION ---
 
 	logger.Rlogger.Debug("Application configuration loaded", slog.String("config", a.loggableConfig()))
 
@@ -147,6 +139,24 @@ func (a *AppConfig) savePublicSettings() (error, error, error) {
 	a.StorageSettings.value = originalWebsites
 
 	return accountErr, storageErr, behaviorErr
+}
+
+// TODO Deprecated section for previous setup. These will progressively be removed in future versions.
+func (a *AppConfig) migrateDepreciated(prefs fyne.Preferences) error {
+	// TODO Deprecated, Fyne Pref will be removed
+	a.importFynePreferences(prefs)
+
+	// TODO Deprecated, there won't have any migration of previous config
+	if err := a.migrateSecretSettings(); err != nil {
+		return err
+	}
+
+	// TODO Deprecated, previous storage settings with bool instead of enum
+	if err := a.migrateStorageStyles(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // TODO Deprecated, Fyne Pref will be removed
