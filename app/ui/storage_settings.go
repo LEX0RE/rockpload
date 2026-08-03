@@ -1,8 +1,12 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/LEX0RE/rockpload/app/config"
@@ -12,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -72,6 +77,7 @@ type StorageSettingsPopup struct {
 	infoContainer StorageInfoContainer
 	btnDelete     *widget.Button
 	btnSave       *widget.Button
+	btnExport     *widget.Button
 	list          *widget.List
 	split         *container.Split
 	leftPanel     *fyne.Container
@@ -92,9 +98,12 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	wsp.btnDelete.Importance = widget.DangerImportance
 	wsp.btnDelete.Disable()
 
+	wsp.btnExport = widget.NewButtonWithIcon("Export", theme.UploadIcon(), wsp.onExportStorageBtn)
+	wsp.btnExport.Disable()
+
 	wsp.editForm = wsp.createInfoContainer()
 	scrollableForm := container.NewVScroll(wsp.editForm)
-	buttonsBox := container.NewHBox(layout.NewSpacer(), wsp.btnSave, wsp.btnDelete)
+	buttonsBox := container.NewHBox(wsp.btnExport, layout.NewSpacer(), wsp.btnSave, wsp.btnDelete)
 
 	wsp.detailPanel = container.NewBorder(
 		container.NewVBox(wsp.infoContainer.titleLabel, wsp.infoContainer.descContainer, widget.NewSeparator()),
@@ -133,8 +142,11 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	wsp.list.OnUnselected = wsp.onUnselected
 
 	btnAdd := widget.NewButtonWithIcon("Add", theme.ContentAddIcon(), wsp.onAddStorageBtn)
+	btnImport := widget.NewButtonWithIcon("Import", theme.DownloadIcon(), wsp.onImportStorageBtn)
 
-	wsp.leftPanel = container.NewBorder(nil, btnAdd, nil, nil, wsp.list)
+	leftButtons := container.NewGridWithColumns(2, btnAdd, btnImport)
+
+	wsp.leftPanel = container.NewBorder(nil, leftButtons, nil, nil, wsp.list)
 	wsp.split = container.NewHSplit(wsp.leftPanel, wsp.detailPanel)
 	wsp.split.Offset = 0.3
 
@@ -455,6 +467,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 
 	wsp.btnSave.Enable()
 	wsp.btnDelete.Enable()
+	wsp.btnExport.Enable()
 
 	wsp.infoContainer.urlEntry.Enable()
 	wsp.infoContainer.uploadStyleSelect.Enable()
@@ -516,6 +529,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 
 		if wsp.currentWebsite.IsPrimary {
 			wsp.btnSave.Disable()
+			wsp.btnExport.Disable()
 			wsp.infoContainer.uploadStyleSelect.Disable()
 			wsp.infoContainer.pingStyleSelect.Disable()
 			wsp.infoContainer.uriParamsEntry.Disable()
@@ -554,6 +568,7 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 
 	wsp.btnDelete.Disable()
 	wsp.btnSave.Disable()
+	wsp.btnExport.Disable()
 }
 
 func (wsp *StorageSettingsPopup) onSaveBtn() {
@@ -647,6 +662,113 @@ func (wsp *StorageSettingsPopup) onAddStorageBtn() {
 			wsp.list.Refresh()
 		}
 	}, wsp.parentWindow)
+}
+
+func sanitizeFileName(name string) string {
+	logger.FuncDebug()
+
+	replacer := strings.NewReplacer(
+		"/", "_", "\\", "_", ":", "_", "*", "_", "?", "_",
+		"\"", "_", "<", "_", ">", "_", "|", "_", " ", "_",
+	)
+
+	sanitized := replacer.Replace(strings.TrimSpace(name))
+	if sanitized == "" {
+		return "storage"
+	}
+
+	return sanitized
+}
+
+func (wsp *StorageSettingsPopup) onExportStorageBtn() {
+	logger.FuncDebug()
+
+	exported := wsp.currentWebsite
+	exported.Token = ""
+
+	data, err := json.MarshalIndent([]*config.StorageConfig{&exported}, "", "  ")
+	if err != nil {
+		dialog.ShowError(err, wsp.parentWindow)
+		return
+	}
+
+	saveDialog := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
+		if writer == nil || err != nil {
+			return
+		}
+		defer writer.Close()
+
+		if _, err := writer.Write(data); err != nil {
+			logger.Rlogger.Error("Error writing storage settings export:", slog.Any("err", err))
+			dialog.ShowInformation("Error", "Failed to export storage settings!\nError writing file", wsp.parentWindow)
+			return
+		}
+
+		dialog.ShowInformation("Success", "Storage settings exported successfully!\nNote: the token is not included, it must be re-entered.", wsp.parentWindow)
+	}, wsp.parentWindow)
+
+	saveDialog.SetFileName(sanitizeFileName(wsp.currentWebsite.Name) + "_rockpload_storage_settings.json")
+	saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{".json"}))
+	saveDialog.Show()
+}
+
+func (wsp *StorageSettingsPopup) onImportStorageBtn() {
+	logger.FuncDebug()
+
+	openDialog := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if reader == nil || err != nil {
+			return
+		}
+		defer reader.Close()
+
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			logger.Rlogger.Error("Error reading storage settings import:", slog.Any("err", err))
+			dialog.ShowInformation("Error", "Failed to import storage settings!\nError reading file", wsp.parentWindow)
+			return
+		}
+
+		var imported []*config.StorageConfig
+		if err := json.Unmarshal(data, &imported); err != nil {
+			logger.Rlogger.Error("Error parsing storage settings import:", slog.Any("err", err))
+			dialog.ShowInformation("Error", "Failed to import storage settings!\nInvalid file format", wsp.parentWindow)
+			return
+		}
+
+		storages := wsp.appConfig.StorageSettings.Get()
+
+		added, updated := 0, 0
+		for _, importedSite := range imported {
+			if importedSite.IsPrimary || importedSite.Name == "" {
+				continue
+			}
+
+			existingIndex := slices.IndexFunc(storages, func(c *config.StorageConfig) bool { return c.Name == importedSite.Name })
+			if existingIndex == -1 {
+				storages = append(storages, importedSite)
+				added++
+				continue
+			}
+
+			importedSite.Token = storages[existingIndex].Token
+			storages[existingIndex] = importedSite
+			updated++
+		}
+
+		if added == 0 && updated == 0 {
+			dialog.ShowInformation("Nothing to import", "No valid storage settings were found in the file.", wsp.parentWindow)
+			return
+		}
+
+		wsp.appConfig.StorageSettings.Set(storages)
+		wsp.list.Refresh()
+		wsp.onSelected(wsp.appConfig.BehaviorConfig.SelectedStorageId.Get())
+
+		dialog.ShowInformation("Success", fmt.Sprintf("Storage settings imported successfully!\nAdded: %d, Updated: %d", added, updated), wsp.parentWindow)
+	}, wsp.parentWindow)
+
+	openDialog.SetFilter(storage.NewExtensionFileFilter([]string{".json"}))
+	openDialog.Show()
 }
 
 func (wsp *StorageSettingsPopup) onDeleteStorageBtn() {
