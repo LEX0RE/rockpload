@@ -273,3 +273,89 @@ func RenameStyleFromLabel(label string) RenameStyleType {
 
 	return RenameDisabled
 }
+
+// TODO Deprecated, previous storage schema
+type legacyStorageConfig struct {
+	Name        string `json:"name"`
+	SendReplay  bool   `json:"send_replay"`
+	StorageType int    `json:"storage_type"`
+	NeedToken   bool   `json:"need_token"`
+	SendPing    bool   `json:"send_ping"`
+	SendLive    bool   `json:"send_live"`
+}
+
+// The old StorageConfigType enum: WebsiteConfig = 0, FileSystemConfig = 1.
+const legacyFileSystemStorageType = 1
+
+func (a *AppConfig) migrateStorageStyles() error {
+	logger.FuncDebug()
+
+	data, err := os.ReadFile(constant.Paths.StorageSettingsFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+
+	var rawEntries []json.RawMessage
+	if err := json.Unmarshal(data, &rawEntries); err != nil {
+		return nil
+	}
+
+	migrated := false
+	for _, rawEntry := range rawEntries {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(rawEntry, &fields); err != nil {
+			continue
+		}
+
+		if _, isCurrentSchema := fields["upload_style"]; isCurrentSchema {
+			continue
+		}
+
+		var legacy legacyStorageConfig
+		if err := json.Unmarshal(rawEntry, &legacy); err != nil || legacy.Name == "" {
+			continue
+		}
+
+		index := slices.IndexFunc(a.StorageSettings.value, func(c *StorageConfig) bool { return c.Name == legacy.Name })
+		if index == -1 {
+			continue
+		}
+
+		site := a.StorageSettings.value[index]
+
+		site.UploadStyle = UploadDisabled
+		if legacy.SendReplay {
+			if legacy.StorageType == legacyFileSystemStorageType {
+				site.UploadStyle = LocalFileCopy
+			} else {
+				site.UploadStyle = MultipartUpload
+			}
+		}
+
+		site.TokenStyle = NoToken
+		if legacy.NeedToken {
+			site.TokenStyle = RawToken
+		}
+
+		site.PingStyle = PingDisabled
+		if legacy.SendPing {
+			site.PingStyle = PingRequiresOK
+		}
+
+		site.LiveStyle = LiveDisabled
+		if legacy.SendLive {
+			site.LiveStyle = LiveEnabled
+		}
+
+		migrated = true
+	}
+
+	if !migrated {
+		return nil
+	}
+
+	return a.Save()
+}
