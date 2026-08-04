@@ -287,20 +287,20 @@ type legacyStorageConfig struct {
 // The old StorageConfigType enum: WebsiteConfig = 0, FileSystemConfig = 1.
 const legacyFileSystemStorageType = 1
 
-func (a *AppConfig) migrateStorageStyles() error {
+func (a *AppConfig) migrateStorageStyles() (bool, error) {
 	logger.FuncDebug()
 
 	data, err := os.ReadFile(constant.Paths.StorageSettingsFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil
+			return false, nil
 		}
-		return err
+		return false, err
 	}
 
 	var rawEntries []json.RawMessage
 	if err := json.Unmarshal(data, &rawEntries); err != nil {
-		return nil
+		return false, nil
 	}
 
 	migrated := false
@@ -353,9 +353,5 @@ func (a *AppConfig) migrateStorageStyles() error {
 		migrated = true
 	}
 
-	if !migrated {
-		return nil
-	}
-
-	return a.Save()
+	return migrated, nil
 }
