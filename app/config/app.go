@@ -144,15 +144,20 @@ func (a *AppConfig) savePublicSettings() (error, error, error) {
 // TODO Deprecated section for previous setup. These will progressively be removed in future versions.
 func (a *AppConfig) migrateDepreciated(prefs fyne.Preferences) error {
 	// TODO Deprecated, Fyne Pref will be removed
-	a.importFynePreferences(prefs)
+	modified := a.importFynePreferences(prefs)
 
-	// TODO Deprecated, there won't have any migration of previous config
-	if err := a.migrateSecretSettings(); err != nil {
+	// TODO Deprecated, previous storage settings with bool instead of enum
+	storageModified, err := a.migrateStorageStyles()
+	if err != nil {
 		return err
 	}
 
-	// TODO Deprecated, previous storage settings with bool instead of enum
-	if err := a.migrateStorageStyles(); err != nil {
+	if modified || storageModified {
+		a.Save()
+	}
+
+	// TODO Deprecated, there won't have any migration of previous config
+	if err := a.migrateSecretSettings(); err != nil {
 		return err
 	}
 
@@ -160,7 +165,7 @@ func (a *AppConfig) migrateDepreciated(prefs fyne.Preferences) error {
 }
 
 // TODO Deprecated, Fyne Pref will be removed
-func (a *AppConfig) importFynePreferences(prefs fyne.Preferences) {
+func (a *AppConfig) importFynePreferences(prefs fyne.Preferences) bool {
 	logger.FuncDebug()
 
 	modified := false
@@ -212,7 +217,5 @@ func (a *AppConfig) importFynePreferences(prefs fyne.Preferences) {
 	}
 	prefs.RemoveValue("rockpload_websiteSettings")
 
-	if modified {
-		a.Save()
-	}
+	return modified
 }
