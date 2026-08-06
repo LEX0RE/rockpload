@@ -231,12 +231,7 @@ func NewBehaviorSettingPopup(p *Popup) *BehaviorSettingPopup {
 
 	clearCacheBtn := createClearCacheBtn(p)
 
-	var top fyne.CanvasObject
-	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
-		top = container.NewVBox(createExportLogBtn(p), clearCacheBtn, widget.NewSeparator())
-	} else {
-		top = container.NewVBox(clearCacheBtn, widget.NewSeparator())
-	}
+	top := container.NewVBox(createExportLogBtn(p), clearCacheBtn, widget.NewSeparator())
 	content := container.NewBorder(top, bottom, nil, nil, settingsScroll)
 
 	sp.SetContent(content)
