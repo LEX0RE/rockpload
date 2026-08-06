@@ -2,8 +2,10 @@ package manager
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"slices"
 
 	"github.com/LEX0RE/rockpload/app/config"
@@ -19,6 +21,8 @@ const (
 	EVENT_UNUSED_ACCOUNT tools.EventType = "unused_account"
 	EVENT_ADD_ACCOUNT    tools.EventType = "add_account"
 	EVENT_DELETE_ACCOUNT tools.EventType = "delete_account"
+
+	gameVersionServiceURL = "https://lexore.ca/rocky/api/rockpload/game-version"
 )
 
 type AccountManager struct {
@@ -247,7 +251,11 @@ func (am *AccountManager) RefreshMatchHistory(ac *rocket_network.Account) error 
 		return fmt.Errorf("no account selected")
 	}
 
-	return ac.Player.GetInfo(am.currentPsyNet())
+	_, err := tryRotatingPsyNet(am, func(psyNet *rlapi.PsyNet) (struct{}, error) {
+		return struct{}{}, ac.Player.GetInfo(psyNet)
+	})
+
+	return err
 }
 
 func (am *AccountManager) RefreshInfo() {
@@ -259,7 +267,9 @@ func (am *AccountManager) RefreshInfo() {
 			continue
 		}
 
-		ac.Player.GetInfo(am.currentPsyNet())
+		tryRotatingPsyNet(am, func(psyNet *rlapi.PsyNet) (struct{}, error) {
+			return struct{}{}, ac.Player.GetInfo(psyNet)
+		})
 	}
 }
 
@@ -273,7 +283,9 @@ func (am *AccountManager) RefreshProfile() {
 		}
 	} else {
 		for _, ac := range am.appConfig.AccountSettings.Get() {
-			ac.Player.UpdateProfile(am.currentPsyNet())
+			tryRotatingPsyNet(am, func(psyNet *rlapi.PsyNet) (struct{}, error) {
+				return struct{}{}, ac.Player.UpdateProfile(psyNet)
+			})
 		}
 	}
 }
@@ -348,11 +360,9 @@ func (am *AccountManager) onlineStatusFromAccount(account *rocket_network.Accoun
 		playerList = append(playerList, ac.Player)
 	}
 
-	getProfile := func(psyNet *rlapi.PsyNet) ([]rlapi.PlayerData, error) {
+	profiles, _ := tryRotatingPsyNet(am, func(psyNet *rlapi.PsyNet) ([]rlapi.PlayerData, error) {
 		return account.Player.GetProfiles(psyNet, rocket_network.PlayerList(playerList).ToPlayerIDs())
-	}
-
-	profiles, _ := tryRotatingPsyNet(am, getProfile)
+	})
 	for _, player := range playerList {
 		if player.PlayerID == nil {
 			continue
@@ -371,17 +381,19 @@ func (am *AccountManager) onlineStatusFromAccount(account *rocket_network.Accoun
 	return onlineStatus
 }
 
-func (am *AccountManager) currentPsyNet() *rlapi.PsyNet {
-	logger.FuncDebug()
-
-	return am.psyNetList[0]
-}
-
 func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T, error)) (T, error) {
 	logger.FuncDebug()
 
 	if len(am.psyNetList) <= 0 {
 		am.AddPsyNetVersion(toRLVersionInfo(rlapi.NewPsyNet()))
+	}
+
+	if len(am.psyNetList) <= 1 {
+		if remoteVersion, remoteErr := fetchRemoteGameVersion(); remoteErr == nil {
+			am.AddPsyNetVersion(remoteVersion)
+		} else {
+			logger.Rlogger.Warn("Failed to fetch fallback PsyNet version from Rocky website", slog.Any("err", remoteErr))
+		}
 	}
 
 	defaultGameVersion, defaultFeatureSet := am.psyNetList[0].GetVersion()
@@ -435,6 +447,9 @@ func (am *AccountManager) updateLastWorkingPsyNet(psynet *rlapi.PsyNet) {
 
 	if err := tools.SaveJSONFilePath(constant.Paths.LastCachedGameVersion, toRLVersionInfo(am.lastWorkingPsynet)); err != nil {
 		logger.Rlogger.Warn("Failed to save PsyNet version info to cache", slog.Any("err", err))
+	} else {
+		newGameVersion, newFeatureSet := psynet.GetVersion()
+		logger.Rlogger.Info("Last working PsyNet version cached", slog.Any("game_version", newGameVersion), slog.Any("feature_set", newFeatureSet))
 	}
 }
 
@@ -444,4 +459,21 @@ func toRLVersionInfo(psyNet *rlapi.PsyNet) RLVersionInfo {
 		GameVersion: gameVersion,
 		FeatureSet:  featureSet,
 	}
+}
+
+func fetchRemoteGameVersion() (RLVersionInfo, error) {
+	logger.FuncDebug()
+
+	resp, err := http.Get(gameVersionServiceURL)
+	if err != nil {
+		return RLVersionInfo{}, err
+	}
+	defer resp.Body.Close()
+
+	var info RLVersionInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return RLVersionInfo{}, err
+	}
+
+	return info, nil
 }
