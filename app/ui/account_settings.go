@@ -40,9 +40,15 @@ func NewAccountSettingsPopup(p *Popup) *AccountSettingsPopup {
 	asp.currentUnusedLabel = widget.NewLabelWithStyle("Current Unused Account: None", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	asp.updateLabels()
 
+	unusedInfo := NewInfoIcon(
+		"Unused account: only needed if you play on a device Rockpload doesn't run on (mobile, console). It's used to check the online status of your other accounts.\n\n" +
+			"Avoid using your main account here — its match history won't be refreshed, so new replays won't be uploaded from it.",
+	)
+	unusedRow := container.NewHBox(layout.NewSpacer(), asp.currentUnusedLabel, unusedInfo, layout.NewSpacer())
+
 	topSection := container.NewVBox(
 		asp.currentSelectedLabel,
-		asp.currentUnusedLabel,
+		unusedRow,
 		widget.NewSeparator(),
 	)
 

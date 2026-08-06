@@ -388,14 +388,6 @@ func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T
 		am.AddPsyNetVersion(toRLVersionInfo(rlapi.NewPsyNet()))
 	}
 
-	if len(am.psyNetList) <= 1 {
-		if remoteVersion, remoteErr := fetchRemoteGameVersion(); remoteErr == nil {
-			am.AddPsyNetVersion(remoteVersion)
-		} else {
-			logger.Rlogger.Warn("Failed to fetch fallback PsyNet version from Rocky website", slog.Any("err", remoteErr))
-		}
-	}
-
 	defaultGameVersion, defaultFeatureSet := am.psyNetList[0].GetVersion()
 	var result T
 	var err error
@@ -420,6 +412,23 @@ func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T
 		tempGameVersion, tempFeatureSet := am.psyNetList[0].GetVersion()
 		if tempGameVersion == defaultGameVersion && tempFeatureSet == defaultFeatureSet {
 			break
+		}
+	}
+
+	countBefore := len(am.psyNetList)
+	if remoteVersion, remoteErr := fetchRemoteGameVersion(); remoteErr == nil {
+		am.AddPsyNetVersion(remoteVersion)
+	} else {
+		logger.Rlogger.Warn("Failed to fetch fallback PsyNet version from Rocky website", slog.Any("err", remoteErr))
+	}
+
+	if len(am.psyNetList) > countBefore {
+		remotePsyNet := am.psyNetList[len(am.psyNetList)-1]
+
+		result, err = request(remotePsyNet)
+		if err == nil {
+			am.updateLastWorkingPsyNet(remotePsyNet)
+			return result, nil
 		}
 	}
 
