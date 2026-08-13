@@ -57,16 +57,17 @@ type Uploader struct {
 	lockInRunRLAPI     sync.Mutex
 	lockInSingleUpload sync.Mutex
 
+	version        string
 	appConfig      *config.AppConfig
 	accountManager *manager.AccountManager
 
 	EventManager *tools.EventManager
 }
 
-func NewUploader(appConfig *config.AppConfig, accountManager *manager.AccountManager) *Uploader {
+func NewUploader(version string, appConfig *config.AppConfig, accountManager *manager.AccountManager) *Uploader {
 	logger.FuncDebug()
 
-	u := &Uploader{appConfig: appConfig, EventManager: tools.NewEventManager(), accountManager: accountManager}
+	u := &Uploader{version: version, appConfig: appConfig, EventManager: tools.NewEventManager(), accountManager: accountManager}
 
 	autoUploadTime := appConfig.BehaviorConfig.AutoUploadTime.Get()
 	autoUploadRandomTime := appConfig.BehaviorConfig.AutoUploadRandomTime.Get()
@@ -371,7 +372,7 @@ func (u *Uploader) getStorages() []UploadStorage {
 		default:
 			fallthrough
 		case config.MultipartUpload, config.PresignedSessionUpload:
-			backend = NewWebsite(storageConfig)
+			backend = NewWebsite(storageConfig, u.version)
 		}
 
 		storages = append(storages, backend)
