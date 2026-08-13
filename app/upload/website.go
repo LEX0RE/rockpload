@@ -29,7 +29,8 @@ const (
 )
 
 type Website struct {
-	config *config.StorageConfig
+	config  *config.StorageConfig
+	version string
 }
 
 type presignedUploadSession struct {
@@ -44,8 +45,8 @@ type presignedUploadStatus struct {
 	RejectionReason *string             `json:"rejectionReason"`
 }
 
-func NewWebsite(config *config.StorageConfig) *Website {
-	return &Website{config: config}
+func NewWebsite(config *config.StorageConfig, version string) *Website {
+	return &Website{config: config, version: version}
 }
 
 func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error {
@@ -86,6 +87,12 @@ func (w *Website) uploadMultipart(filePath string, replayUpload ReplayUpload) er
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
+
+	if w.version != "" {
+		if err := writer.WriteField("rockploadVersion", w.version); err != nil {
+			logger.Rlogger.Warn("Failed to add version field to multipart", "error", err)
+		}
+	}
 
 	if replayUpload.Replay.Match.MatchGUID != "" {
 		jsonData, err := json.Marshal(replayUpload.Replay.Match)
@@ -338,7 +345,12 @@ func (w *Website) UploadLive(liveStats *rocket_network.LiveStats) error {
 		return nil
 	}
 
-	jsonData, err := json.Marshal(liveStats)
+	payload := struct {
+		*rocket_network.LiveStats
+		RockploadVersion string `json:"rockploadVersion,omitempty"`
+	}{LiveStats: liveStats, RockploadVersion: w.version}
+
+	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("Failed to marshal live data: %w", err)
 	}

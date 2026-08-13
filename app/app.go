@@ -124,7 +124,7 @@ func (a *App) Run() {
 func (a *App) initManager() {
 	logger.FuncDebug()
 
-	a.uploader = upload.NewUploader(a.appConfig, a.accountManager)
+	a.uploader = upload.NewUploader(a.version, a.appConfig, a.accountManager)
 	a.appConfig.BehaviorConfig.AutoUploadTime.Bind(a.uploader.SetDuration)
 	a.appConfig.BehaviorConfig.AutoUploadRandomTime.Bind(a.uploader.SetMaxJitter)
 
