@@ -1,4 +1,4 @@
-# fyne.io/fyne/v2 v2.8.0
+# fyne.io/fyne/v2 v2.8.1-0.20260724134512-ea9f99dff60c
 ## explicit; go 1.22.0
 fyne.io/fyne/v2
 fyne.io/fyne/v2/app
@@ -32,8 +32,10 @@ fyne.io/fyne/v2/internal/driver/mobile/event/size
 fyne.io/fyne/v2/internal/driver/mobile/event/touch
 fyne.io/fyne/v2/internal/driver/mobile/gl
 fyne.io/fyne/v2/internal/driver/mobile/mobileinit
+fyne.io/fyne/v2/internal/goos
 fyne.io/fyne/v2/internal/metadata
 fyne.io/fyne/v2/internal/painter
+fyne.io/fyne/v2/internal/painter/geom
 fyne.io/fyne/v2/internal/painter/gl
 fyne.io/fyne/v2/internal/painter/software
 fyne.io/fyne/v2/internal/repository
@@ -150,9 +152,6 @@ github.com/davecgh/go-spew/spew
 # github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2
 ## explicit
 github.com/emersion/go-autostart
-# github.com/fredbi/uri v1.1.1
-## explicit; go 1.19
-github.com/fredbi/uri
 # github.com/fsnotify/fsnotify v1.10.1
 ## explicit; go 1.23
 github.com/fsnotify/fsnotify
@@ -182,6 +181,7 @@ github.com/go-gl/glfw/v3.4/glfw/glfw/deps
 github.com/go-gl/glfw/v3.4/glfw/glfw/deps/glad
 github.com/go-gl/glfw/v3.4/glfw/glfw/deps/mingw
 github.com/go-gl/glfw/v3.4/glfw/glfw/deps/wayland
+github.com/go-gl/glfw/v3.4/glfw/glfw/include
 github.com/go-gl/glfw/v3.4/glfw/glfw/include/GLFW
 github.com/go-gl/glfw/v3.4/glfw/glfw/src
 # github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68

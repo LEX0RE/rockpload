@@ -3,7 +3,6 @@
   <a href="https://img.shields.io/github/v/release/fyne-io/fyne?include_prereleases" title="Latest Release" rel="nofollow"><img src="https://img.shields.io/github/v/release/fyne-io/fyne?include_prereleases" alt="Latest Release"></a>
   <a href='https://gophers.slack.com/messages/fyne'><img src='https://img.shields.io/badge/join-us%20on%20slack-gray.svg?longCache=true&logo=slack&colorB=blue' alt='Join us on Slack' /></a>
   <br />
-  <a href="https://goreportcard.com/report/fyne.io/fyne/v2"><img src="https://goreportcard.com/badge/fyne.io/fyne/v2" alt="Code Status" /></a>
   <a href="https://github.com/fyne-io/fyne/actions"><img src="https://github.com/fyne-io/fyne/workflows/Platform%20Tests/badge.svg" alt="Build Status" /></a>
   <a href='https://coveralls.io/github/fyne-io/fyne?branch=develop'><img src='https://coveralls.io/repos/github/fyne-io/fyne/badge.svg?branch=develop' alt='Coverage Status' /></a>
 </p>
@@ -16,7 +15,7 @@ single codebase.
 
 # Prerequisites
 
-To develop apps using Fyne you will need Go version 1.17 or later, a C compiler and your system's development tools.
+To develop apps using Fyne you will need Go version 1.22 or later, a C compiler and your system's development tools.
 If you're not sure if that's all installed or you don't know how then check out our
 [Getting Started](https://fyne.io/develop/) document.
 

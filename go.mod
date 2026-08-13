@@ -3,7 +3,7 @@ module github.com/LEX0RE/rockpload
 go 1.26.1
 
 require (
-	fyne.io/fyne/v2 v2.8.0
+	fyne.io/fyne/v2 v2.8.1-0.20260724134512-ea9f99dff60c
 	github.com/chromedp/chromedp v0.16.0
 	github.com/dank/rlapi v0.1.21
 	github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2
@@ -24,7 +24,6 @@ require (
 	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/fredbi/uri v1.1.1 // indirect
 	github.com/fyne-io/gl-js v0.2.1-0.20260315212741-029c47fd27e8 // indirect
 	github.com/fyne-io/glfw-js v0.4.0 // indirect
 	github.com/fyne-io/image v0.1.1 // indirect
