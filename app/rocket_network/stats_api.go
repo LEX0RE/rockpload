@@ -15,6 +15,16 @@ const (
 	EventFirstUpdateState tools.EventType = "first_update_state"
 )
 
+func assignPtr[T any](m map[string]any, key string, target **T, assign func(map[string]any, string, *T)) {
+	if _, ok := m[key]; !ok {
+		return
+	}
+
+	v := new(T)
+	assign(m, key, v)
+	*target = v
+}
+
 type UpdateState struct {
 	MatchGuid string
 	Players   []*UpdateStatePlayer
@@ -22,29 +32,57 @@ type UpdateState struct {
 }
 
 type UpdateStatePlayer struct {
-	Name       string
-	PrimaryId  string
-	Shortcut   int
-	TeamNum    int
-	Score      int
-	Goals      int
-	Shots      int
-	Assists    int
-	Saves      int
-	Touches    int
-	CarTouches int
-	Demos      int
+	Name          string
+	PrimaryId     string
+	Shortcut      int
+	TeamNum       int
+	Score         int
+	Goals         int
+	Shots         int
+	Assists       int
+	Saves         int
+	Touches       int
+	CarTouches    int
+	Demos         int
+	Loadout       []string
+	PickupClass   string
+	bHasCar       *bool
+	Speed         *float64
+	Boost         *int
+	bBoosting     *bool
+	bOnGround     *bool
+	bOnWall       *bool
+	bPowersliding *bool
+	bDemolished   *bool
+	bSupersonic   *bool
+	Attacker      *UpdateStateTarget
+}
+
+type UpdateStateTarget struct {
+	Name     string
+	Shortcut int
+	TeamNum  int
 }
 
 type UpdateStateGame struct {
 	Teams       []*UpdateStateGameTeam
+	PlaylistId  int
 	TimeSeconds int
 	bOvertime   bool
-	Frame       int
-	Elapsed     float64
+	Ball        *UpdateStateGameBall
+	bReplay     bool
 	bHasWinner  bool
 	Winner      string
 	Arena       string
+	Frame       *int
+	Elapsed     *float64
+	bHasTarget  bool
+	Target      *UpdateStateTarget
+}
+
+type UpdateStateGameBall struct {
+	Speed   float64
+	TeamNum int
 }
 
 type UpdateStateGameTeam struct {
@@ -213,6 +251,36 @@ func ExtractUpdateState(dynamicData map[string]any) *UpdateState {
 		}
 	}
 
+	assignStrSlice := func(m map[string]any, key string, target *[]string) {
+		arr, ok := m[key].([]any)
+		if !ok {
+			return
+		}
+
+		items := make([]string, 0, len(arr))
+		for _, item := range arr {
+			if s, ok := item.(string); ok {
+				items = append(items, s)
+			}
+		}
+
+		*target = items
+	}
+
+	extractTarget := func(m map[string]any, key string) *UpdateStateTarget {
+		obj, ok := m[key].(map[string]any)
+		if !ok {
+			return nil
+		}
+
+		target := &UpdateStateTarget{}
+		assignStr(obj, "Name", &target.Name)
+		assignInt(obj, "Shortcut", &target.Shortcut)
+		assignInt(obj, "TeamNum", &target.TeamNum)
+
+		return target
+	}
+
 	assignStr(dynamicData, "MatchGuid", &state.MatchGuid)
 
 	if playersArr, ok := dynamicData["Players"].([]any); ok {
@@ -232,6 +300,18 @@ func ExtractUpdateState(dynamicData map[string]any) *UpdateState {
 				assignInt(playerObj, "Touches", &newPlayer.Touches)
 				assignInt(playerObj, "CarTouches", &newPlayer.CarTouches)
 				assignInt(playerObj, "Demos", &newPlayer.Demos)
+				assignStrSlice(playerObj, "Loadout", &newPlayer.Loadout)
+				assignStr(playerObj, "PickupClass", &newPlayer.PickupClass)
+				assignPtr(playerObj, "bHasCar", &newPlayer.bHasCar, assignBool)
+				assignPtr(playerObj, "Speed", &newPlayer.Speed, assignFloat)
+				assignPtr(playerObj, "Boost", &newPlayer.Boost, assignInt)
+				assignPtr(playerObj, "bBoosting", &newPlayer.bBoosting, assignBool)
+				assignPtr(playerObj, "bOnGround", &newPlayer.bOnGround, assignBool)
+				assignPtr(playerObj, "bOnWall", &newPlayer.bOnWall, assignBool)
+				assignPtr(playerObj, "bPowersliding", &newPlayer.bPowersliding, assignBool)
+				assignPtr(playerObj, "bDemolished", &newPlayer.bDemolished, assignBool)
+				assignPtr(playerObj, "bSupersonic", &newPlayer.bSupersonic, assignBool)
+				newPlayer.Attacker = extractTarget(playerObj, "Attacker")
 
 				state.Players = append(state.Players, &newPlayer)
 			}
@@ -243,13 +323,24 @@ func ExtractUpdateState(dynamicData map[string]any) *UpdateState {
 			state.Game = &UpdateStateGame{}
 		}
 
+		assignInt(gameObj, "PlaylistId", &state.Game.PlaylistId)
 		assignInt(gameObj, "TimeSeconds", &state.Game.TimeSeconds)
 		assignBool(gameObj, "bOvertime", &state.Game.bOvertime)
-		assignInt(gameObj, "Frame", &state.Game.Frame)
-		assignFloat(gameObj, "Elapsed", &state.Game.Elapsed)
+		assignBool(gameObj, "bReplay", &state.Game.bReplay)
+		assignPtr(gameObj, "Frame", &state.Game.Frame, assignInt)
+		assignPtr(gameObj, "Elapsed", &state.Game.Elapsed, assignFloat)
 		assignBool(gameObj, "bHasWinner", &state.Game.bHasWinner)
 		assignStr(gameObj, "Winner", &state.Game.Winner)
 		assignStr(gameObj, "Arena", &state.Game.Arena)
+		assignBool(gameObj, "bHasTarget", &state.Game.bHasTarget)
+		state.Game.Target = extractTarget(gameObj, "Target")
+
+		if ballObj, ok := gameObj["Ball"].(map[string]any); ok {
+			ball := &UpdateStateGameBall{}
+			assignFloat(ballObj, "Speed", &ball.Speed)
+			assignInt(ballObj, "TeamNum", &ball.TeamNum)
+			state.Game.Ball = ball
+		}
 
 		if teamsArr, ok := gameObj["Teams"].([]any); ok {
 			for _, teamAny := range teamsArr {
