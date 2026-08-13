@@ -30,7 +30,7 @@ var (
 	systrayRunning bool
 )
 
-func (d *gLDriver) HasSecondaryDisplay() bool {
+func (*gLDriver) HasSecondaryDisplay() bool {
 	monitors := glfw.GetMonitors()
 	if len(monitors) == 1 {
 		return false
@@ -185,7 +185,7 @@ func (d *gLDriver) refreshSystrayMenu(m *fyne.Menu, parent *systray.MenuItem) {
 	}
 }
 
-func (d *gLDriver) SetSystemTrayIcon(resource fyne.Resource) {
+func (*gLDriver) SetSystemTrayIcon(resource fyne.Resource) {
 	systrayIcon = resource // in case we need it later
 
 	// only macOS supports SVG system tray

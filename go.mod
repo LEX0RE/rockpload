@@ -3,7 +3,7 @@ module github.com/LEX0RE/rockpload
 go 1.26.1
 
 require (
-	fyne.io/fyne/v2 v2.8.1-0.20260724134512-ea9f99dff60c
+	fyne.io/fyne/v2 v2.8.1-0.20260813185625-cf39d9418317
 	github.com/chromedp/chromedp v0.16.0
 	github.com/dank/rlapi v0.1.21
 	github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2

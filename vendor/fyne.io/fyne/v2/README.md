@@ -19,13 +19,16 @@ To develop apps using Fyne you will need Go version 1.22 or later, a C compiler 
 If you're not sure if that's all installed or you don't know how then check out our
 [Getting Started](https://fyne.io/develop/) document.
 
-Using the standard go tools you can install Fyne's core library using:
+Using the standard go command you can add Fyne to your project by running two commands. First:
 
     go get fyne.io/fyne/v2@latest
 
-After importing a new module, run the following command before compiling the code for the first time. Avoid running it before writing code that uses the module to prevent accidental removal of dependencies:
+If you are new to Go, it is important to know that (as of Go 1.18) `go get` only downloads the specified module and registers it in the `go.mod` file. It does not add any dependencies into the `go.mod` file.
+The command for automatically adding missing dependencies will remove unused modules as well. Therefore, you must first add a reference to fyne in a `.go` source file. After you have done that, you can run the second command:
 
-    go mod tidy
+	go mod tidy
+
+Now you can build and run your application.
 
 # Widget demo
 
