@@ -338,12 +338,7 @@ func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string
 			playerID = ac.Player.PlayerID.String()
 		}
 
-		err = storage.UploadReplay(filePath, ReplayUpload{
-			PlayerName: ac.Player.PlayerName,
-			PlayerID:   playerID,
-			Replay:     match,
-		})
-
+		err = storage.UploadReplay(filePath, ReplayUpload{PlayerName: ac.Player.PlayerName, PlayerID: playerID, Replay: match})
 		if err != nil {
 			logger.Rlogger.Error("Upload error:", slog.Any("err", err))
 		} else {
