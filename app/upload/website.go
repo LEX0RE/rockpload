@@ -16,7 +16,6 @@ import (
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
-	"github.com/dank/rlapi"
 )
 
 type presignedStatusType string
@@ -88,20 +87,13 @@ func (w *Website) uploadMultipart(filePath string, replayUpload ReplayUpload) er
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 
-	skills := make(map[rlapi.PlayerID]*rlapi.MatchSkills)
-	for _, player := range replayUpload.Replay.Match.Players {
-		if player.Skills.Valid {
-			skills[rlapi.PlayerID(player.PlayerID)] = &player.Skills
-		}
-	}
-
-	if len(skills) > 0 {
-		jsonData, err := json.Marshal(skills)
+	if replayUpload.Replay.Match.MatchGUID != "" {
+		jsonData, err := json.Marshal(replayUpload.Replay.Match)
 		if err != nil {
-			return fmt.Errorf("Failed to marshal skills to JSON: %w", err)
+			return fmt.Errorf("Failed to marshal match to JSON: %w", err)
 		}
 
-		err = writer.WriteField("skills", string(jsonData))
+		err = writer.WriteField("match", string(jsonData))
 		if err != nil {
 			return fmt.Errorf("Failed to add JSON field to multipart: %w", err)
 		}
