@@ -3,7 +3,6 @@ package internal
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/internal/app"
-	"fyne.io/fyne/v2/internal/widget"
 )
 
 // OverlayStack allows stacking overlays on top of each other.
@@ -27,8 +26,7 @@ func (s *OverlayStack) Add(overlay fyne.CanvasObject) {
 
 	s.overlays = append(s.overlays, overlay)
 
-	// TODO this should probably apply to all once #707 is addressed
-	if _, ok := overlay.(*widget.OverlayContainer); ok {
+	if !s.Canvas.Size().IsZero() {
 		safePos, safeSize := s.Canvas.InteractiveArea()
 
 		overlay.Resize(safeSize)
@@ -65,10 +63,8 @@ func (s *OverlayStack) Remove(overlay fyne.CanvasObject) {
 		return
 	}
 	// set removed elements in backing array to nil to release memory references
-	for i := overlayIdx; i < len(s.overlays); i++ {
-		s.overlays[i] = nil
-		s.focusManagers[i] = nil
-	}
+	clear(s.overlays[overlayIdx:])
+	clear(s.focusManagers[overlayIdx:])
 	s.overlays = s.overlays[:overlayIdx]
 	s.focusManagers = s.focusManagers[:overlayIdx]
 }

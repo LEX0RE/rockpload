@@ -64,7 +64,7 @@ func (t *ThemeOverride) Refresh() {
 // Since: 2.6
 func (t *ThemeOverride) SetDeviceIsMobile(on bool) {
 	t.mobile = on
-	t.BaseWidget.Refresh()
+	t.Refresh()
 }
 
 type featureTheme struct {
@@ -91,7 +91,7 @@ type overrideRenderer struct {
 	objs []fyne.CanvasObject
 }
 
-func (r *overrideRenderer) Destroy() {
+func (*overrideRenderer) Destroy() {
 }
 
 func (r *overrideRenderer) Layout(s fyne.Size) {
@@ -112,5 +112,5 @@ func (r *overrideRenderer) Objects() []fyne.CanvasObject {
 	return r.objs
 }
 
-func (r *overrideRenderer) Refresh() {
+func (*overrideRenderer) Refresh() {
 }

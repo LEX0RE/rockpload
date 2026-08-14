@@ -1,4 +1,4 @@
-//go:build !test
+//go:build !ci && !test
 
 package painter
 
@@ -8,11 +8,13 @@ import (
 	"runtime"
 
 	"github.com/go-text/typesetting/fontscan"
+
+	"fyne.io/fyne/v2/internal/goos"
 )
 
 func loadSystemFonts(fm *fontscan.FontMap) error {
 	cacheDir := ""
-	if runtime.GOOS == "android" {
+	if runtime.GOOS == goos.Android {
 		parent := os.Getenv("FILESDIR")
 		cacheDir = filepath.Join(parent, "fontcache")
 	}

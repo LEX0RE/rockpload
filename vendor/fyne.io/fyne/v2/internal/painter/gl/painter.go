@@ -6,6 +6,7 @@ import (
 	"image"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/internal"
 	"fyne.io/fyne/v2/internal/driver"
 	"fyne.io/fyne/v2/theme"
@@ -13,7 +14,7 @@ import (
 
 // Painter defines the functionality of our OpenGL based renderer
 type Painter interface {
-	// Init tell a new painter to initialise, usually called after a context is available
+	// Init tell a new painter to initialize, usually called after a context is available
 	Init()
 	// Capture requests that the specified canvas be drawn to an in-memory image
 	Capture(fyne.Canvas) image.Image
@@ -34,7 +35,7 @@ type Painter interface {
 }
 
 // NewPainter creates a new GL based renderer for the provided canvas.
-// If it is a master painter it will also initialise OpenGL
+// If it is a master painter it will also initialize OpenGL
 func NewPainter(c fyne.Canvas, ctx driver.WithContext) Painter {
 	p := &painter{canvas: c, contextProvider: ctx}
 	p.SetFrameBufferScale(1.0)
@@ -42,67 +43,18 @@ func NewPainter(c fyne.Canvas, ctx driver.WithContext) Painter {
 }
 
 type painter struct {
-	canvas                fyne.Canvas
-	ctx                   context
-	contextProvider       driver.WithContext
-	program               ProgramState
-	lineProgram           ProgramState
-	rectangleProgram      ProgramState
-	roundRectangleProgram ProgramState
-	polygonProgram        ProgramState
-	arcProgram            ProgramState
-	texScale              float32
-	pixScale              float32 // pre-calculate scale*texScale for each draw
-}
-
-type ProgramState struct {
-	ref        Program
-	buff       Buffer
-	uniforms   map[string]*UniformState
-	attributes map[string]Attribute
-}
-
-type UniformState struct {
-	ref  Uniform
-	prev [4]float32
-}
-
-func (p *painter) SetUniform1f(pState ProgramState, name string, v float32) {
-	u := pState.uniforms[name]
-	if u.prev[0] == v {
-		return
-	}
-	u.prev[0] = v
-	p.ctx.Uniform1f(u.ref, v)
-}
-
-func (p *painter) SetUniform2f(pState ProgramState, name string, v0, v1 float32) {
-	u := pState.uniforms[name]
-	if u.prev[0] == v0 && u.prev[1] == v1 {
-		return
-	}
-	u.prev[0] = v0
-	u.prev[1] = v1
-	p.ctx.Uniform2f(u.ref, v0, v1)
-}
-
-func (p *painter) SetUniform4f(pState ProgramState, name string, v0, v1, v2, v3 float32) {
-	u := pState.uniforms[name]
-	if u.prev[0] == v0 && u.prev[1] == v1 && u.prev[2] == v2 && u.prev[3] == v3 {
-		return
-	}
-	u.prev[0] = v0
-	u.prev[1] = v1
-	u.prev[2] = v2
-	u.prev[3] = v3
-	p.ctx.Uniform4f(u.ref, v0, v1, v2, v3)
-}
-
-func (p *painter) UpdateVertexArray(pState ProgramState, name string, size, stride, offset int) {
-	a := pState.attributes[name]
-
-	p.ctx.VertexAttribPointerWithOffset(a, size, float, false, stride*floatSize, offset*floatSize)
-	p.logError()
+	blurKernel          blurKernel // cached 1D kernel texture on GPU
+	blurSnap            blurSnap   // cached texture for GPU-side blur snapshot
+	canvas              fyne.Canvas
+	clippedTextTextures map[*canvas.Text]clippedTextTexture
+	contextProvider     driver.WithContext
+	ctx                 context
+	fbHeight            int // current framebuffer height in pixels
+	maxTextureSize      int
+	pixScale            float32 // pre-calculate scale*texScale for each draw
+	programs            *programs
+	shaderPrograms      map[string]*shaderState // lazily compiled programs for user shaders, keyed by Shader.Name
+	texScale            float32
 }
 
 // Declare conformity to Painter interface
@@ -116,13 +68,36 @@ func (p *painter) Clear() {
 }
 
 func (p *painter) Free(obj fyne.CanvasObject) {
+	// Shader programs are immutable and compiled once per Shader.Name, living for
+	// the lifetime of the GL context like the built-in shader programs. They are
+	// deliberately not freed here: Free is also called for every object on each
+	// Refresh (see Canvas.FreeDirtyTextures), so freeing would recompile the
+	// program - and reset its animation clock - every single frame.
+	if text, ok := obj.(*canvas.Text); ok {
+		p.freeClippedTextTexture(text)
+	}
 	p.freeTexture(obj)
 }
 
 func (p *painter) Paint(obj fyne.CanvasObject, pos fyne.Position, frame fyne.Size, clip *internal.ClipItem) {
-	if obj.Visible() {
-		p.drawObject(obj, pos, frame, clip)
+	if !obj.Visible() {
+		return
 	}
+
+	size := obj.Size()
+	var clipPos fyne.Position
+	var clipSize fyne.Size
+	if clip != nil {
+		clipPos, clipSize = clip.Rect()
+	} else {
+		clipSize = frame
+	}
+	if pos.Y > clipPos.Y+clipSize.Height || pos.Y+size.Height < clipPos.Y ||
+		pos.X > clipPos.X+clipSize.Width || pos.X+size.Width < clipPos.X {
+		return
+	}
+
+	p.drawObject(obj, pos, frame, clip)
 }
 
 func (p *painter) SetFrameBufferScale(scale float32) {
@@ -132,7 +107,67 @@ func (p *painter) SetFrameBufferScale(scale float32) {
 
 func (p *painter) SetOutputSize(width, height int) {
 	p.ctx.Viewport(0, 0, width, height)
+	p.fbHeight = height
 	p.logError()
+}
+
+func (p *painter) SetUniform1f(pState programState, name string, v float32) {
+	u := p.getUniformLocation(pState, name)
+	if u.prev[0] == v {
+		return
+	}
+	u.prev[0] = v
+	p.ctx.Uniform1f(u.ref, v)
+}
+
+func (p *painter) SetUniform1i(pState programState, name string, v int32) {
+	u := p.getUniformLocation(pState, name)
+	fv := float32(v)
+	if u.prev[0] == fv {
+		return
+	}
+	u.prev[0] = fv
+	p.ctx.Uniform1i(u.ref, v)
+}
+
+func (p *painter) SetUniform1fv(pState programState, name string, v []float32) {
+	u := p.getUniformLocation(pState, name)
+	if float32SlicesEqual(u.prevv, v) {
+		return
+	}
+	u.prevv = append(u.prevv[:0], v...)
+	p.ctx.Uniform1fv(u.ref, v)
+}
+
+func (p *painter) SetUniform2f(pState programState, name string, v0, v1 float32) {
+	u := p.getUniformLocation(pState, name)
+	if u.prev[0] == v0 && u.prev[1] == v1 {
+		return
+	}
+	u.prev[0] = v0
+	u.prev[1] = v1
+	p.ctx.Uniform2f(u.ref, v0, v1)
+}
+
+func (p *painter) SetUniform2fv(pState programState, name string, v []float32) {
+	u := p.getUniformLocation(pState, name)
+	if float32SlicesEqual(u.prevv, v) {
+		return
+	}
+	u.prevv = append(u.prevv[:0], v...)
+	p.ctx.Uniform2fv(u.ref, v)
+}
+
+func (p *painter) SetUniform4f(pState programState, name string, v0, v1, v2, v3 float32) {
+	u := p.getUniformLocation(pState, name)
+	if u.prev[0] == v0 && u.prev[1] == v1 && u.prev[2] == v2 && u.prev[3] == v3 {
+		return
+	}
+	u.prev[0] = v0
+	u.prev[1] = v1
+	u.prev[2] = v2
+	u.prev[3] = v3
+	p.ctx.Uniform4f(u.ref, v0, v1, v2, v3)
 }
 
 func (p *painter) StartClipping(pos fyne.Position, size fyne.Size) {
@@ -140,6 +175,13 @@ func (p *painter) StartClipping(pos fyne.Position, size fyne.Size) {
 	y := p.textureScale(p.canvas.Size().Height - pos.Y - size.Height)
 	w := p.textureScale(size.Width)
 	h := p.textureScale(size.Height)
+	// must be positive, just clamp to 0
+	if w < 0 {
+		w = 0
+	}
+	if h < 0 {
+		h = 0
+	}
 	p.ctx.Scissor(int32(x), int32(y), int32(w), int32(h))
 	p.ctx.Enable(scissorTest)
 	p.logError()
@@ -148,6 +190,78 @@ func (p *painter) StartClipping(pos fyne.Position, size fyne.Size) {
 func (p *painter) StopClipping() {
 	p.ctx.Disable(scissorTest)
 	p.logError()
+}
+
+func (p *painter) UpdateVertexArray(pState programState, name string, size, stride, offset int) {
+	a := p.enableAttribArray(pState, name)
+
+	p.ctx.VertexAttribPointerWithOffset(a, size, float, false, stride*floatSize, offset*floatSize)
+	p.logError()
+}
+
+func (p *painter) compilePrograms() *programs {
+	return &programs{
+		arbitraryPolygon: programState{
+			ref:        p.mustCreateProgram(shaderVertPassthrough2D, shaderFragArbitraryPolygon),
+			buff:       p.createBuffer(coordinatesSizeRectangle),
+			uniforms:   make(map[string]*uniformState),
+			attributes: make(map[string]Attribute),
+		},
+		arc: programState{
+			ref:        p.mustCreateProgram(shaderVertPassthrough2D, shaderFragArc),
+			buff:       p.createBuffer(coordinatesSizeRectangle),
+			uniforms:   make(map[string]*uniformState),
+			attributes: make(map[string]Attribute),
+		},
+		bezierCurve: programState{
+			ref:        p.mustCreateProgram(shaderVertPassthrough2D, shaderFragBezierCurve),
+			buff:       p.createBuffer(coordinatesSizeRectangle),
+			uniforms:   make(map[string]*uniformState),
+			attributes: make(map[string]Attribute),
+		},
+		blur: programState{
+			ref:        p.mustCreateProgram(shaderVertTexturedPassthrough2D, shaderFragBlur),
+			buff:       p.createBuffer(coordinatesSizeRectangleWithTexture),
+			uniforms:   make(map[string]*uniformState),
+			attributes: make(map[string]Attribute),
+		},
+		ellipse: programState{
+			ref:        p.mustCreateProgram(shaderVertPassthrough2D, shaderFragEllipse),
+			buff:       p.createBuffer(coordinatesSizeRectangle),
+			uniforms:   make(map[string]*uniformState),
+			attributes: make(map[string]Attribute),
+		},
+		line: programState{
+			ref:        p.mustCreateProgram(shaderVertLine, shaderFragLine),
+			buff:       p.createBuffer(coordinatesSizeLine),
+			uniforms:   make(map[string]*uniformState),
+			attributes: make(map[string]Attribute),
+		},
+		polygon: programState{
+			ref:        p.mustCreateProgram(shaderVertPassthrough2D, shaderFragPolygon),
+			buff:       p.createBuffer(coordinatesSizeRectangle),
+			uniforms:   make(map[string]*uniformState),
+			attributes: make(map[string]Attribute),
+		},
+		rectangle: programState{
+			ref:        p.mustCreateProgram(shaderVertPassthrough2D, shaderFragRectangle),
+			buff:       p.createBuffer(coordinatesSizeRectangle),
+			uniforms:   make(map[string]*uniformState),
+			attributes: make(map[string]Attribute),
+		},
+		roundRectangle: programState{
+			ref:        p.mustCreateProgram(shaderVertPassthrough2D, shaderFragRoundRectangle),
+			buff:       p.createBuffer(coordinatesSizeRectangle),
+			uniforms:   make(map[string]*uniformState),
+			attributes: make(map[string]Attribute),
+		},
+		simple: programState{
+			ref:        p.mustCreateProgram(shaderVertTexturedPassthrough2D, shaderFragSimple),
+			buff:       p.createBuffer(coordinatesSizeRectangleWithTexture),
+			uniforms:   make(map[string]*uniformState),
+			attributes: make(map[string]Attribute),
+		},
+	}
 }
 
 func (p *painter) compileShader(source string, shaderType uint32) (Shader, error) {
@@ -172,22 +286,15 @@ func (p *painter) compileShader(source string, shaderType uint32) (Shader, error
 	return shader, nil
 }
 
-func (p *painter) createProgram(shaderFilename string) Program {
-	// Why a switch over a filename?
-	// Because this allows for a minimal change, once we reach Go 1.16 and use go:embed instead of
-	// fyne bundle.
-	vertexSrc, fragmentSrc := shaderSourceNamed(shaderFilename)
-	if vertexSrc == nil {
-		panic("shader not found: " + shaderFilename)
-	}
-
+// createProgram compiles and links the given vertex and fragment shader sources into a program.
+func (p *painter) createProgram(vertexSrc, fragmentSrc []byte) (Program, error) {
 	vertShader, err := p.compileShader(string(vertexSrc), vertexShader)
 	if err != nil {
-		panic(err)
+		return noProgram, err
 	}
 	fragShader, err := p.compileShader(string(fragmentSrc), fragmentShader)
 	if err != nil {
-		panic(err)
+		return noProgram, err
 	}
 
 	prog := p.ctx.CreateProgram()
@@ -197,7 +304,7 @@ func (p *painter) createProgram(shaderFilename string) Program {
 
 	info := p.ctx.GetProgramInfoLog(prog)
 	if p.ctx.GetProgrami(prog, linkStatus) == glFalse {
-		panic(fmt.Errorf("failed to link OpenGL program:\n%s", info))
+		return noProgram, fmt.Errorf("failed to link OpenGL program:\n%s", info)
 	}
 
 	// The info is probably a null terminated string.
@@ -207,14 +314,111 @@ func (p *painter) createProgram(shaderFilename string) Program {
 	}
 
 	if glErr := p.ctx.GetError(); glErr != 0 {
-		panic(fmt.Sprintf("failed to link OpenGL program; error code: %x", glErr))
+		return noProgram, fmt.Errorf("failed to link OpenGL program; error code: %x", glErr)
 	}
 
 	p.ctx.UseProgram(prog)
 
-	return prog
+	return prog, nil
+}
+
+func (p *painter) enableAttribArray(pState programState, name string) Attribute {
+	a, ok := pState.attributes[name]
+	if !ok {
+		a = p.ctx.GetAttribLocation(pState.ref, name)
+		p.ctx.EnableVertexAttribArray(a)
+		pState.attributes[name] = a
+	}
+
+	return a
+}
+
+func (p *painter) getUniformLocation(pState programState, name string) *uniformState {
+	u, ok := pState.uniforms[name]
+	if !ok {
+		u = &uniformState{ref: p.ctx.GetUniformLocation(pState.ref, name)}
+		pState.uniforms[name] = u
+	}
+
+	return u
 }
 
 func (p *painter) logError() {
 	logGLError(p.ctx.GetError)
+}
+
+func (p *painter) mustCreateProgram(vertexSrc, fragmentSrc []byte) Program {
+	prog, err := p.createProgram(vertexSrc, fragmentSrc)
+	if err != nil {
+		panic(err)
+	}
+
+	return prog
+}
+
+type blurKernel struct {
+	radius   float32
+	tex      Texture
+	texValid bool // whether tex has been allocated
+}
+
+type blurSnap struct {
+	height   int
+	tex      Texture
+	texValid bool // whether tex has been allocated
+	width    int
+}
+
+type programState struct {
+	ref        Program
+	buff       Buffer
+	uniforms   map[string]*uniformState
+	attributes map[string]Attribute
+}
+
+type programs struct {
+	arbitraryPolygon programState
+	arc              programState
+	bezierCurve      programState
+	blur             programState
+	ellipse          programState
+	line             programState
+	polygon          programState
+	rectangle        programState
+	roundRectangle   programState
+	simple           programState
+}
+
+// shaderState caches a user shader's compiled program and uploaded textures.
+// valid is false when the source failed to compile, so we can record the
+// failure without comparing the (not always comparable) program reference.
+type shaderState struct {
+	program  programState
+	valid    bool
+	textures map[string]*shaderTexture // uploaded textures, keyed by uniform name
+}
+
+// shaderTexture is a GPU texture uploaded for a shader, remembering the source
+// image so we only re-upload when it is replaced.
+type shaderTexture struct {
+	tex Texture
+	src image.Image
+}
+
+type uniformState struct {
+	ref   Uniform
+	prev  [4]float32
+	prevv []float32
+}
+
+func float32SlicesEqual(a, b []float32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

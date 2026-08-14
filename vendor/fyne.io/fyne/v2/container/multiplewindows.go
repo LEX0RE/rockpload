@@ -2,6 +2,7 @@ package container
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/internal"
 	intWidget "fyne.io/fyne/v2/internal/widget"
 	"fyne.io/fyne/v2/widget"
 )
@@ -46,7 +47,10 @@ func (m *MultipleWindows) Refresh() {
 	//	m.BaseWidget.Refresh()
 }
 
-func (m *MultipleWindows) raise(w *InnerWindow) {
+// RaiseToTop asks this multiple window container to raise a specific inner window above others.
+//
+// Since: 2.8
+func (m *MultipleWindows) RaiseToTop(w *InnerWindow) {
 	id := -1
 	for i, ww := range m.Windows {
 		if ww == w {
@@ -63,6 +67,18 @@ func (m *MultipleWindows) raise(w *InnerWindow) {
 	m.refreshChildren()
 }
 
+// Top returns the topmost window in this multiple stack (the one visible above all others).
+// If there are no windows it will return nil.
+//
+// Since: 2.8
+func (m *MultipleWindows) Top() *InnerWindow {
+	if len(m.Windows) == 0 {
+		return nil
+	}
+
+	return m.Windows[len(m.Windows)-1]
+}
+
 func (m *MultipleWindows) refreshChildren() {
 	if m.content == nil {
 		return
@@ -73,6 +89,8 @@ func (m *MultipleWindows) refreshChildren() {
 		objs[i] = w
 
 		m.setupChild(w)
+		w.inactive = i < len(m.Windows)-1
+		w.Refresh()
 	}
 	m.content.Objects = objs
 	m.content.Refresh()
@@ -90,21 +108,21 @@ func (m *MultipleWindows) setupChild(w *InnerWindow) {
 	}
 	w.OnResized = func(ev *fyne.DragEvent) {
 		size := w.Size().Add(ev.Dragged)
-		w.Resize(size.Max(w.MinSize()))
+		w.Resize(internal.MaxSizes(size, w.MinSize()))
 	}
 	w.OnTappedBar = func() {
-		m.raise(w)
+		m.RaiseToTop(w)
 	}
 }
 
 type multiWinLayout struct{}
 
-func (m *multiWinLayout) Layout(objects []fyne.CanvasObject, _ fyne.Size) {
+func (*multiWinLayout) Layout(objects []fyne.CanvasObject, _ fyne.Size) {
 	for _, w := range objects { // update the windows so they have real size
-		w.Resize(w.MinSize().Max(w.Size()))
+		w.Resize(internal.MaxSizes(w.MinSize(), w.Size()))
 	}
 }
 
-func (m *multiWinLayout) MinSize(_ []fyne.CanvasObject) fyne.Size {
+func (*multiWinLayout) MinSize(_ []fyne.CanvasObject) fyne.Size {
 	return fyne.Size{}
 }

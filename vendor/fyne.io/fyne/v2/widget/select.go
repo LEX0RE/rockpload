@@ -149,7 +149,7 @@ func (s *Select) MouseIn(*desktop.MouseEvent) {
 }
 
 // MouseMoved is called when a desktop pointer hovers over the widget
-func (s *Select) MouseMoved(*desktop.MouseEvent) {
+func (*Select) MouseMoved(*desktop.MouseEvent) {
 }
 
 // MouseOut is called when a desktop pointer exits the widget
@@ -251,7 +251,7 @@ func (s *Select) TypedKey(event *fyne.KeyEvent) {
 }
 
 // TypedRune is called if a text event happens while this Select is focused.
-func (s *Select) TypedRune(_ rune) {
+func (*Select) TypedRune(_ rune) {
 	// intentionally left blank
 }
 
@@ -280,6 +280,13 @@ func (s *Select) showPopUp() {
 	}
 
 	c := fyne.CurrentApp().Driver().CanvasForObject(s.super())
+	if c == nil {
+		// The Select was detached from its canvas (e.g. its parent
+		// container was rebuilt) between the tap event being delivered
+		// and this call. There is no canvas to host the pop-up, so do
+		// nothing rather than crash inside the overlay machinery.
+		return
+	}
 	pop := NewPopUpMenu(fyne.NewMenu("", items...), c)
 	pop.alignment = s.Alignment
 	pop.ShowAtPosition(s.popUpPos())
@@ -363,7 +370,7 @@ func (s *selectRenderer) Objects() []fyne.CanvasObject {
 	return s.objects
 }
 
-func (s *selectRenderer) Destroy() {}
+func (*selectRenderer) Destroy() {}
 
 // Layout the components of the button widget
 func (s *selectRenderer) Layout(size fyne.Size) {
@@ -391,10 +398,10 @@ func (s *selectRenderer) MinSize() fyne.Size {
 	innerPad := th.Size(theme.SizeNameInnerPadding)
 
 	minPlaceholderWidth := fyne.MeasureText(s.combo.PlaceHolder, th.Size(theme.SizeNameText), fyne.TextStyle{}).Width
-	min := s.label.MinSize()
-	min.Width = minPlaceholderWidth
-	min = min.Add(fyne.NewSize(innerPad*3, innerPad))
-	return min.Add(fyne.NewSize(th.Size(theme.SizeNameInlineIcon)+innerPad, 0))
+	minSize := s.label.MinSize()
+	minSize.Width = minPlaceholderWidth
+	minSize = minSize.Add(fyne.NewSize(innerPad*3, innerPad))
+	return minSize.Add(fyne.NewSize(th.Size(theme.SizeNameInlineIcon)+innerPad, 0))
 }
 
 func (s *selectRenderer) Refresh() {

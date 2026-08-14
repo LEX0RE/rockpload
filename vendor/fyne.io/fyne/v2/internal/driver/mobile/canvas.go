@@ -4,6 +4,7 @@ import (
 	"context"
 	"image"
 	"math"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	intdriver "fyne.io/fyne/v2/internal/driver"
 	"fyne.io/fyne/v2/internal/driver/common"
 	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
 )
 
 var _ fyne.Canvas = (*canvas)(nil)
@@ -34,9 +34,11 @@ type canvas struct {
 	touched        map[int]mobile.Touchable
 	windowHead     fyne.CanvasObject
 
-	dragOffset fyne.Position
-	dragStart  fyne.Position
-	dragging   fyne.Draggable
+	dragOffset     fyne.Position
+	dragStart      fyne.Position
+	dragging       fyne.Draggable
+	draggingOuter  fyne.Draggable
+	otherDirection container.ScrollDirection
 
 	onTypedKey  func(event *fyne.KeyEvent)
 	onTypedRune func(rune)
@@ -108,7 +110,7 @@ func (c *canvas) OnTypedRune() func(rune) {
 	return c.onTypedRune
 }
 
-func (c *canvas) PixelCoordinateForPosition(pos fyne.Position) (int, int) {
+func (c *canvas) PixelCoordinateForPosition(pos fyne.Position) (x, y int) {
 	return int(pos.X * c.scale), int(pos.Y * c.scale)
 }
 
@@ -204,14 +206,8 @@ func (c *canvas) sizeContent(size fyne.Size) {
 	}
 
 	for _, overlay := range c.Overlays().List() {
-		if p, ok := overlay.(*widget.PopUp); ok {
-			// TODO: remove this when #707 is being addressed.
-			// “Notifies” the PopUp of the canvas size change.
-			p.Refresh()
-		} else {
-			overlay.Resize(areaSize)
-			overlay.Move(areaPos)
-		}
+		overlay.Resize(areaSize)
+		overlay.Move(areaPos)
 	}
 
 	if c.padded {
@@ -227,6 +223,7 @@ func (c *canvas) tapDown(pos fyne.Position, tapID int) {
 	c.lastTapDown[tapID] = time.Now()
 	c.lastTapDownPos[tapID] = pos
 	c.dragging = nil
+	c.draggingOuter = nil
 
 	co, objPos, layer := c.findObjectAtPositionMatching(pos, func(object fyne.CanvasObject) bool {
 		switch object.(type) {
@@ -239,6 +236,7 @@ func (c *canvas) tapDown(pos fyne.Position, tapID int) {
 
 	if wid, ok := co.(mobile.Touchable); ok {
 		touchEv := &mobile.TouchEvent{}
+		touchEv.ID = tapID
 		touchEv.Position = objPos
 		touchEv.AbsolutePosition = pos
 		wid.TouchDown(touchEv)
@@ -275,10 +273,29 @@ func (c *canvas) tapMove(pos fyne.Position, tapID int,
 
 		return false
 	})
+	var scrollOtherDirection fyne.CanvasObject
+	if scr, ok := co.(*container.Scroll); ok {
+		switch scr.Direction {
+		case container.ScrollHorizontalOnly:
+			c.otherDirection = container.ScrollVerticalOnly
+		case container.ScrollVerticalOnly:
+			c.otherDirection = container.ScrollHorizontalOnly
+		}
+		if c.otherDirection != container.ScrollBoth {
+			scrollOtherDirection, _, _ = c.findObjectAtPositionMatching(pos, func(object fyne.CanvasObject) bool {
+				if scr, ok := object.(*container.Scroll); ok {
+					return scr.Direction == c.otherDirection || scr.Direction == container.ScrollBoth
+				}
+
+				return false
+			})
+		}
+	}
 
 	if c.touched[tapID] != nil {
 		if touch, ok := co.(mobile.Touchable); !ok || c.touched[tapID] != touch {
 			touchEv := &mobile.TouchEvent{}
+			touchEv.ID = tapID
 			touchEv.Position = objPos
 			touchEv.AbsolutePosition = pos
 			c.touched[tapID].TouchCancel(touchEv)
@@ -287,12 +304,16 @@ func (c *canvas) tapMove(pos fyne.Position, tapID int,
 	}
 
 	if c.dragging == nil {
-		if drag, ok := co.(fyne.Draggable); ok {
-			c.dragging = drag
-			c.dragOffset = previousPos.Subtract(objPos)
-			c.dragStart = co.Position()
-		} else {
+		drag, ok := co.(fyne.Draggable)
+		if !ok {
 			return
+		}
+
+		c.dragging = drag
+		c.dragOffset = previousPos.Subtract(objPos)
+		c.dragStart = co.Position()
+		if scrollOtherDirection != nil {
+			c.draggingOuter = scrollOtherDirection.(fyne.Draggable)
 		}
 	}
 
@@ -302,6 +323,14 @@ func (c *canvas) tapMove(pos fyne.Position, tapID int,
 	ev.Dragged = offset
 
 	dragCallback(c.dragging, ev)
+	if c.draggingOuter != nil {
+		if c.otherDirection == container.ScrollVerticalOnly {
+			ev.Dragged.DX = 0
+		} else {
+			ev.Dragged.DY = 0
+		}
+		dragCallback(c.draggingOuter, ev)
+	}
 }
 
 func (c *canvas) tapUp(pos fyne.Position, tapID int,
@@ -317,8 +346,18 @@ func (c *canvas) tapUp(pos fyne.Position, tapID int,
 		ev.Position = pos.Subtract(c.dragOffset).Add(draggedObjDelta)
 		ev.AbsolutePosition = pos
 		dragCallback(c.dragging, ev)
+		if c.draggingOuter != nil {
+			if c.otherDirection == container.ScrollVerticalOnly {
+				ev.Dragged.DX = 0
+			} else {
+				ev.Dragged.DY = 0
+			}
+			dragCallback(c.draggingOuter, ev)
+		}
 
 		c.dragging = nil
+		c.draggingOuter = nil
+		c.otherDirection = container.ScrollBoth
 		return
 	}
 
@@ -347,6 +386,7 @@ func (c *canvas) tapUp(pos fyne.Position, tapID int,
 
 	if wid, ok := co.(mobile.Touchable); ok {
 		touchEv := &mobile.TouchEvent{}
+		touchEv.ID = tapID
 		touchEv.Position = objPos
 		touchEv.AbsolutePosition = pos
 		wid.TouchUp(touchEv)
@@ -378,7 +418,21 @@ func (c *canvas) tapUp(pos fyne.Position, tapID int,
 		}
 	} else {
 		if wid, ok := co.(fyne.SecondaryTappable); ok {
+			prevOverlay := c.Overlays().Top()
 			tapAltCallback(wid, ev)
+
+			// if the secondary tap dismissed an overlay (rather than opening a new
+			// one on top), forward the event to the widget underneath
+			if prevOverlay != nil && !slices.Contains(c.Overlays().List(), prevOverlay) {
+				co2, objPos2, _ := c.findObjectAtPositionMatching(pos, func(object fyne.CanvasObject) bool {
+					_, ok := object.(fyne.SecondaryTappable)
+					return ok
+				})
+				if sec2, ok := co2.(fyne.SecondaryTappable); ok {
+					ev2 := &fyne.PointEvent{Position: objPos2, AbsolutePosition: pos}
+					tapAltCallback(sec2, ev2)
+				}
+			}
 		}
 	}
 }

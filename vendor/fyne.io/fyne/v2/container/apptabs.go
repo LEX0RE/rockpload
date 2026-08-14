@@ -37,7 +37,8 @@ type AppTabs struct {
 //
 // Since: 1.4
 func NewAppTabs(items ...*TabItem) *AppTabs {
-	tabs := &AppTabs{Items: items}
+	tabs := &AppTabs{}
+	setItems(tabs, items)
 	tabs.BaseWidget.ExtendBaseWidget(tabs)
 	return tabs
 }
@@ -421,34 +422,35 @@ func (r *appTabsRenderer) updateIndicator(animate bool) {
 	var indicatorSize fyne.Size
 	th := r.appTabs.Theme()
 	pad := th.Size(theme.SizeNamePadding)
+	dividerWidth := th.Size(theme.SizeNameSeparatorThickness)
 
 	switch r.appTabs.location {
 	case TabLocationTop:
 		indicatorPos = fyne.NewPos(selectedPos.X, r.bar.MinSize().Height)
-		indicatorSize = fyne.NewSize(selectedSize.Width, pad)
+		indicatorSize = fyne.NewSize(selectedSize.Width, dividerWidth)
 	case TabLocationLeading:
 		indicatorPos = fyne.NewPos(r.bar.MinSize().Width, selectedPos.Y)
-		indicatorSize = fyne.NewSize(pad, selectedSize.Height)
+		indicatorSize = fyne.NewSize(dividerWidth, selectedSize.Height)
 	case TabLocationBottom:
 		indicatorPos = fyne.NewPos(selectedPos.X, r.bar.Position().Y-pad)
-		indicatorSize = fyne.NewSize(selectedSize.Width, pad)
+		indicatorSize = fyne.NewSize(selectedSize.Width, dividerWidth)
 	case TabLocationTrailing:
 		indicatorPos = fyne.NewPos(r.bar.Position().X-pad, selectedPos.Y)
-		indicatorSize = fyne.NewSize(pad, selectedSize.Height)
+		indicatorSize = fyne.NewSize(dividerWidth, selectedSize.Height)
 	}
 
 	r.moveIndicator(indicatorPos, indicatorSize, th, animate)
 }
 
-func (r *appTabsRenderer) updateTabs(max int) {
+func (r *appTabsRenderer) updateTabs(maxCount int) {
 	tabCount := len(r.appTabs.Items)
 
 	// Set overflow action
-	if tabCount <= max {
+	if tabCount <= maxCount {
 		r.action.Hide()
 		r.bar.Layout = layout.NewStackLayout()
 	} else {
-		tabCount = max
+		tabCount = maxCount
 		r.action.Show()
 
 		// Set layout of tab bar containing tab buttons and overflow action

@@ -21,12 +21,17 @@ type PopUpMenu struct {
 //
 // Since: 2.0
 func NewPopUpMenu(menu *fyne.Menu, c fyne.Canvas) *PopUpMenu {
+	if c == nil {
+		return nil
+	}
 	m := &Menu{}
 	m.setMenu(menu)
 	p := &PopUpMenu{Menu: m, canvas: c}
 	p.ExtendBaseWidget(p)
-	p.Menu.Resize(p.Menu.MinSize())
-	p.Menu.customSized = true
+	p.Resize(p.MinSize())
+	p.customSized = true
+
+	p.Move(fyne.NewPos(10, 10)) //revive:disable-line:add-constant // non-zero pos to get manual overlay, fixed on show
 	o := widget.NewOverlayContainer(p, c, p.Dismiss)
 	o.Resize(o.MinSize())
 	p.overlay = o
@@ -40,6 +45,9 @@ func NewPopUpMenu(menu *fyne.Menu, c fyne.Canvas) *PopUpMenu {
 // It will automatically be positioned at the provided location and shown as an overlay on the specified canvas.
 func ShowPopUpMenuAtPosition(menu *fyne.Menu, c fyne.Canvas, pos fyne.Position) {
 	m := NewPopUpMenu(menu, c)
+	if m == nil {
+		return
+	}
 	m.ShowAtPosition(pos)
 }
 
@@ -54,10 +62,10 @@ func ShowPopUpMenuAtRelativePosition(menu *fyne.Menu, c fyne.Canvas, rel fyne.Po
 }
 
 // FocusGained is triggered when the object gained focus. For the pop-up menu it does nothing.
-func (p *PopUpMenu) FocusGained() {}
+func (*PopUpMenu) FocusGained() {}
 
 // FocusLost is triggered when the object lost focus. For the pop-up menu it does nothing.
-func (p *PopUpMenu) FocusLost() {}
+func (*PopUpMenu) FocusLost() {}
 
 // Hide hides the pop-up menu.
 func (p *PopUpMenu) Hide() {
@@ -77,11 +85,17 @@ func (p *PopUpMenu) Resize(size fyne.Size) {
 	p.Menu.Resize(size)
 }
 
+// SetCanvas allows a popup menu to be re-used on a different canvas.
+//
+// Since: 2.8
+func (p *PopUpMenu) SetCanvas(c fyne.Canvas) {
+	p.canvas = c
+	p.overlay.SetCanvas(c)
+}
+
 // Show makes the pop-up menu visible.
 func (p *PopUpMenu) Show() {
-	p.Menu.alignment = p.alignment
-	p.Menu.Refresh()
-
+	p.Refresh()
 	p.overlay.Show()
 	p.Menu.Show()
 	if !fyne.CurrentDevice().IsMobile() {
@@ -121,7 +135,7 @@ func (p *PopUpMenu) TypedKey(e *fyne.KeyEvent) {
 }
 
 // TypedRune handles text events. For pop-up menus this does nothing.
-func (p *PopUpMenu) TypedRune(rune) {}
+func (*PopUpMenu) TypedRune(rune) {}
 
 func (p *PopUpMenu) adjustedPosition(pos fyne.Position, size fyne.Size) fyne.Position {
 	x := pos.X

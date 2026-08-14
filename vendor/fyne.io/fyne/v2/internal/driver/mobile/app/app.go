@@ -9,7 +9,6 @@ package app
 import (
 	"fyne.io/fyne/v2/internal/async"
 	"fyne.io/fyne/v2/internal/driver/mobile/event/lifecycle"
-	"fyne.io/fyne/v2/internal/driver/mobile/event/size"
 	"fyne.io/fyne/v2/internal/driver/mobile/gl"
 
 	// Initialize necessary mobile functionality, such as logging.
@@ -85,18 +84,6 @@ func init() {
 	theApp.glctx, theApp.worker = gl.NewContext()
 }
 
-func (a *app) sendLifecycle(to lifecycle.Stage) {
-	if a.lifecycleStage == to {
-		return
-	}
-	a.events.In() <- lifecycle.Event{
-		From:        a.lifecycleStage,
-		To:          to,
-		DrawContext: a.glctx,
-	}
-	a.lifecycleStage = to
-}
-
 type app struct {
 	filters []func(any) any
 
@@ -141,26 +128,18 @@ func (a *app) RegisterFilter(f func(any) any) {
 	a.filters = append(a.filters, f)
 }
 
-func (a *app) ShowVirtualKeyboard(keyboard KeyboardType) {
+func (*app) ShowVirtualKeyboard(keyboard KeyboardType) {
 	driverShowVirtualKeyboard(keyboard)
 }
 
-func (a *app) HideVirtualKeyboard() {
+func (*app) HideVirtualKeyboard() {
 	driverHideVirtualKeyboard()
 }
 
-func (a *app) ShowFileOpenPicker(callback func(string, func()), filter *FileFilter) {
+func (*app) ShowFileOpenPicker(callback func(string, func()), filter *FileFilter) {
 	driverShowFileOpenPicker(callback, filter)
 }
 
-func (a *app) ShowFileSavePicker(callback func(string, func()), filter *FileFilter, filename string) {
+func (*app) ShowFileSavePicker(callback func(string, func()), filter *FileFilter, filename string) {
 	driverShowFileSavePicker(callback, filter, filename)
-}
-
-func screenOrientation(width, height int) size.Orientation {
-	if width > height {
-		return size.OrientationLandscape
-	}
-
-	return size.OrientationPortrait
 }

@@ -19,16 +19,21 @@ const (
 	float                 = gl.Float
 	fragmentShader        = gl.FragmentShader
 	front                 = gl.Front
+	back                  = gl.Back
 	glFalse               = gl.False
 	linkStatus            = gl.LinkStatus
+	maxTextureSizeParam   = gl.MaxTextureSize
 	one                   = gl.One
+	zero                  = gl.Zero
 	oneMinusConstantAlpha = gl.OneMinusConstantAlpha
 	oneMinusSrcAlpha      = gl.OneMinusSrcAlpha
 	scissorTest           = gl.ScissorTest
 	srcAlpha              = gl.SrcAlpha
 	staticDraw            = gl.StaticDraw
 	texture0              = gl.Texture0
+	texture1              = gl.Texture1
 	texture2D             = gl.Texture2D
+	textureNearest        = gl.Nearest
 	textureMinFilter      = gl.TextureMinFilter
 	textureMagFilter      = gl.TextureMagFilter
 	textureWrapS          = gl.TextureWrapS
@@ -53,128 +58,26 @@ type (
 )
 
 var (
-	compiled          []ProgramState // avoid multiple compilations with the re-used mobile GUI context
+	compiled          *programs // avoid multiple compilations with the re-used mobile GUI context
 	noBuffer          = Buffer{}
+	noProgram         = Program{}
 	noShader          = Shader{}
 	textureFilterToGL = [...]int32{gl.Linear, gl.Nearest, gl.Linear}
 )
 
-func (p *painter) glctx() gl.Context {
-	return p.contextProvider.Context().(gl.Context)
-}
-
 func (p *painter) Init() {
-	p.ctx = &mobileContext{glContext: p.contextProvider.Context().(gl.Context)}
-	p.glctx().Disable(gl.DepthTest)
-	p.glctx().Enable(gl.Blend)
+	glctx := p.contextProvider.Context().(gl.Context)
+	glctx.Disable(gl.DepthTest)
+	glctx.Enable(gl.Blend)
+	p.ctx = &mobileContext{glContext: glctx}
+	p.maxTextureSize = p.ctx.GetInteger(maxTextureSizeParam)
+	p.blurSnap.texValid = false   // reset on context recreation; old texture IDs are no longer valid
+	p.blurKernel.texValid = false // kernel texture must also be re-created
 	if compiled == nil {
-		p.program = ProgramState{
-			ref:        p.createProgram("simple_es"),
-			buff:       p.createBuffer(20),
-			uniforms:   make(map[string]*UniformState),
-			attributes: make(map[string]Attribute),
-		}
-		p.getUniformLocations(p.program, "text", "alpha", "cornerRadius", "size", "inset")
-		p.enableAttribArrays(p.program, "vert", "vertTexCoord")
-
-		p.lineProgram = ProgramState{
-			ref:        p.createProgram("line_es"),
-			buff:       p.createBuffer(24),
-			uniforms:   make(map[string]*UniformState),
-			attributes: make(map[string]Attribute),
-		}
-		p.getUniformLocations(p.lineProgram, "color", "feather", "lineWidth")
-		p.enableAttribArrays(p.lineProgram, "vert", "normal")
-
-		p.rectangleProgram = ProgramState{
-			ref:        p.createProgram("rectangle_es"),
-			buff:       p.createBuffer(16),
-			uniforms:   make(map[string]*UniformState),
-			attributes: make(map[string]Attribute),
-		}
-		p.getUniformLocations(
-			p.rectangleProgram,
-			"frame_size", "rect_coords", "stroke_width", "fill_color", "stroke_color",
-		)
-		p.enableAttribArrays(p.rectangleProgram, "vert", "normal")
-
-		p.roundRectangleProgram = ProgramState{
-			ref:        p.createProgram("round_rectangle_es"),
-			buff:       p.createBuffer(16),
-			uniforms:   make(map[string]*UniformState),
-			attributes: make(map[string]Attribute),
-		}
-		p.getUniformLocations(
-			p.roundRectangleProgram,
-			"frame_size", "rect_coords",
-			"stroke_width_half", "rect_size_half",
-			"radius", "edge_softness",
-			"fill_color", "stroke_color",
-		)
-		p.enableAttribArrays(p.roundRectangleProgram, "vert", "normal")
-
-		p.polygonProgram = ProgramState{
-			ref:        p.createProgram("polygon_es"),
-			buff:       p.createBuffer(16),
-			uniforms:   make(map[string]*UniformState),
-			attributes: make(map[string]Attribute),
-		}
-		p.getUniformLocations(
-			p.polygonProgram,
-			"frame_size", "rect_coords", "edge_softness",
-			"outer_radius", "angle", "sides",
-			"fill_color", "corner_radius",
-			"stroke_width", "stroke_color",
-		)
-		p.enableAttribArrays(p.polygonProgram, "vert", "normal")
-
-		p.arcProgram = ProgramState{
-			ref:        p.createProgram("arc_es"),
-			buff:       p.createBuffer(16),
-			uniforms:   make(map[string]*UniformState),
-			attributes: make(map[string]Attribute),
-		}
-		p.getUniformLocations(
-			p.arcProgram,
-			"frame_size", "rect_coords",
-			"inner_radius", "outer_radius",
-			"start_angle", "end_angle",
-			"edge_softness", "corner_radius",
-			"stroke_width", "stroke_color",
-			"fill_color",
-		)
-		p.enableAttribArrays(p.arcProgram, "vert", "normal")
-		compiled = []ProgramState{
-			p.program,
-			p.lineProgram,
-			p.rectangleProgram,
-			p.roundRectangleProgram,
-			p.polygonProgram,
-			p.arcProgram,
-		}
+		compiled = p.compilePrograms()
 	}
 
-	p.program = compiled[0]
-	p.lineProgram = compiled[1]
-	p.rectangleProgram = compiled[2]
-	p.roundRectangleProgram = compiled[3]
-	p.polygonProgram = compiled[4]
-	p.arcProgram = compiled[5]
-}
-
-func (p *painter) getUniformLocations(pState ProgramState, names ...string) {
-	for _, name := range names {
-		u := p.ctx.GetUniformLocation(pState.ref, name)
-		pState.uniforms[name] = &UniformState{ref: u}
-	}
-}
-
-func (p *painter) enableAttribArrays(pState ProgramState, names ...string) {
-	for _, name := range names {
-		a := p.ctx.GetAttribLocation(pState.ref, name)
-		p.ctx.EnableVertexAttribArray(a)
-		pState.attributes[name] = a
-	}
+	p.programs = compiled
 }
 
 type mobileContext struct {
@@ -249,6 +152,10 @@ func (c *mobileContext) DeleteBuffer(buffer Buffer) {
 	c.glContext.DeleteBuffer(gl.Buffer(buffer))
 }
 
+func (c *mobileContext) DeleteProgram(program Program) {
+	c.glContext.DeleteProgram(gl.Program(program))
+}
+
 func (c *mobileContext) DeleteTexture(texture Texture) {
 	c.glContext.DeleteTexture(gl.Texture(texture))
 }
@@ -277,6 +184,10 @@ func (c *mobileContext) GetError() uint32 {
 	return uint32(c.glContext.GetError())
 }
 
+func (c *mobileContext) GetInteger(pname uint32) int {
+	return c.glContext.GetInteger(gl.Enum(pname))
+}
+
 func (c *mobileContext) GetProgrami(program Program, param uint32) int {
 	return c.glContext.GetProgrami(gl.Program(program), gl.Enum(param))
 }
@@ -299,6 +210,10 @@ func (c *mobileContext) GetUniformLocation(program Program, name string) Uniform
 
 func (c *mobileContext) LinkProgram(program Program) {
 	c.glContext.LinkProgram(gl.Program(program))
+}
+
+func (c *mobileContext) CopyTexSubImage2D(target uint32, level, xoffset, yoffset, x, y, width, height int) {
+	c.glContext.CopyTexSubImage2D(gl.Enum(target), level, xoffset, yoffset, x, y, width, height)
 }
 
 func (c *mobileContext) ReadBuffer(_ uint32) {
@@ -337,8 +252,20 @@ func (c *mobileContext) Uniform1f(uniform Uniform, v float32) {
 	c.glContext.Uniform1f(gl.Uniform(uniform), v)
 }
 
+func (c *mobileContext) Uniform1fv(uniform Uniform, v []float32) {
+	c.glContext.Uniform1fv(gl.Uniform(uniform), v)
+}
+
+func (c *mobileContext) Uniform1i(uniform Uniform, v int32) {
+	c.glContext.Uniform1i(gl.Uniform(uniform), int(v))
+}
+
 func (c *mobileContext) Uniform2f(uniform Uniform, v0, v1 float32) {
 	c.glContext.Uniform2f(gl.Uniform(uniform), v0, v1)
+}
+
+func (c *mobileContext) Uniform2fv(uniform Uniform, v []float32) {
+	c.glContext.Uniform2fv(gl.Uniform(uniform), v)
 }
 
 func (c *mobileContext) Uniform4f(uniform Uniform, v0, v1, v2, v3 float32) {

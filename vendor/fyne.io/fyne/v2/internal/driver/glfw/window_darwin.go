@@ -9,6 +9,7 @@ package glfw
 #import <stdbool.h>
 
 void setFullScreen(bool full, void *window);
+void setFullScreenSecondary(bool full, void *window);
 */
 import "C"
 
@@ -16,6 +17,7 @@ import (
 	"runtime"
 
 	"fyne.io/fyne/v2/driver"
+	"fyne.io/fyne/v2/internal/goos"
 )
 
 // assert we are implementing driver.NativeWindow
@@ -31,9 +33,19 @@ func (w *window) RunNative(f func(any)) {
 }
 
 func (w *window) doSetFullScreen(full bool) {
-	if runtime.GOOS == "darwin" {
-		win := w.view().GetCocoaWindow()
-		C.setFullScreen(C.bool(full), win)
+	if runtime.GOOS != goos.Darwin {
 		return
 	}
+
+	win := w.view().GetCocoaWindow()
+	C.setFullScreen(C.bool(full), win)
+}
+
+func (w *window) doSetFullScreen2(full bool) {
+	if runtime.GOOS != goos.Darwin {
+		return
+	}
+
+	win := w.view().GetCocoaWindow()
+	C.setFullScreenSecondary(C.bool(full), win)
 }

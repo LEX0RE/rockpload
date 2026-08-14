@@ -5,17 +5,21 @@ package glfw
 import (
 	"bytes"
 	"image"
+	"image/draw"
+	_ "image/jpeg" // allow to use JPEGs as icon source
+	"image/png"
 	"os"
 	"runtime"
 
-	"fyne.io/fyne/v2/internal/async"
 	"github.com/fyne-io/image/ico"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/internal/animation"
 	intapp "fyne.io/fyne/v2/internal/app"
+	"fyne.io/fyne/v2/internal/async"
 	"fyne.io/fyne/v2/internal/driver"
 	"fyne.io/fyne/v2/internal/driver/common"
+	"fyne.io/fyne/v2/internal/goos"
 	"fyne.io/fyne/v2/internal/painter"
 	intRepo "fyne.io/fyne/v2/internal/repository"
 	"fyne.io/fyne/v2/storage/repository"
@@ -47,24 +51,54 @@ func (d *gLDriver) init() {
 }
 
 func toOSIcon(icon []byte) ([]byte, error) {
-	if runtime.GOOS != "windows" {
+	return toOSIconForRuntime(icon, runtime.GOOS)
+}
+
+// toOSIconForRuntime takes the input image bytes and converts it to an image type
+// that is suitable for the specified GOOS runtime. Which makes platform-specific icon handling testable.
+func toOSIconForRuntime(icon []byte, osName string) ([]byte, error) {
+	if osName != goos.Windows && !usesUnixSystrayIcon(osName) {
 		return icon, nil
 	}
 
-	img, _, err := image.Decode(bytes.NewReader(icon))
+	img, format, err := image.Decode(bytes.NewReader(icon))
 	if err != nil {
 		return nil, err
 	}
 
+	// keep windows behavior: convert to ico
+	if osName == goos.Windows {
+		buf := &bytes.Buffer{}
+		if err = ico.Encode(buf, img); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	}
+	if format == "png" {
+		return icon, nil
+	}
+
+	// Unix systray expects a PNG bitmap.
+	return convertToPNG(img)
+}
+
+func convertToPNG(img image.Image) ([]byte, error) {
+	bounds := img.Bounds()
+	nrgba := image.NewNRGBA(bounds)
+	draw.Draw(nrgba, bounds, img, bounds.Min, draw.Src)
+
 	buf := &bytes.Buffer{}
-	err = ico.Encode(buf, img)
-	if err != nil {
+	if err := png.Encode(buf, nrgba); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
 }
 
-func (d *gLDriver) DoFromGoroutine(f func(), wait bool) {
+func usesUnixSystrayIcon(osName string) bool {
+	return osName == goos.Linux || goos.IsBSD(osName)
+}
+
+func (*gLDriver) DoFromGoroutine(f func(), wait bool) {
 	if wait {
 		async.EnsureNotMain(func() {
 			runOnMainWithWait(f, true)
@@ -74,11 +108,11 @@ func (d *gLDriver) DoFromGoroutine(f func(), wait bool) {
 	}
 }
 
-func (d *gLDriver) RenderedTextSize(text string, textSize float32, style fyne.TextStyle, source fyne.Resource) (size fyne.Size, baseline float32) {
+func (*gLDriver) RenderedTextSize(text string, textSize float32, style fyne.TextStyle, source fyne.Resource) (size fyne.Size, baseline float32) {
 	return painter.RenderedTextSize(text, textSize, style, source)
 }
 
-func (d *gLDriver) CanvasForObject(obj fyne.CanvasObject) fyne.Canvas {
+func (*gLDriver) CanvasForObject(obj fyne.CanvasObject) fyne.Canvas {
 	return common.CanvasForObject(obj)
 }
 
@@ -92,7 +126,7 @@ func (d *gLDriver) AbsolutePositionForObject(co fyne.CanvasObject) fyne.Position
 	return driver.AbsolutePositionForObject(co, glc.ObjectTrees())
 }
 
-func (d *gLDriver) Device() fyne.Device {
+func (*gLDriver) Device() fyne.Device {
 	return &glDevice{}
 }
 
@@ -146,11 +180,11 @@ func (d *gLDriver) windowList() []fyne.Window {
 func (d *gLDriver) initFailed(msg string, err error) {
 	fyne.LogError(msg, err)
 
-	if !running.Load() {
-		d.Quit()
-	} else {
-		os.Exit(1)
+	if running.Load() {
+		os.Exit(1) //revive:disable-line:deep-exit
 	}
+
+	d.Quit()
 }
 
 func (d *gLDriver) Run() {
@@ -167,13 +201,13 @@ func (d *gLDriver) Run() {
 	l.DestroyEventQueue()
 }
 
-func (d *gLDriver) SetDisableScreenBlanking(disable bool) {
+func (*gLDriver) SetDisableScreenBlanking(disable bool) {
 	setDisableScreenBlank(disable)
 }
 
 // NewGLDriver sets up a new Driver instance implemented using the GLFW Go library and OpenGL bindings.
-func NewGLDriver() *gLDriver {
-	repository.Register("file", intRepo.NewFileRepository())
+func NewGLDriver() fyne.Driver {
+	repository.Register(fyne.URISchemeFile, intRepo.NewFileRepository())
 
 	return &gLDriver{
 		done: make(chan struct{}),

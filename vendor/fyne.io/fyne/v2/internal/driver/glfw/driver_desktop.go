@@ -10,14 +10,16 @@ import (
 	"runtime"
 	"syscall"
 
+	"fyne.io/systray"
+	"github.com/go-gl/glfw/v3.4/glfw"
+
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/driver/software"
+	"fyne.io/fyne/v2/internal/goos"
 	"fyne.io/fyne/v2/internal/painter"
 	"fyne.io/fyne/v2/internal/svg"
 	"fyne.io/fyne/v2/lang"
-	"fyne.io/systray"
-
-	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
 )
 
@@ -27,6 +29,23 @@ var (
 	systrayIcon    fyne.Resource
 	systrayRunning bool
 )
+
+func (*gLDriver) HasSecondaryDisplay() bool {
+	monitors := glfw.GetMonitors()
+	if len(monitors) == 1 {
+		return false
+	}
+
+	primaryTop, primaryLeft := monitors[0].GetPos()
+	for _, m := range monitors[1:] {
+		top, left := m.GetPos()
+		if top != primaryTop || left != primaryLeft {
+			return true
+		}
+	}
+
+	return false // all the monitors had same origin, thus mirroring
+}
 
 func (d *gLDriver) SetSystemTrayMenu(m *fyne.Menu) {
 	if !systrayRunning {
@@ -48,7 +67,7 @@ func (d *gLDriver) runSystray(m *fyne.Menu) {
 		}
 
 		// Some XDG systray crash without a title (See #3678)
-		if runtime.GOOS == "linux" || runtime.GOOS == "openbsd" || runtime.GOOS == "freebsd" || runtime.GOOS == "netbsd" {
+		if runtime.GOOS == goos.Linux || goos.IsBSD(runtime.GOOS) {
 			app := fyne.CurrentApp()
 			title := app.Metadata().Name
 			if title == "" {
@@ -106,7 +125,7 @@ func itemForMenuItem(i *fyne.MenuItem, parent *systray.MenuItem) *systray.MenuIt
 		if svg.IsResourceSVG(i.Icon) {
 			b := &bytes.Buffer{}
 			res := i.Icon
-			if runtime.GOOS == "windows" && isDark() { // windows menus don't match dark mode so invert icons
+			if runtime.GOOS == goos.Windows && isDark() { // windows menus don't match dark mode so invert icons
 				res = theme.NewInvertedThemedResource(i.Icon)
 			}
 			img := painter.PaintImage(canvas.NewImageFromResource(res), nil, systrayIconSize, systrayIconSize)
@@ -166,11 +185,11 @@ func (d *gLDriver) refreshSystrayMenu(m *fyne.Menu, parent *systray.MenuItem) {
 	}
 }
 
-func (d *gLDriver) SetSystemTrayIcon(resource fyne.Resource) {
+func (*gLDriver) SetSystemTrayIcon(resource fyne.Resource) {
 	systrayIcon = resource // in case we need it later
 
 	// only macOS supports SVG system tray
-	if runtime.GOOS != "darwin" && svg.IsResourceSVG(resource) {
+	if runtime.GOOS != goos.Darwin && svg.IsResourceSVG(resource) {
 		img := canvas.NewImageFromResource(resource)
 		c := software.NewTransparentCanvas()
 		c.SetContent(img)
@@ -208,9 +227,9 @@ func (d *gLDriver) SetSystemTrayWindow(w fyne.Window) {
 	w.SetCloseIntercept(w.Hide)
 	glw := w.(*window)
 	if glw.decorate {
-		systray.SetOnTapped(glw.Show)
+		systray.SetOnTapped(func() { fyne.Do(glw.Show) })
 	} else {
-		systray.SetOnTapped(glw.toggleVisible)
+		systray.SetOnTapped(func() { fyne.Do(glw.toggleVisible) })
 	}
 }
 

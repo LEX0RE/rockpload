@@ -38,7 +38,7 @@ func (r *passwordRevealer) CreateRenderer() fyne.WidgetRenderer {
 	}
 }
 
-func (r *passwordRevealer) Cursor() desktop.Cursor {
+func (*passwordRevealer) Cursor() desktop.Cursor {
 	return desktop.DefaultCursor
 }
 
@@ -50,7 +50,9 @@ func (r *passwordRevealer) Tapped(*fyne.PointEvent) {
 	r.entry.setFieldsAndRefresh(func() {
 		r.entry.Password = !r.entry.Password
 	})
-	fyne.CurrentApp().Driver().CanvasForObject(r).Focus(r.entry.super().(fyne.Focusable))
+	if c := fyne.CurrentApp().Driver().CanvasForObject(r); c != nil {
+		c.Focus(r.entry.super().(fyne.Focusable))
+	}
 }
 
 var _ fyne.WidgetRenderer = (*passwordRevealerRenderer)(nil)

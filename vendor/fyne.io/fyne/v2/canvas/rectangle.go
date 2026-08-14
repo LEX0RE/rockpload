@@ -46,6 +46,11 @@ type Rectangle struct {
 	//
 	// Since: 2.7
 	BottomLeftCornerRadius float32
+
+	// Support shadow configuration
+	//
+	// Since: 2.8
+	Shadow Shadow
 }
 
 // Hide will set this rectangle to not be visible
@@ -85,8 +90,8 @@ func (r *Rectangle) Resize(s fyne.Size) {
 }
 
 // NewRectangle returns a new Rectangle instance
-func NewRectangle(color color.Color) *Rectangle {
+func NewRectangle(c color.Color) *Rectangle {
 	return &Rectangle{
-		FillColor: color,
+		FillColor: c,
 	}
 }

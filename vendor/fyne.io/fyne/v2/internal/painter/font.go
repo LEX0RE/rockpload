@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 
@@ -25,9 +26,17 @@ import (
 
 const (
 	// DefaultTabWidth is the default width in spaces
-	DefaultTabWidth = 4
+	DefaultTabWidth               = 4
+	UnderlineOffsetFromBaseline   = 2
+	StrikethroughToBaselineFactor = 0.75
 
 	fontTabSpaceSize = 10
+	replacementChar  = 0xfffd // that’s '�'
+
+	// emojiVariationSelector (VS16) asks for the preceding rune to be presented as emoji rather than text.
+	emojiVariationSelector = '\uFE0F'
+	// keycapMark encloses the preceding rune in a key, as in "0️⃣".
+	keycapMark = '\u20E3'
 )
 
 var (
@@ -35,6 +44,8 @@ var (
 	fontScanLock sync.Mutex
 	loaded       bool
 )
+
+var shaper = &shaping.HarfbuzzShaper{}
 
 func loadMap() {
 	loaded = true
@@ -58,7 +69,7 @@ func lookupLangFont(family string, aspect font.Aspect) *font.Face {
 	}
 
 	fm.SetQuery(fontscan.Query{Families: []string{family}, Aspect: aspect})
-	l, _ := language.NewLangID(language.Language(lang.SystemLocale().LanguageString()))
+	l, _ := language.NewLangID(language.NewLanguage(lang.SystemLocale().LanguageString()))
 	return fm.ResolveFaceForLang(l)
 }
 
@@ -78,9 +89,9 @@ func lookupRuneFont(r rune, family string, aspect font.Aspect) *font.Face {
 	return fm.ResolveFace(r)
 }
 
-func lookupFaces(theme, fallback, emoji fyne.Resource, family string, style fyne.TextStyle) (faces *dynamicFontMap) {
-	f1 := loadMeasureFont(theme)
-	if theme == fallback {
+func lookupFaces(t, fallback fyne.Resource, additional []fyne.Resource, family string, style fyne.TextStyle) (faces *dynamicFontMap) {
+	f1 := loadMeasureFont(t)
+	if t == fallback {
 		faces = &dynamicFontMap{family: family, faces: []*font.Face{f1}}
 	} else {
 		f2 := loadMeasureFont(fallback)
@@ -95,8 +106,8 @@ func lookupFaces(theme, fallback, emoji fyne.Resource, family string, style fyne
 		aspect.Weight = font.WeightBold
 	}
 
-	if emoji != nil {
-		faces.addFace(loadMeasureFont(emoji))
+	for _, added := range additional {
+		faces.addFace(loadMeasureFont(added))
 	}
 
 	local := lookupLangFont(family, aspect)
@@ -136,18 +147,26 @@ func CachedFontFace(style fyne.TextStyle, source fyne.Resource, o fyne.CanvasObj
 		th := theme.CurrentForWidget(o)
 		font1 := th.Font(style)
 
-		emoji := theme.DefaultEmojiFont() // TODO only one emoji - maybe others too
+		// Skip any nil fallback fonts — they can be nil when built with
+		// -tags no_emoji, and the lookupFaces loop expects non-nil entries.
+		var fallbacks []fyne.Resource
+		if emoji := theme.DefaultEmojiFont(); emoji != nil { // TODO only one emoji - maybe others too
+			fallbacks = append(fallbacks, emoji)
+		}
+		if sym := theme.DefaultSymbolFont(); sym != nil {
+			fallbacks = append(fallbacks, sym)
+		}
 		switch {
 		case style.Monospace:
-			faces = lookupFaces(font1, theme.DefaultTextMonospaceFont(), emoji, fontscan.Monospace, style)
+			faces = lookupFaces(font1, theme.DefaultTextMonospaceFont(), fallbacks, fontscan.Monospace, style)
 		case style.Bold:
 			if style.Italic {
-				faces = lookupFaces(font1, theme.DefaultTextBoldItalicFont(), emoji, fontscan.SansSerif, style)
+				faces = lookupFaces(font1, theme.DefaultTextBoldItalicFont(), fallbacks, fontscan.SansSerif, style)
 			} else {
-				faces = lookupFaces(font1, theme.DefaultTextBoldFont(), emoji, fontscan.SansSerif, style)
+				faces = lookupFaces(font1, theme.DefaultTextBoldFont(), fallbacks, fontscan.SansSerif, style)
 			}
 		case style.Italic:
-			faces = lookupFaces(font1, theme.DefaultTextItalicFont(), emoji, fontscan.SansSerif, style)
+			faces = lookupFaces(font1, theme.DefaultTextItalicFont(), fallbacks, fontscan.SansSerif, style)
 		case style.Symbol:
 			th := theme.SymbolFont()
 			fallback := theme.DefaultSymbolFont()
@@ -160,7 +179,7 @@ func CachedFontFace(style fyne.TextStyle, source fyne.Resource, o fyne.CanvasObj
 				faces = &dynamicFontMap{family: fontscan.SansSerif, faces: []*font.Face{f1, f2}}
 			}
 		default:
-			faces = lookupFaces(font1, theme.DefaultTextFont(), emoji, fontscan.SansSerif, style)
+			faces = lookupFaces(font1, theme.DefaultTextFont(), fallbacks, fontscan.SansSerif, style)
 		}
 
 		val = &FontCacheItem{Fonts: faces}
@@ -177,27 +196,27 @@ func ClearFontCache() {
 }
 
 // DrawString draws a string into an image.
-func DrawString(dst draw.Image, s string, color color.Color, f shaping.Fontmap, fontSize, scale float32, style fyne.TextStyle) {
+func DrawString(dst draw.Image, s string, c color.Color, f shaping.Fontmap, fontSize, scale float32, style fyne.TextStyle) {
+	DrawStringOffset(dst, s, c, f, fontSize, scale, style, 0)
+}
+
+// DrawStringOffset draws a string shifted left by the specified pixel offset.
+func DrawStringOffset(dst draw.Image, s string, c color.Color, f shaping.Fontmap, fontSize, scale float32, style fyne.TextStyle, offset int) {
 	r := render.Renderer{
 		FontSize: fontSize,
 		PixScale: scale,
-		Color:    color,
+		Color:    c,
 	}
 
 	advance := float32(0)
-	y := math.MinInt
-	walkString(f, s, float32ToFixed266(fontSize), style, &advance, scale, func(run shaping.Output, x float32) {
-		if y == math.MinInt {
-			y = int(math.Ceil(float64(fixed266ToFloat32(run.LineBounds.Ascent) * r.PixScale)))
-		}
-		if len(run.Glyphs) == 1 {
-			if run.Glyphs[0].GlyphID == 0 {
-				r.DrawStringAt(string([]rune{0xfffd}), dst, int(x), y, f.ResolveFace(0xfffd))
-				return
-			}
+	walkString(f, s, float32ToFixed266(fontSize), style, &advance, scale, func(run shaping.Output, x, y float32) {
+		yPix := int(math.Ceil(float64(y)))
+		if len(run.Glyphs) == 1 && run.Glyphs[0].GlyphID == 0 {
+			r.DrawStringAt(string([]rune{replacementChar}), dst, int(x)-offset, yPix, f.ResolveFace(replacementChar))
+			return
 		}
 
-		r.DrawShapedRunAt(run, dst, int(x), y)
+		r.DrawShapedRunAt(run, dst, int(x)-offset, yPix)
 	})
 }
 
@@ -214,7 +233,7 @@ func loadMeasureFont(data fyne.Resource) *font.Face {
 // MeasureString returns how far dot would advance by drawing s with f.
 // Tabs are translated into a dot location change.
 func MeasureString(f shaping.Fontmap, s string, textSize float32, style fyne.TextStyle) (size fyne.Size, advance float32) {
-	return walkString(f, s, float32ToFixed266(textSize), style, &advance, 1, func(shaping.Output, float32) {})
+	return walkString(f, s, float32ToFixed266(textSize), style, &advance, 1, func(shaping.Output, float32, float32) {})
 }
 
 // RenderedTextSize looks up how big a string would be if drawn on screen.
@@ -253,8 +272,22 @@ func tabStop(spacew, x float32, tabWidth int) float32 {
 	return tabw * float32(tabs)
 }
 
+type shapedRun struct {
+	out shaping.Output
+	x   float32
+}
+
+var (
+	runBuffer    []shapedRun
+	runBufferMut async.Mutex
+)
+
+// walkString shapes s and invokes cb once per shaped run, in left-to-right order.
+// All runs share a single ascent (the max ascent of any run in the string), so that
+// runs shaped in different fallback fonts (e.g. mixed-script or emoji + text)
+// still align on a common baseline
 func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style fyne.TextStyle, advance *float32, scale float32,
-	cb func(run shaping.Output, x float32),
+	cb func(run shaping.Output, x, y float32),
 ) (size fyne.Size, base float32) {
 	s = strings.ReplaceAll(s, "\r", "")
 
@@ -267,7 +300,6 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 		Face:      faces.ResolveFace(' '),
 		Size:      textSize,
 	}
-	shaper := &shaping.HarfbuzzShaper{}
 	segmenter := &shaping.Segmenter{}
 	out := shaper.Shape(in)
 
@@ -280,7 +312,17 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 	if style.Monospace {
 		spacew = scale * fixed266ToFloat32(out.Advance)
 	}
-	ins := segmenter.Split(in, faces)
+
+	maxAscent := fixed.Int26_6(0)
+	collect := func(run shaping.Output, runX float32) {
+		if run.LineBounds.Ascent > maxAscent {
+			maxAscent = run.LineBounds.Ascent
+		}
+		runBuffer = append(runBuffer, shapedRun{out: run, x: runX})
+	}
+
+	ins := splitEmojiSequences(in, faces, segmenter)
+	runBufferMut.Lock()
 	for _, in := range ins {
 		inEnd := in.RunEnd
 
@@ -289,7 +331,7 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 			if r == '\t' {
 				if pending {
 					in.RunEnd = i
-					x = shapeCallback(shaper, in, x, scale, cb)
+					x = shapeCallback(in, x, scale, collect)
 				}
 				x = tabStop(spacew, x, style.TabWidth)
 
@@ -301,49 +343,157 @@ func walkString(faces shaping.Fontmap, s string, textSize fixed.Int26_6, style f
 			}
 		}
 
-		x = shapeCallback(shaper, in, x, scale, cb)
+		x = shapeCallback(in, x, scale, collect)
 	}
+
+	y := fixed266ToFloat32(maxAscent) * scale
+	for _, run := range runBuffer {
+		cb(run.out, run.x, y)
+	}
+	clear(runBuffer)
+	runBuffer = runBuffer[:0]
+	runBufferMut.Unlock()
 
 	*advance = x
 	return fyne.NewSize(*advance, fixed266ToFloat32(out.LineBounds.LineThickness())),
 		fixed266ToFloat32(out.LineBounds.Ascent)
 }
 
-func shapeCallback(shaper shaping.Shaper, in shaping.Input, x, scale float32, cb func(shaping.Output, float32)) float32 {
+func shapeCallback(in shaping.Input, x, scale float32, cb func(shaping.Output, float32)) float32 {
 	out := shaper.Shape(in)
 	glyphs := out.Glyphs
 	start := 0
-	pending := false
 	adv := fixed.I(0)
 	for i, g := range out.Glyphs {
 		if g.GlyphID == 0 {
-			if pending {
+			if start < i {
 				out.Glyphs = glyphs[start:i]
 				cb(out, x)
 				x += fixed266ToFloat32(adv) * scale
-				adv = 0
 			}
 
 			out.Glyphs = glyphs[i : i+1]
 			cb(out, x)
 			x += fixed266ToFloat32(glyphs[i].Advance) * scale
-			adv = 0
 
+			adv = 0
 			start = i + 1
-			pending = false
-		} else {
-			pending = true
 		}
 		adv += g.Advance
 	}
 
-	if pending {
+	if start < len(glyphs) {
 		out.Glyphs = glyphs[start:]
 		cb(out, x)
 		x += fixed266ToFloat32(adv) * scale
 		adv = 0
 	}
 	return x + fixed266ToFloat32(adv)*scale
+}
+
+// splitEmojiSequences segments in for the shaper, keeping any emoji sequence
+// whole in a single face.
+func splitEmojiSequences(in shaping.Input, faces shaping.Fontmap, seg *shaping.Segmenter) []shaping.Input {
+	if !slices.Contains(in.Text[in.RunStart:in.RunEnd], emojiVariationSelector) {
+		return seg.Split(in, faces) // by far the common case, split in one pass
+	}
+
+	var out []shaping.Input
+	start := in.RunStart
+	for i := start; i < in.RunEnd; {
+		var face *font.Face
+		length := emojiSequenceLen(in.Text, i, in.RunEnd)
+		if length > 0 {
+			face = resolveSequence(faces, in.Text[i:i+length])
+		}
+		if face == nil { // no sequence here, or none that one face draws better
+			i++
+			continue
+		}
+
+		if i > start {
+			out = appendSplit(out, in, start, i, faces, seg)
+		}
+		out = appendSplit(out, in, i, i+length, fixedFontMap{face: face}, seg)
+
+		i += length
+		start = i
+	}
+	if start < in.RunEnd {
+		out = appendSplit(out, in, start, in.RunEnd, faces, seg)
+	}
+	return out
+}
+
+// appendSplit segments the runes of in between start and end and adds the runs
+// to out. They have to be copied out because seg reuses its buffers between
+// calls.
+func appendSplit(out []shaping.Input, in shaping.Input, start, end int, faces shaping.Fontmap,
+	seg *shaping.Segmenter,
+) []shaping.Input {
+	in.RunStart, in.RunEnd = start, end
+	return append(out, seg.Split(in, faces)...)
+}
+
+// emojiSequenceLen returns the length of the emoji sequence starting at index i,
+// or 0 if none starts there. A sequence is a base rune and the variation
+// selector asking for emoji presentation, plus the enclosing mark of a keycap.
+func emojiSequenceLen(text []rune, i, end int) int {
+	if i+1 >= end || text[i+1] != emojiVariationSelector {
+		return 0
+	}
+	if i+2 < end && text[i+2] == keycapMark {
+		return 3
+	}
+	return 2
+}
+
+// resolveSequence returns the one face to shape a whole emoji sequence in, or
+// nil to leave the choice to the segmenter.
+func resolveSequence(faces shaping.Fontmap, seq []rune) *font.Face {
+	var candidates []*font.Face
+	torn := false
+	for _, r := range seq {
+		if r == emojiVariationSelector {
+			continue // ignorable, so the segmenter never asks for a face for it
+		}
+
+		face := faces.ResolveFace(r)
+		if len(candidates) > 0 && face != candidates[0] {
+			torn = true
+		}
+		candidates = append(candidates, face)
+	}
+	if !torn {
+		return nil
+	}
+
+	for _, face := range candidates {
+		if coversSequence(face, seq) {
+			return face
+		}
+	}
+	return nil
+}
+
+// coversSequence reports whether one face has a glyph for every rune of seq.
+func coversSequence(face *font.Face, seq []rune) bool {
+	for _, r := range seq {
+		if _, ok := face.NominalGlyph(r); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// fixedFontMap is a [shaping.Fontmap] that answers with a single face, used to
+// shape an emoji sequence whose face was already resolved as a whole.
+type fixedFontMap struct {
+	face *font.Face
+}
+
+func (f fixedFontMap) ResolveFace(rune) *font.Face {
+	return f.face
 }
 
 type FontCacheItem struct {
@@ -362,7 +512,7 @@ var (
 
 type noopLogger struct{}
 
-func (n noopLogger) Printf(string, ...any) {}
+func (noopLogger) Printf(string, ...any) {}
 
 type dynamicFontMap struct {
 	faces  []*font.Face

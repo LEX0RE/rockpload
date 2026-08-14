@@ -2,51 +2,44 @@
 
 package gl
 
-import _ "embed"
+import (
+	_ "embed"
 
-var (
-	//go:embed shaders/line_es.frag
-	shaderLineesFrag []byte
-
-	//go:embed shaders/line_es.vert
-	shaderLineesVert []byte
-
-	//go:embed shaders/rectangle_es.frag
-	shaderRectangleesFrag []byte
-
-	//go:embed shaders/rectangle_es.vert
-	shaderRectangleesVert []byte
-
-	//go:embed shaders/round_rectangle_es.frag
-	shaderRoundrectangleesFrag []byte
-
-	//go:embed shaders/simple_es.frag
-	shaderSimpleesFrag []byte
-
-	//go:embed shaders/simple_es.vert
-	shaderSimpleesVert []byte
-
-	//go:embed shaders/polygon_es.frag
-	shaderPolygonesFrag []byte
-
-	//go:embed shaders/arc_es.frag
-	shaderArcesFrag []byte
+	"fyne.io/fyne/v2/canvas"
 )
 
-func shaderSourceNamed(name string) ([]byte, []byte) {
-	switch name {
-	case "line_es":
-		return shaderLineesVert, shaderLineesFrag
-	case "simple_es":
-		return shaderSimpleesVert, shaderSimpleesFrag
-	case "rectangle_es":
-		return shaderRectangleesVert, shaderRectangleesFrag
-	case "round_rectangle_es":
-		return shaderRectangleesVert, shaderRoundrectangleesFrag
-	case "polygon_es":
-		return shaderRectangleesVert, shaderPolygonesFrag
-	case "arc_es":
-		return shaderRectangleesVert, shaderArcesFrag
-	}
-	return nil, nil
+var (
+	//go:embed shaders/arbitrary_polygon_es.frag
+	shaderFragArbitraryPolygon []byte
+	//go:embed shaders/arc_es.frag
+	shaderFragArc []byte
+	//go:embed shaders/bezier_curve_es.frag
+	shaderFragBezierCurve []byte
+	//go:embed shaders/blur_es.frag
+	shaderFragBlur []byte
+	//go:embed shaders/ellipse_es.frag
+	shaderFragEllipse []byte
+	//go:embed shaders/line_es.frag
+	shaderFragLine []byte
+	//go:embed shaders/regular_polygon_es.frag
+	shaderFragPolygon []byte
+	//go:embed shaders/rectangle_es.frag
+	shaderFragRectangle []byte
+	//go:embed shaders/round_rectangle_es.frag
+	shaderFragRoundRectangle []byte
+	//go:embed shaders/simple_es.frag
+	shaderFragSimple []byte
+
+	//go:embed shaders/line_es.vert
+	shaderVertLine []byte
+	//go:embed shaders/passthrough_2d_es.vert
+	shaderVertPassthrough2D []byte
+	//go:embed shaders/textured_passthrough_2d_es.vert
+	shaderVertTexturedPassthrough2D []byte
+)
+
+// userShaderFragment returns the fragment shader source to use for the given
+// shader object on this build target.
+func userShaderFragment(s *canvas.Shader) []byte {
+	return s.SourceES
 }
