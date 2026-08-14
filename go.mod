@@ -11,7 +11,7 @@ require (
 	github.com/gofrs/flock v0.13.0
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf
 	github.com/mitchellh/go-ps v1.0.0
-	golang.org/x/mod v0.38.0
+	golang.org/x/mod v0.39.0
 	golang.org/x/sys v0.47.0
 )
 
