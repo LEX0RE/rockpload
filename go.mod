@@ -5,7 +5,7 @@ go 1.26.1
 require (
 	fyne.io/fyne/v2 v2.7.4
 	github.com/chromedp/chromedp v0.16.0
-	github.com/dank/rlapi v0.1.21
+	github.com/dank/rlapi v0.1.22
 	github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/gofrs/flock v0.13.0
