@@ -214,6 +214,10 @@ func (u *Uploader) UploadMatchEntry(ac *rocket_network.Account, match rlapi.Matc
 		var uploadErrors []error
 
 		for _, storage := range storages {
+			if !u.storageAllowsPlaylist(storage.GetConfig(), storages, match.Match.Playlist) {
+				continue
+			}
+
 			if err := storage.UploadReplay(filePath, replayUpload); err != nil {
 				logger.Rlogger.Error("Single match upload error:", slog.Any("storage", storage.GetConfig().Name), slog.Any("err", err))
 				uploadErrors = append(uploadErrors, fmt.Errorf("%s: %w", storage.GetConfig().Name, err))
@@ -309,7 +313,12 @@ func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string
 
 	u.EventManager.Notify(EventUploadProgress, max(0, currentProgress-1)/maxProgress)
 
-	if storage.GetConfig().UploadStyle == config.UploadDisabled {
+	cfg := storage.GetConfig()
+	if cfg.UploadStyle == config.UploadDisabled {
+		return
+	}
+
+	if !u.storageAllowsPlaylist(cfg, uploadCtx.storageList, match.Match.Playlist) {
 		return
 	}
 
@@ -359,6 +368,8 @@ func (u *Uploader) getStorages() []UploadStorage {
 
 	var storages []UploadStorage
 
+	knownPlaylists := u.appConfig.BehaviorConfig.KnownPlaylists.Get()
+
 	for _, storageConfig := range u.appConfig.StorageSettings.Get() {
 		if storageConfig.UploadStyle == config.UploadDisabled {
 			continue
@@ -368,15 +379,41 @@ func (u *Uploader) getStorages() []UploadStorage {
 
 		switch storageConfig.UploadStyle {
 		case config.LocalFileCopy:
-			backend = NewFileSystem(storageConfig)
+			backend = NewFileSystem(storageConfig, knownPlaylists)
 		default:
 			fallthrough
 		case config.MultipartUpload, config.PresignedSessionUpload:
-			backend = NewWebsite(storageConfig, u.version)
+			backend = NewWebsite(storageConfig, u.version, knownPlaylists)
 		}
 
 		storages = append(storages, backend)
 	}
 
 	return storages
+}
+
+func (u *Uploader) storageAllowsPlaylist(cfg *config.StorageConfig, storages []UploadStorage, playlist int) bool {
+	if cfg.PlaylistFilterStyle != config.PlaylistFilterFollowAny {
+		return cfg.AllowsPlaylist(playlist)
+	}
+
+	return u.followAnyAllowsPlaylist(cfg, storages, playlist)
+}
+
+func (u *Uploader) followAnyAllowsPlaylist(self *config.StorageConfig, storages []UploadStorage, playlist int) bool {
+	others := 0
+
+	for _, s := range storages {
+		cfg := s.GetConfig()
+		if cfg == self || cfg.PlaylistFilterStyle == config.PlaylistFilterFollowAny {
+			continue
+		}
+
+		others++
+		if cfg.AllowsPlaylist(playlist) {
+			return true
+		}
+	}
+
+	return others == 0
 }

@@ -274,6 +274,44 @@ func RenameStyleFromLabel(label string) RenameStyleType {
 	return RenameDisabled
 }
 
+type PlaylistFilterStyleType int
+
+const (
+	PlaylistFilterDisabled PlaylistFilterStyleType = iota
+	PlaylistFilterWhitelist
+	PlaylistFilterBlacklist
+	PlaylistFilterFollowAny
+)
+
+var PlaylistFilterStyleLabels = [...]string{
+	PlaylistFilterDisabled:  "Upload Everything",
+	PlaylistFilterWhitelist: "Only Selected Playlists",
+	PlaylistFilterBlacklist: "All Except Selected Playlists",
+	PlaylistFilterFollowAny: "Follow Any Other Storage",
+}
+
+func (s PlaylistFilterStyleType) Label() string {
+	logger.FuncDebug()
+
+	if int(s) < 0 || int(s) >= len(PlaylistFilterStyleLabels) {
+		return PlaylistFilterStyleLabels[PlaylistFilterDisabled]
+	}
+
+	return PlaylistFilterStyleLabels[s]
+}
+
+func PlaylistFilterStyleFromLabel(label string) PlaylistFilterStyleType {
+	logger.FuncDebug()
+
+	for style, l := range PlaylistFilterStyleLabels {
+		if l == label {
+			return PlaylistFilterStyleType(style)
+		}
+	}
+
+	return PlaylistFilterDisabled
+}
+
 // TODO Deprecated, previous storage schema
 type legacyStorageConfig struct {
 	Name        string `json:"name"`

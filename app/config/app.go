@@ -44,6 +44,7 @@ func NewAppConfig() *AppConfig {
 
 	cfg.BehaviorConfig.SelectedAccountId = NewSetting(0, saveHook)
 	cfg.BehaviorConfig.SelectedStorageId = NewSetting(0, saveHook)
+	cfg.BehaviorConfig.KnownPlaylists = NewSetting([]PlaylistFilterEntry{}, saveHook)
 
 	cfg.StorageSettings = NewSetting(storageListConfig{}, saveHook)
 	cfg.AccountSettings = NewSetting(make(AccountMapConfig), saveHook)

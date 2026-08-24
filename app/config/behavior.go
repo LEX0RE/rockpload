@@ -22,6 +22,8 @@ type BehaviorConfig struct {
 
 	SelectedAccountId Setting[int] `json:"selected_account_id"`
 	SelectedStorageId Setting[int] `json:"selected_storage_id"`
+
+	KnownPlaylists Setting[[]PlaylistFilterEntry] `json:"known_playlists"`
 }
 
 type BehaviorSettingType int

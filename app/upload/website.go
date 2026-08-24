@@ -29,8 +29,9 @@ const (
 )
 
 type Website struct {
-	config  *config.StorageConfig
-	version string
+	config         *config.StorageConfig
+	version        string
+	knownPlaylists []config.PlaylistFilterEntry
 }
 
 type presignedUploadSession struct {
@@ -45,8 +46,8 @@ type presignedUploadStatus struct {
 	RejectionReason *string             `json:"rejectionReason"`
 }
 
-func NewWebsite(config *config.StorageConfig, version string) *Website {
-	return &Website{config: config, version: version}
+func NewWebsite(config *config.StorageConfig, version string, knownPlaylists []config.PlaylistFilterEntry) *Website {
+	return &Website{config: config, version: version, knownPlaylists: knownPlaylists}
 }
 
 func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error {
@@ -106,7 +107,7 @@ func (w *Website) uploadMultipart(filePath string, replayUpload ReplayUpload) er
 		}
 	}
 
-	fileName := replayUploadFileName(filePath, w.config.TemplateName, replayUpload)
+	fileName := replayUploadFileName(filePath, w.config.TemplateName, replayUpload, w.knownPlaylists)
 	part, err := writer.CreateFormFile("file", fileName)
 	if err != nil {
 		return err

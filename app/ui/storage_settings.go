@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"io"
 	"log/slog"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
@@ -23,7 +25,10 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-const testPingResultDisplayDuration = 3 * time.Second
+const (
+	testPingResultDisplayDuration = 3 * time.Second
+	playlistSearchMaxResults      = 5
+)
 
 func parseHelpURL(raw string) (*url.URL, bool) {
 	if strings.TrimSpace(raw) == "" {
@@ -38,48 +43,86 @@ func parseHelpURL(raw string) (*url.URL, bool) {
 	return parsed, true
 }
 
-type StorageInfoContainer struct {
-	titleLabel        *widget.Label
-	descContainer     *fyne.Container
-	urlEntry          *widget.Entry
-	uploadStyleSelect *widget.Select
-	pingStyleSelect   *widget.Select
-	uriParamsEntry    *widget.Entry
-	tokenStyleSelect  *widget.Select
-	tokenEntry        *widget.Entry
-	pingPathEntry     *widget.Entry
-	pingProbeIDEntry  *widget.Entry
-	replayPathEntry   *widget.Entry
-	templateNameEntry *widget.Entry
-	liveStyleSelect   *widget.Select
-	livePathEntry     *widget.Entry
-	renameStyleSelect *widget.Select
-	renamePathEntry   *widget.Entry
-	helpLink          *widget.Hyperlink
-	testPingBtn       *widget.Button
+type playlistFilterBox struct {
+	widget.DisableableWidget
 
-	urlForm          *widget.FormItem
-	uploadStyleForm  *widget.FormItem
-	pingStyleForm    *widget.FormItem
-	uriParamsForm    *widget.FormItem
-	tokenStyleForm   *widget.FormItem
-	tokenForm        *widget.FormItem
-	pingPathForm     *widget.FormItem
-	pingProbeIDForm  *widget.FormItem
-	replayPathForm   *widget.FormItem
-	templateNameForm *widget.FormItem
-	liveStyleForm    *widget.FormItem
-	livePathForm     *widget.FormItem
-	renameStyleForm  *widget.FormItem
-	renamePathForm   *widget.FormItem
+	content     fyne.CanvasObject
+	searchEntry *widget.Entry
+}
+
+func newPlaylistFilterBox(content fyne.CanvasObject, searchEntry *widget.Entry) *playlistFilterBox {
+	b := &playlistFilterBox{content: content, searchEntry: searchEntry}
+	b.ExtendBaseWidget(b)
+
+	return b
+}
+
+func (b *playlistFilterBox) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(b.content)
+}
+
+func (b *playlistFilterBox) Enable() {
+	b.DisableableWidget.Enable()
+	b.searchEntry.Enable()
+}
+
+func (b *playlistFilterBox) Disable() {
+	b.DisableableWidget.Disable()
+	b.searchEntry.Disable()
+}
+
+type StorageInfoContainer struct {
+	titleLabel                *widget.Label
+	descContainer             *fyne.Container
+	urlEntry                  *widget.Entry
+	uploadStyleSelect         *widget.Select
+	pingStyleSelect           *widget.Select
+	uriParamsEntry            *widget.Entry
+	tokenStyleSelect          *widget.Select
+	tokenEntry                *widget.Entry
+	pingPathEntry             *widget.Entry
+	pingProbeIDEntry          *widget.Entry
+	replayPathEntry           *widget.Entry
+	templateNameEntry         *widget.Entry
+	liveStyleSelect           *widget.Select
+	livePathEntry             *widget.Entry
+	renameStyleSelect         *widget.Select
+	renamePathEntry           *widget.Entry
+	helpLink                  *widget.Hyperlink
+	testPingBtn               *widget.Button
+	playlistFilterStyleSelect *widget.Select
+	playlistListBox           *fyne.Container
+	playlistSearchEntry       *widget.Entry
+	playlistSearchResults     *fyne.Container
+	playlistFilterContainer   *playlistFilterBox
+
+	urlForm                 *widget.FormItem
+	uploadStyleForm         *widget.FormItem
+	pingStyleForm           *widget.FormItem
+	uriParamsForm           *widget.FormItem
+	tokenStyleForm          *widget.FormItem
+	tokenForm               *widget.FormItem
+	pingPathForm            *widget.FormItem
+	pingProbeIDForm         *widget.FormItem
+	replayPathForm          *widget.FormItem
+	templateNameForm        *widget.FormItem
+	liveStyleForm           *widget.FormItem
+	livePathForm            *widget.FormItem
+	renameStyleForm         *widget.FormItem
+	renamePathForm          *widget.FormItem
+	playlistFilterStyleForm *widget.FormItem
+	playlistFilterForm      *widget.FormItem
+	bottomSpacerForm        *widget.FormItem
 }
 
 type StorageSettingsPopup struct {
 	*Popup
 
-	version        string
-	currentWebsite config.StorageConfig
-	testPingGen    int
+	version           string
+	currentWebsite    config.StorageConfig
+	testPingGen       int
+	playlistAvailable []config.PlaylistFilterEntry
+	selectedPlaylists []config.PlaylistFilterEntry
 
 	infoContainer StorageInfoContainer
 	btnDelete     *widget.Button
@@ -227,6 +270,28 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 
 	wsp.infoContainer.testPingBtn = widget.NewButtonWithIcon("Test Ping", theme.ViewRefreshIcon(), wsp.onTestPingBtn)
 
+	wsp.infoContainer.playlistFilterStyleSelect = widget.NewSelect(config.PlaylistFilterStyleLabels[:], func(v string) {
+		wsp.currentWebsite.PlaylistFilterStyle = config.PlaylistFilterStyleFromLabel(v)
+		wsp.reload()
+	})
+
+	wsp.infoContainer.playlistListBox = container.NewVBox()
+
+	wsp.infoContainer.playlistSearchResults = container.NewVBox()
+
+	wsp.infoContainer.playlistSearchEntry = widget.NewEntry()
+	wsp.infoContainer.playlistSearchEntry.SetPlaceHolder("Search playlists to add...")
+	wsp.infoContainer.playlistSearchEntry.OnChanged = func(_ string) {
+		wsp.refreshPlaylistSearchResults()
+	}
+
+	playlistContent := container.NewVBox(
+		wsp.infoContainer.playlistListBox,
+		wsp.infoContainer.playlistSearchEntry,
+		wsp.infoContainer.playlistSearchResults,
+	)
+	wsp.infoContainer.playlistFilterContainer = newPlaylistFilterBox(playlistContent, wsp.infoContainer.playlistSearchEntry)
+
 	wsp.infoContainer.liveStyleSelect = widget.NewSelect(config.LiveStyleLabels[:], func(v string) {
 		wsp.currentWebsite.LiveStyle = config.LiveStyleFromLabel(v)
 		wsp.reload()
@@ -256,6 +321,12 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.livePathForm = widget.NewFormItem("Live Path", wsp.infoContainer.livePathEntry)
 	wsp.infoContainer.renameStyleForm = widget.NewFormItem("Rename Style", wsp.infoContainer.renameStyleSelect)
 	wsp.infoContainer.renamePathForm = widget.NewFormItem("Rename Path", wsp.infoContainer.renamePathEntry)
+	wsp.infoContainer.playlistFilterStyleForm = widget.NewFormItem("Playlist Filter", wsp.infoContainer.playlistFilterStyleSelect)
+	wsp.infoContainer.playlistFilterForm = widget.NewFormItem("Playlists", wsp.infoContainer.playlistFilterContainer)
+
+	bottomSpacer := canvas.NewRectangle(color.Transparent)
+	bottomSpacer.SetMinSize(fyne.NewSize(0, widget.NewButton("Playlist", nil).MinSize().Height))
+	wsp.infoContainer.bottomSpacerForm = widget.NewFormItem("", bottomSpacer)
 
 	return widget.NewForm(
 		wsp.infoContainer.uploadStyleForm,
@@ -272,6 +343,9 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 		wsp.infoContainer.uriParamsForm,
 		wsp.infoContainer.liveStyleForm,
 		wsp.infoContainer.livePathForm,
+		wsp.infoContainer.playlistFilterStyleForm,
+		wsp.infoContainer.playlistFilterForm,
+		wsp.infoContainer.bottomSpacerForm,
 	)
 }
 
@@ -285,16 +359,146 @@ func (wsp *StorageSettingsPopup) currentPreset() *config.StorageConfig {
 	return config.STORAGE_PRESET[wsp.currentWebsite.Name]
 }
 
+func (wsp *StorageSettingsPopup) reloadPlaylistOptions() {
+	logger.FuncDebug()
+
+	knownPlaylists := wsp.appConfig.BehaviorConfig.KnownPlaylists.Get()
+
+	idSet := make(map[int]bool)
+	for _, entry := range knownPlaylists {
+		idSet[entry.ID] = true
+	}
+	for _, entry := range wsp.currentWebsite.FilteredPlaylists {
+		idSet[entry.ID] = true
+	}
+	for _, entry := range wsp.selectedPlaylists {
+		idSet[entry.ID] = true
+	}
+
+	selectedSet := make(map[int]bool, len(wsp.selectedPlaylists))
+	for _, entry := range wsp.selectedPlaylists {
+		selectedSet[entry.ID] = true
+	}
+
+	ids := make([]int, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+
+	available := make([]config.PlaylistFilterEntry, 0, len(ids))
+	for _, id := range ids {
+		if selectedSet[id] {
+			continue
+		}
+
+		available = append(available, config.PlaylistFilterEntry{ID: id, Name: config.PlaylistDisplayName(id, knownPlaylists)})
+	}
+
+	wsp.playlistAvailable = available
+
+	wsp.renderSelectedPlaylists()
+	wsp.refreshPlaylistSearchResults()
+}
+
+func (wsp *StorageSettingsPopup) refreshPlaylistSearchResults() {
+	logger.FuncDebug()
+
+	wsp.infoContainer.playlistSearchResults.RemoveAll()
+
+	query := strings.TrimSpace(strings.ToLower(wsp.infoContainer.playlistSearchEntry.Text))
+	if query == "" {
+		wsp.infoContainer.playlistSearchResults.Refresh()
+		return
+	}
+
+	matches := make([]config.PlaylistFilterEntry, 0, len(wsp.playlistAvailable))
+	for _, entry := range wsp.playlistAvailable {
+		if strings.Contains(strings.ToLower(entry.Name), query) {
+			matches = append(matches, entry)
+		}
+	}
+
+	shown := min(len(matches), playlistSearchMaxResults)
+	for _, entry := range matches[:shown] {
+		id := entry.ID
+
+		addBtn := widget.NewButton(entry.Name, func() {
+			wsp.addSelectedPlaylist(id)
+		})
+		addBtn.Alignment = widget.ButtonAlignLeading
+		wsp.infoContainer.playlistSearchResults.Add(addBtn)
+	}
+
+	if len(matches) > shown {
+		wsp.infoContainer.playlistSearchResults.Add(widget.NewLabel(fmt.Sprintf("+%d more, refine your search", len(matches)-shown)))
+	} else if len(matches) == 0 {
+		wsp.infoContainer.playlistSearchResults.Add(widget.NewLabel("No matching playlist"))
+	}
+
+	wsp.infoContainer.playlistSearchResults.Refresh()
+}
+
+func (wsp *StorageSettingsPopup) renderSelectedPlaylists() {
+	logger.FuncDebug()
+
+	knownPlaylists := wsp.appConfig.BehaviorConfig.KnownPlaylists.Get()
+
+	sorted := slices.Clone(wsp.selectedPlaylists)
+	slices.SortFunc(sorted, func(a, b config.PlaylistFilterEntry) int { return a.ID - b.ID })
+
+	wsp.infoContainer.playlistListBox.RemoveAll()
+	for _, entry := range sorted {
+		id := entry.ID
+
+		removeBtn := widget.NewButtonWithIcon("", theme.ContentRemoveIcon(), func() {
+			wsp.removeSelectedPlaylist(id)
+		})
+		removeBtn.Importance = widget.LowImportance
+
+		row := container.NewBorder(nil, nil, nil, removeBtn, widget.NewLabel(config.PlaylistDisplayName(id, knownPlaylists)))
+		wsp.infoContainer.playlistListBox.Add(row)
+	}
+
+	wsp.infoContainer.playlistListBox.Refresh()
+}
+
+func (wsp *StorageSettingsPopup) addSelectedPlaylist(id int) {
+	logger.FuncDebug()
+
+	if slices.ContainsFunc(wsp.selectedPlaylists, func(entry config.PlaylistFilterEntry) bool { return entry.ID == id }) {
+		return
+	}
+
+	name := config.PlaylistDisplayName(id, wsp.appConfig.BehaviorConfig.KnownPlaylists.Get())
+	wsp.selectedPlaylists = append(wsp.selectedPlaylists, config.PlaylistFilterEntry{ID: id, Name: name})
+
+	wsp.infoContainer.playlistSearchEntry.SetText("")
+	wsp.reloadPlaylistOptions()
+}
+
+func (wsp *StorageSettingsPopup) removeSelectedPlaylist(id int) {
+	logger.FuncDebug()
+
+	wsp.selectedPlaylists = slices.DeleteFunc(wsp.selectedPlaylists, func(entry config.PlaylistFilterEntry) bool {
+		return entry.ID == id
+	})
+	wsp.reloadPlaylistOptions()
+}
+
 func (wsp *StorageSettingsPopup) reloadOptions() {
 	logger.FuncDebug()
 
 	preset := wsp.currentPreset()
 	if preset == nil {
+		wsp.reloadPlaylistOptions()
+
 		wsp.infoContainer.uploadStyleSelect.SetOptions(config.UploadStyleLabels[:])
 		wsp.infoContainer.pingStyleSelect.SetOptions(config.PingStyleLabels[:])
 		wsp.infoContainer.tokenStyleSelect.SetOptions(config.TokenStyleLabels[:])
 		wsp.infoContainer.liveStyleSelect.SetOptions(config.LiveStyleLabels[:])
 		wsp.infoContainer.renameStyleSelect.SetOptions(config.RenameStyleLabels[:])
+		wsp.infoContainer.playlistFilterStyleSelect.SetOptions(config.PlaylistFilterStyleLabels[:])
 		return
 	}
 
@@ -331,6 +535,8 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 
 	wsp.appConfig.BehaviorConfig.SelectedStorageId.Set(formatedId)
 	wsp.currentWebsite = *storages[formatedId]
+	wsp.selectedPlaylists = slices.Clone(wsp.currentWebsite.FilteredPlaylists)
+	wsp.infoContainer.playlistSearchEntry.SetText("")
 	wsp.resetTestPingBtn()
 	wsp.reloadOptions()
 
@@ -351,6 +557,7 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	wsp.infoContainer.livePathEntry.SetText(wsp.currentWebsite.LivePath)
 	wsp.infoContainer.renameStyleSelect.SetSelected(wsp.currentWebsite.RenameStyle.Label())
 	wsp.infoContainer.renamePathEntry.SetText(wsp.currentWebsite.RenamePath)
+	wsp.infoContainer.playlistFilterStyleSelect.SetSelected(wsp.currentWebsite.PlaylistFilterStyle.Label())
 
 	var paramsStr strings.Builder
 	for k, v := range wsp.currentWebsite.URIParams {
@@ -384,6 +591,11 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	wsp.infoContainer.pingPathForm.Widget.Show()
 	wsp.infoContainer.pingProbeIDForm.Widget.Show()
 	wsp.infoContainer.testPingBtn.Show()
+	wsp.infoContainer.playlistFilterStyleForm.Widget.Show()
+	wsp.infoContainer.playlistFilterForm.Widget.Show()
+	wsp.infoContainer.playlistListBox.Show()
+	wsp.infoContainer.playlistSearchEntry.Show()
+	wsp.infoContainer.playlistSearchResults.Show()
 	wsp.infoContainer.replayPathForm.Widget.Show()
 	wsp.infoContainer.templateNameForm.Widget.Show()
 	wsp.infoContainer.liveStyleForm.Widget.Show()
@@ -469,6 +681,18 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.renamePathForm.Widget.Hide()
 	}
 
+	switch wsp.currentWebsite.PlaylistFilterStyle {
+	case config.PlaylistFilterWhitelist, config.PlaylistFilterBlacklist:
+	default:
+		fallthrough
+	case config.PlaylistFilterDisabled, config.PlaylistFilterFollowAny:
+		wsp.infoContainer.playlistListBox.Hide()
+		wsp.infoContainer.playlistSearchEntry.Hide()
+		wsp.infoContainer.playlistSearchResults.Hide()
+	}
+
+	wsp.infoContainer.playlistFilterContainer.Refresh()
+
 	if wsp.currentWebsite.IsPredefined {
 		if wsp.currentWebsite.IsPrimary {
 			wsp.infoContainer.templateNameForm.Widget.Hide()
@@ -497,6 +721,8 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 	wsp.infoContainer.livePathEntry.Enable()
 	wsp.infoContainer.renameStyleSelect.Enable()
 	wsp.infoContainer.renamePathEntry.Enable()
+	wsp.infoContainer.playlistFilterStyleSelect.Enable()
+	wsp.infoContainer.playlistFilterContainer.Enable()
 
 	if !wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
 		wsp.infoContainer.liveStyleSelect.Disable()
@@ -551,6 +777,8 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 			wsp.infoContainer.templateNameEntry.Disable()
 			wsp.infoContainer.replayPathEntry.Disable()
 			wsp.infoContainer.renameStyleSelect.Disable()
+			wsp.infoContainer.playlistFilterStyleSelect.Disable()
+			wsp.infoContainer.playlistFilterContainer.Disable()
 		} else if preset := wsp.currentPreset(); preset != nil && preset.UploadStyle != config.LocalFileCopy {
 			wsp.infoContainer.replayPathEntry.Disable()
 		}
@@ -584,6 +812,10 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	wsp.infoContainer.livePathEntry.SetText("")
 	wsp.infoContainer.renameStyleSelect.ClearSelected()
 	wsp.infoContainer.renamePathEntry.SetText("")
+	wsp.infoContainer.playlistFilterStyleSelect.ClearSelected()
+	wsp.infoContainer.playlistSearchEntry.SetText("")
+	wsp.selectedPlaylists = nil
+	wsp.reloadPlaylistOptions()
 	wsp.resetTestPingBtn()
 
 	wsp.btnDelete.Disable()
@@ -629,6 +861,17 @@ func (wsp *StorageSettingsPopup) formToConfig() config.StorageConfig {
 	}
 	cfg.URIParams = newParams
 
+	cfg.PlaylistFilterStyle = config.PlaylistFilterStyleFromLabel(wsp.infoContainer.playlistFilterStyleSelect.Selected)
+
+	switch cfg.PlaylistFilterStyle {
+	case config.PlaylistFilterWhitelist, config.PlaylistFilterBlacklist:
+		sorted := slices.Clone(wsp.selectedPlaylists)
+		slices.SortFunc(sorted, func(a, b config.PlaylistFilterEntry) int { return a.ID - b.ID })
+		cfg.FilteredPlaylists = sorted
+	default:
+		cfg.FilteredPlaylists = nil
+	}
+
 	return cfg
 }
 
@@ -636,7 +879,7 @@ func (wsp *StorageSettingsPopup) runPingTest(cfg config.StorageConfig, onDone fu
 	logger.FuncDebug()
 
 	go func() {
-		err := upload.NewWebsite(&cfg, wsp.version).Ping()
+		err := upload.NewWebsite(&cfg, wsp.version, nil).Ping()
 
 		fyne.Do(func() {
 			onDone(err)
