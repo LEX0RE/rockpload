@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"io"
 	"log/slog"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
@@ -110,6 +112,7 @@ type StorageInfoContainer struct {
 	renamePathForm          *widget.FormItem
 	playlistFilterStyleForm *widget.FormItem
 	playlistFilterForm      *widget.FormItem
+	bottomSpacerForm        *widget.FormItem
 }
 
 type StorageSettingsPopup struct {
@@ -321,6 +324,10 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.playlistFilterStyleForm = widget.NewFormItem("Playlist Filter", wsp.infoContainer.playlistFilterStyleSelect)
 	wsp.infoContainer.playlistFilterForm = widget.NewFormItem("Playlists", wsp.infoContainer.playlistFilterContainer)
 
+	bottomSpacer := canvas.NewRectangle(color.Transparent)
+	bottomSpacer.SetMinSize(fyne.NewSize(0, widget.NewButton("Playlist", nil).MinSize().Height))
+	wsp.infoContainer.bottomSpacerForm = widget.NewFormItem("", bottomSpacer)
+
 	return widget.NewForm(
 		wsp.infoContainer.uploadStyleForm,
 		wsp.infoContainer.replayPathForm,
@@ -338,6 +345,7 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 		wsp.infoContainer.livePathForm,
 		wsp.infoContainer.playlistFilterStyleForm,
 		wsp.infoContainer.playlistFilterForm,
+		wsp.infoContainer.bottomSpacerForm,
 	)
 }
 
@@ -585,6 +593,9 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	wsp.infoContainer.testPingBtn.Show()
 	wsp.infoContainer.playlistFilterStyleForm.Widget.Show()
 	wsp.infoContainer.playlistFilterForm.Widget.Show()
+	wsp.infoContainer.playlistListBox.Show()
+	wsp.infoContainer.playlistSearchEntry.Show()
+	wsp.infoContainer.playlistSearchResults.Show()
 	wsp.infoContainer.replayPathForm.Widget.Show()
 	wsp.infoContainer.templateNameForm.Widget.Show()
 	wsp.infoContainer.liveStyleForm.Widget.Show()
@@ -670,10 +681,21 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.renamePathForm.Widget.Hide()
 	}
 
+	switch wsp.currentWebsite.PlaylistFilterStyle {
+	case config.PlaylistFilterWhitelist, config.PlaylistFilterBlacklist:
+	default:
+		fallthrough
+	case config.PlaylistFilterDisabled, config.PlaylistFilterFollowAny:
+		wsp.infoContainer.playlistListBox.Hide()
+		wsp.infoContainer.playlistSearchEntry.Hide()
+		wsp.infoContainer.playlistSearchResults.Hide()
+	}
+
+	wsp.infoContainer.playlistFilterContainer.Refresh()
+
 	if wsp.currentWebsite.IsPredefined {
 		if wsp.currentWebsite.IsPrimary {
 			wsp.infoContainer.templateNameForm.Widget.Hide()
-			wsp.infoContainer.playlistFilterForm.Widget.Hide()
 		}
 	}
 }
