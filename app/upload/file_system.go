@@ -12,11 +12,12 @@ import (
 )
 
 type FileSystem struct {
-	config *config.StorageConfig
+	config         *config.StorageConfig
+	knownPlaylists []config.PlaylistFilterEntry
 }
 
-func NewFileSystem(config *config.StorageConfig) *FileSystem {
-	return &FileSystem{config: config}
+func NewFileSystem(config *config.StorageConfig, knownPlaylists []config.PlaylistFilterEntry) *FileSystem {
+	return &FileSystem{config: config, knownPlaylists: knownPlaylists}
 }
 
 func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) error {
@@ -41,7 +42,7 @@ func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) e
 		return fmt.Errorf("failed to create destination folder: %w", err)
 	}
 
-	fileName := replayUploadFileName(filePath, fs.config.TemplateName, replayUpload)
+	fileName := replayUploadFileName(filePath, fs.config.TemplateName, replayUpload, fs.knownPlaylists)
 	destPath := filepath.Join(destFolder, fileName)
 
 	if _, err := os.Stat(destPath); err == nil {

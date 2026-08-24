@@ -50,6 +50,7 @@ func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 	am.AddPsyNetVersion(toRLVersionInfo(rlapi.NewPsyNet()))
 	am.AddPsyNetVersion(lastWorkingVersion)
 
+	am.seedKnownPlaylists()
 	am.RefreshProfile()
 
 	return am
@@ -254,8 +255,13 @@ func (am *AccountManager) RefreshMatchHistory(ac *rocket_network.Account) error 
 	_, err := tryRotatingPsyNet(am, func(psyNet *rlapi.PsyNet) (struct{}, error) {
 		return struct{}{}, ac.Player.GetInfo(psyNet)
 	})
+	if err != nil {
+		return err
+	}
 
-	return err
+	am.recordKnownPlaylists(ac.Player.MatchHistory)
+
+	return nil
 }
 
 func (am *AccountManager) RefreshInfo() {
@@ -267,10 +273,61 @@ func (am *AccountManager) RefreshInfo() {
 			continue
 		}
 
-		tryRotatingPsyNet(am, func(psyNet *rlapi.PsyNet) (struct{}, error) {
+		_, err := tryRotatingPsyNet(am, func(psyNet *rlapi.PsyNet) (struct{}, error) {
 			return struct{}{}, ac.Player.GetInfo(psyNet)
 		})
+		if err != nil {
+			continue
+		}
+
+		am.recordKnownPlaylists(ac.Player.MatchHistory)
 	}
+}
+
+func (am *AccountManager) recordKnownPlaylists(matchHistory []rlapi.MatchEntry) {
+	logger.FuncDebug()
+
+	ids := make([]int, 0, len(matchHistory))
+	for _, entry := range matchHistory {
+		ids = append(ids, entry.Match.Playlist)
+	}
+
+	am.mergeKnownPlaylistIDs(ids)
+}
+
+func (am *AccountManager) seedKnownPlaylists() {
+	logger.FuncDebug()
+
+	am.mergeKnownPlaylistIDs(constant.PredefinedPlaylistIDs)
+}
+
+func (am *AccountManager) mergeKnownPlaylistIDs(ids []int) {
+	logger.FuncDebug()
+
+	known := am.appConfig.BehaviorConfig.KnownPlaylists.Get()
+
+	knownSet := make(map[int]bool, len(known))
+	for _, entry := range known {
+		knownSet[entry.ID] = true
+	}
+
+	changed := false
+	for _, id := range ids {
+		if knownSet[id] {
+			continue
+		}
+
+		knownSet[id] = true
+		known = append(known, config.PlaylistFilterEntry{ID: id, Name: constant.PlaylistName(id)})
+		changed = true
+	}
+
+	if !changed {
+		return
+	}
+
+	slices.SortFunc(known, func(a, b config.PlaylistFilterEntry) int { return a.ID - b.ID })
+	am.appConfig.BehaviorConfig.KnownPlaylists.Set(known)
 }
 
 func (am *AccountManager) RefreshProfile() {

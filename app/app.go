@@ -205,6 +205,8 @@ func (a *App) initEvents() {
 	}})
 
 	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_FETCH_HISTORY, tools.Listener{IsSync: false, Callback: func(data any) {
+		gen := a.gui.SetFetchHistoryBusy()
+
 		go func() {
 			selectedAccount := a.accountManager.GetSelected()
 			err := a.accountManager.RefreshMatchHistory(selectedAccount)
@@ -214,6 +216,8 @@ func (a *App) initEvents() {
 			}
 
 			fyne.Do(func() {
+				a.gui.SetFetchHistoryResult(gen, err)
+
 				if err != nil {
 					dialog.ShowError(err, a.window)
 					return

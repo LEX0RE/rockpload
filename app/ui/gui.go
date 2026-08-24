@@ -35,6 +35,8 @@ const (
 	EVENT_CLICK_UPLOAD_MATCH  tools.EventType = "click_upload_match"
 
 	waitBeforeOpenBrowser = 5 * time.Second
+
+	fetchHistoryResultDisplayDuration = 3 * time.Second
 )
 
 type matchHistoryRow struct {
@@ -57,6 +59,8 @@ type GUI struct {
 	connectedLabel     *widget.Label
 	matchHistoryData   []matchHistoryRow
 	matchHistoryList   *widget.List
+	fetchHistoryBtn    *widget.Button
+	fetchHistoryGen    int
 	uploadStatus       *widget.Label
 	uploadProgress     *widget.ProgressBar
 	rlDetectedLabel    *fyne.Container
@@ -149,10 +153,11 @@ func (g *GUI) UpdateState() {
 			g.matchHistoryData = []matchHistoryRow{}
 
 			cacheSet := upload.LoadActiveUploadedCaches(g.appConfig.StorageSettings.Get(), len(g.appConfig.AccountSettings.Get()))
+			knownPlaylists := g.appConfig.BehaviorConfig.KnownPlaylists.Get()
 
 			for _, match := range selectedAccount.Player.CachedMatchHistory {
 				matchLabel := "[" + match.MatchGUID[:2] + "..." + match.MatchGUID[len(match.MatchGUID)-2:] + "] "
-				matchLabel += upload.PlaylistName(match.Playlist) + " • "
+				matchLabel += config.PlaylistDisplayName(match.Playlist, knownPlaylists) + " • "
 
 				matchDate := time.Unix(match.RecordStartTimestamp, 0).Format("2006-01-02 15:04")
 				matchScore := strconv.Itoa(match.Team0Score) + " - " + strconv.Itoa(match.Team1Score)
@@ -332,7 +337,7 @@ func (g *GUI) createPlayerUI() {
 		},
 	)
 
-	fetchHistoryBtn := widget.NewButton("Fetch Match History", func() {
+	g.fetchHistoryBtn = widget.NewButton("Fetch Match History", func() {
 		g.EventManager.Notify(EVENT_CLICK_FETCH_HISTORY, nil)
 	})
 
@@ -364,7 +369,7 @@ func (g *GUI) createPlayerUI() {
 		connectionContainer = container.NewBorder(nil, nil, g.connectedLabel, buttonContainer, nil)
 	}
 
-	matchHistoryBox := container.NewBorder(fetchHistoryBtn, nil, nil, nil, g.matchHistoryList)
+	matchHistoryBox := container.NewBorder(g.fetchHistoryBtn, nil, nil, nil, g.matchHistoryList)
 	matchHistoryAccordion := widget.NewAccordionItem("Match History", matchHistoryBox)
 	matchHistoryAccordion.Open = false
 
@@ -433,6 +438,52 @@ func (g *GUI) UpdateUploadProgress(progress float64) {
 	g.uploadProgress.SetValue(value)
 	g.uploadProgress.Show()
 	g.uploadStatus.SetText("Uploading replays...")
+}
+
+func (g *GUI) SetFetchHistoryBusy() int {
+	logger.FuncDebug()
+
+	g.fetchHistoryGen++
+	gen := g.fetchHistoryGen
+
+	g.fetchHistoryBtn.Importance = widget.MediumImportance
+	g.fetchHistoryBtn.SetIcon(theme.ViewRefreshIcon())
+	g.fetchHistoryBtn.SetText("Fetching...")
+	g.fetchHistoryBtn.Disable()
+
+	return gen
+}
+
+func (g *GUI) SetFetchHistoryResult(gen int, err error) {
+	logger.FuncDebug()
+
+	if gen != g.fetchHistoryGen {
+		return
+	}
+
+	if err != nil {
+		g.fetchHistoryBtn.Importance = widget.DangerImportance
+		g.fetchHistoryBtn.SetIcon(theme.ErrorIcon())
+		g.fetchHistoryBtn.SetText("Fetch Failed")
+	} else {
+		g.fetchHistoryBtn.Importance = widget.SuccessImportance
+		g.fetchHistoryBtn.SetIcon(theme.ConfirmIcon())
+		g.fetchHistoryBtn.SetText("Match History Refreshed")
+	}
+
+	g.fetchHistoryBtn.Enable()
+
+	time.AfterFunc(fetchHistoryResultDisplayDuration, func() {
+		fyne.Do(func() {
+			if gen != g.fetchHistoryGen {
+				return
+			}
+
+			g.fetchHistoryBtn.Importance = widget.MediumImportance
+			g.fetchHistoryBtn.SetIcon(nil)
+			g.fetchHistoryBtn.SetText("Fetch Match History")
+		})
+	})
 }
 
 func (g *GUI) lastUploadStatusText() string {

@@ -89,7 +89,7 @@ func GetPlayersSkills(rpc *rlapi.PsyNetRPC, playerIDs []rlapi.PlayerID) (players
 
 	playersSkills, err = rpc.GetPlayersSkills(apiCtx, playerIDs)
 	if err != nil {
-		logger.Rlogger.Error("Failed to get shops", slog.Any("error", err))
+		logger.Rlogger.Error("Failed to get players skills", slog.Any("error", err))
 		return nil, err
 	}
 

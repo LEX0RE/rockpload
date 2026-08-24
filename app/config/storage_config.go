@@ -9,26 +9,28 @@ import (
 )
 
 type StorageConfig struct {
-	Name         string            `json:"name" secret_id:"true"`
-	HelpText     string            `json:"help_text"`
-	HelpURL      string            `json:"help_url"`
-	UploadStyle  UploadStyleType   `json:"upload_style"`
-	ReplayPath   string            `json:"replay_path"`
-	TemplateName string            `json:"template_file"`
-	URL          string            `json:"url"`
-	IsPrimary    bool              `json:"-"`
-	IsPredefined bool              `json:"-"`
-	IsTemporary  bool              `json:"-"`
-	URIParams    map[string]string `json:"uri_params"`
-	TokenStyle   TokenStyleType    `json:"token_style"`
-	Token        string            `json:"token,omitempty" secret:"true"`
-	PingStyle    PingStyleType     `json:"ping_style"`
-	PingPath     string            `json:"ping_path"`
-	PingProbeID  string            `json:"ping_probe_id"`
-	LiveStyle    LiveStyleType     `json:"live_style"`
-	LivePath     string            `json:"live_path"`
-	RenameStyle  RenameStyleType   `json:"rename_style"`
-	RenamePath   string            `json:"rename_path"`
+	Name                string                  `json:"name" secret_id:"true"`
+	HelpText            string                  `json:"help_text"`
+	HelpURL             string                  `json:"help_url"`
+	UploadStyle         UploadStyleType         `json:"upload_style"`
+	ReplayPath          string                  `json:"replay_path"`
+	TemplateName        string                  `json:"template_file"`
+	URL                 string                  `json:"url"`
+	IsPrimary           bool                    `json:"-"`
+	IsPredefined        bool                    `json:"-"`
+	IsTemporary         bool                    `json:"-"`
+	URIParams           map[string]string       `json:"uri_params"`
+	TokenStyle          TokenStyleType          `json:"token_style"`
+	Token               string                  `json:"token,omitempty" secret:"true"`
+	PingStyle           PingStyleType           `json:"ping_style"`
+	PingPath            string                  `json:"ping_path"`
+	PingProbeID         string                  `json:"ping_probe_id"`
+	LiveStyle           LiveStyleType           `json:"live_style"`
+	LivePath            string                  `json:"live_path"`
+	RenameStyle         RenameStyleType         `json:"rename_style"`
+	RenamePath          string                  `json:"rename_path"`
+	PlaylistFilterStyle PlaylistFilterStyleType `json:"playlist_filter_style"`
+	FilteredPlaylists   []PlaylistFilterEntry   `json:"filtered_playlists,omitempty"`
 }
 
 var STORAGE_PRESET = map[string]*StorageConfig{
@@ -39,24 +41,25 @@ var STORAGE_PRESET = map[string]*StorageConfig{
 }
 
 var ROCKY_STORAGE = &StorageConfig{
-	Name:         "Rocky",
-	HelpText:     "Want to see the website? Click here",
-	HelpURL:      "https://lexore.ca/rocky",
-	URL:          "https://lexore.ca/rocky/api",
-	IsPrimary:    true,
-	IsPredefined: true,
-	IsTemporary:  false,
-	UploadStyle:  MultipartUpload,
-	URIParams:    map[string]string{},
-	TokenStyle:   NoToken,
-	Token:        "",
-	PingStyle:    PingDisabled,
-	PingPath:     "/",
-	ReplayPath:   "/upload",
-	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	LiveStyle:    LiveEnabled,
-	LivePath:     "/upload/live",
-	RenameStyle:  RenameDisabled,
+	Name:                "Rocky",
+	HelpText:            "Want to see the website? Click here",
+	HelpURL:             "https://lexore.ca/rocky",
+	URL:                 "https://lexore.ca/rocky/api",
+	IsPrimary:           true,
+	IsPredefined:        true,
+	IsTemporary:         false,
+	UploadStyle:         MultipartUpload,
+	URIParams:           map[string]string{},
+	TokenStyle:          NoToken,
+	Token:               "",
+	PingStyle:           PingDisabled,
+	PingPath:            "/",
+	ReplayPath:          "/upload",
+	TemplateName:        "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
+	LiveStyle:           LiveEnabled,
+	LivePath:            "/upload/live",
+	RenameStyle:         RenameDisabled,
+	PlaylistFilterStyle: PlaylistFilterFollowAny,
 }
 
 var BALLCHASING_STORAGE = &StorageConfig{
