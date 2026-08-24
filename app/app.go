@@ -43,6 +43,7 @@ type App struct {
 
 func NewApp(version string, app fyne.App) *App {
 	logger.FuncDebug()
+	logger.Rlogger.Info("Metadata", "version", version)
 
 	a := &App{version: version, app: app}
 
