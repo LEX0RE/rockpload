@@ -8,9 +8,11 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
+	"github.com/LEX0RE/rockpload/app/upload"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -20,6 +22,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
+
+const testPingResultDisplayDuration = 3 * time.Second
 
 func parseHelpURL(raw string) (*url.URL, bool) {
 	if strings.TrimSpace(raw) == "" {
@@ -52,6 +56,7 @@ type StorageInfoContainer struct {
 	renameStyleSelect *widget.Select
 	renamePathEntry   *widget.Entry
 	helpLink          *widget.Hyperlink
+	testPingBtn       *widget.Button
 
 	urlForm          *widget.FormItem
 	uploadStyleForm  *widget.FormItem
@@ -72,7 +77,9 @@ type StorageInfoContainer struct {
 type StorageSettingsPopup struct {
 	*Popup
 
+	version        string
 	currentWebsite config.StorageConfig
+	testPingGen    int
 
 	infoContainer StorageInfoContainer
 	btnDelete     *widget.Button
@@ -85,10 +92,10 @@ type StorageSettingsPopup struct {
 	editForm      *widget.Form
 }
 
-func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
+func NewStorageSettingsPopup(p *Popup, version string) *StorageSettingsPopup {
 	logger.FuncDebug()
 
-	wsp := &StorageSettingsPopup{Popup: p, infoContainer: StorageInfoContainer{}}
+	wsp := &StorageSettingsPopup{Popup: p, version: version, infoContainer: StorageInfoContainer{}}
 
 	wsp.btnSave = widget.NewButtonWithIcon("Save", theme.DocumentSaveIcon(), wsp.onSaveBtn)
 	wsp.btnSave.Importance = widget.HighImportance
@@ -104,9 +111,10 @@ func NewStorageSettingsPopup(p *Popup) *StorageSettingsPopup {
 	wsp.editForm = wsp.createInfoContainer()
 	scrollableForm := container.NewVScroll(wsp.editForm)
 	buttonsBox := container.NewHBox(wsp.btnExport, layout.NewSpacer(), wsp.btnSave, wsp.btnDelete)
+	titleBar := container.NewBorder(nil, nil, nil, wsp.infoContainer.testPingBtn, wsp.infoContainer.titleLabel)
 
 	wsp.detailPanel = container.NewBorder(
-		container.NewVBox(wsp.infoContainer.titleLabel, wsp.infoContainer.descContainer, widget.NewSeparator()),
+		container.NewVBox(titleBar, wsp.infoContainer.descContainer, widget.NewSeparator()),
 		buttonsBox,
 		nil, nil,
 		scrollableForm,
@@ -217,6 +225,8 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.pingPathEntry = widget.NewEntry()
 	wsp.infoContainer.pingProbeIDEntry = widget.NewEntry()
 
+	wsp.infoContainer.testPingBtn = widget.NewButtonWithIcon("Test Ping", theme.ViewRefreshIcon(), wsp.onTestPingBtn)
+
 	wsp.infoContainer.liveStyleSelect = widget.NewSelect(config.LiveStyleLabels[:], func(v string) {
 		wsp.currentWebsite.LiveStyle = config.LiveStyleFromLabel(v)
 		wsp.reload()
@@ -321,6 +331,7 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 
 	wsp.appConfig.BehaviorConfig.SelectedStorageId.Set(formatedId)
 	wsp.currentWebsite = *storages[formatedId]
+	wsp.resetTestPingBtn()
 	wsp.reloadOptions()
 
 	wsp.list.Select(formatedId)
@@ -372,6 +383,7 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	wsp.infoContainer.tokenForm.Widget.Show()
 	wsp.infoContainer.pingPathForm.Widget.Show()
 	wsp.infoContainer.pingProbeIDForm.Widget.Show()
+	wsp.infoContainer.testPingBtn.Show()
 	wsp.infoContainer.replayPathForm.Widget.Show()
 	wsp.infoContainer.templateNameForm.Widget.Show()
 	wsp.infoContainer.liveStyleForm.Widget.Show()
@@ -405,6 +417,7 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	case config.PingDisabled:
 		wsp.infoContainer.pingPathForm.Widget.Hide()
 		wsp.infoContainer.pingProbeIDForm.Widget.Hide()
+		wsp.infoContainer.testPingBtn.Hide()
 	}
 
 	switch wsp.currentWebsite.LiveStyle {
@@ -438,6 +451,7 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.pingStyleForm.Widget.Hide()
 		wsp.infoContainer.pingPathForm.Widget.Hide()
 		wsp.infoContainer.pingProbeIDForm.Widget.Hide()
+		wsp.infoContainer.testPingBtn.Hide()
 		wsp.infoContainer.liveStyleForm.Widget.Hide()
 		wsp.infoContainer.livePathForm.Widget.Hide()
 		wsp.infoContainer.renameStyleForm.Widget.Hide()
@@ -541,6 +555,11 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 			wsp.infoContainer.replayPathEntry.Disable()
 		}
 	}
+
+	wsp.infoContainer.testPingBtn.Enable()
+	if wsp.currentWebsite.PingStyle == config.PingDisabled || wsp.currentWebsite.UploadStyle == config.LocalFileCopy {
+		wsp.infoContainer.testPingBtn.Disable()
+	}
 }
 
 func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
@@ -565,40 +584,35 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	wsp.infoContainer.livePathEntry.SetText("")
 	wsp.infoContainer.renameStyleSelect.ClearSelected()
 	wsp.infoContainer.renamePathEntry.SetText("")
+	wsp.resetTestPingBtn()
 
 	wsp.btnDelete.Disable()
 	wsp.btnSave.Disable()
 	wsp.btnExport.Disable()
+	wsp.infoContainer.testPingBtn.Disable()
 }
 
-func (wsp *StorageSettingsPopup) onSaveBtn() {
+func (wsp *StorageSettingsPopup) formToConfig() config.StorageConfig {
 	logger.FuncDebug()
 
-	selectedIndex := wsp.appConfig.BehaviorConfig.SelectedStorageId.Get()
-	if selectedIndex < 0 {
-		return
-	}
+	cfg := wsp.currentWebsite
 
-	storages := wsp.appConfig.StorageSettings.Get()
-	selectedIndex = min(selectedIndex, len(storages)-1)
-	site := storages[selectedIndex]
+	cfg.URL = wsp.infoContainer.urlEntry.Text
+	cfg.UploadStyle = config.UploadStyleFromLabel(wsp.infoContainer.uploadStyleSelect.Selected)
+	cfg.PingStyle = config.PingStyleFromLabel(wsp.infoContainer.pingStyleSelect.Selected)
 
-	site.URL = wsp.infoContainer.urlEntry.Text
-	site.UploadStyle = config.UploadStyleFromLabel(wsp.infoContainer.uploadStyleSelect.Selected)
-	site.PingStyle = config.PingStyleFromLabel(wsp.infoContainer.pingStyleSelect.Selected)
-
-	site.TokenStyle = config.TokenStyleFromLabel(wsp.infoContainer.tokenStyleSelect.Selected)
-	site.Token = wsp.infoContainer.tokenEntry.Text
-	site.PingPath = wsp.infoContainer.pingPathEntry.Text
-	site.PingProbeID = wsp.infoContainer.pingProbeIDEntry.Text
-	site.ReplayPath = wsp.infoContainer.replayPathEntry.Text
-	site.TemplateName = wsp.infoContainer.templateNameEntry.Text
-	site.RenameStyle = config.RenameStyleFromLabel(wsp.infoContainer.renameStyleSelect.Selected)
-	site.RenamePath = wsp.infoContainer.renamePathEntry.Text
+	cfg.TokenStyle = config.TokenStyleFromLabel(wsp.infoContainer.tokenStyleSelect.Selected)
+	cfg.Token = wsp.infoContainer.tokenEntry.Text
+	cfg.PingPath = wsp.infoContainer.pingPathEntry.Text
+	cfg.PingProbeID = wsp.infoContainer.pingProbeIDEntry.Text
+	cfg.ReplayPath = wsp.infoContainer.replayPathEntry.Text
+	cfg.TemplateName = wsp.infoContainer.templateNameEntry.Text
+	cfg.RenameStyle = config.RenameStyleFromLabel(wsp.infoContainer.renameStyleSelect.Selected)
+	cfg.RenamePath = wsp.infoContainer.renamePathEntry.Text
 
 	if wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
-		site.LiveStyle = config.LiveStyleFromLabel(wsp.infoContainer.liveStyleSelect.Selected)
-		site.LivePath = wsp.infoContainer.livePathEntry.Text
+		cfg.LiveStyle = config.LiveStyleFromLabel(wsp.infoContainer.liveStyleSelect.Selected)
+		cfg.LivePath = wsp.infoContainer.livePathEntry.Text
 	}
 
 	newParams := make(map[string]string)
@@ -613,10 +627,148 @@ func (wsp *StorageSettingsPopup) onSaveBtn() {
 			}
 		}
 	}
-	site.URIParams = newParams
+	cfg.URIParams = newParams
 
+	return cfg
+}
+
+func (wsp *StorageSettingsPopup) runPingTest(cfg config.StorageConfig, onDone func(err error)) {
+	logger.FuncDebug()
+
+	go func() {
+		err := upload.NewWebsite(&cfg, wsp.version).Ping()
+
+		fyne.Do(func() {
+			onDone(err)
+		})
+	}()
+}
+
+func (wsp *StorageSettingsPopup) resetTestPingBtn() {
+	logger.FuncDebug()
+
+	wsp.testPingGen++
+
+	wsp.infoContainer.testPingBtn.Importance = widget.MediumImportance
+	wsp.infoContainer.testPingBtn.SetIcon(theme.ViewRefreshIcon())
+	wsp.infoContainer.testPingBtn.SetText("Test Ping")
+}
+
+func (wsp *StorageSettingsPopup) testPingBtnBusy() int {
+	logger.FuncDebug()
+
+	wsp.testPingGen++
+	gen := wsp.testPingGen
+
+	wsp.infoContainer.testPingBtn.Importance = widget.MediumImportance
+	wsp.infoContainer.testPingBtn.SetIcon(theme.ViewRefreshIcon())
+	wsp.infoContainer.testPingBtn.SetText("Testing...")
+	wsp.infoContainer.testPingBtn.Disable()
+
+	return gen
+}
+
+func (wsp *StorageSettingsPopup) testPingBtnResult(gen int, err error) {
+	logger.FuncDebug()
+
+	if gen != wsp.testPingGen {
+		return
+	}
+
+	if err != nil {
+		wsp.infoContainer.testPingBtn.Importance = widget.DangerImportance
+		wsp.infoContainer.testPingBtn.SetIcon(theme.ErrorIcon())
+		wsp.infoContainer.testPingBtn.SetText("Ping Failed")
+	} else {
+		wsp.infoContainer.testPingBtn.Importance = widget.SuccessImportance
+		wsp.infoContainer.testPingBtn.SetIcon(theme.ConfirmIcon())
+		wsp.infoContainer.testPingBtn.SetText("Ping OK")
+	}
+
+	wsp.reloadEnable()
+
+	time.AfterFunc(testPingResultDisplayDuration, func() {
+		fyne.Do(func() {
+			if gen != wsp.testPingGen {
+				return
+			}
+
+			wsp.resetTestPingBtn()
+			wsp.reloadEnable()
+		})
+	})
+}
+
+func (wsp *StorageSettingsPopup) onTestPingBtn() {
+	logger.FuncDebug()
+
+	cfg := wsp.formToConfig()
+	gen := wsp.testPingBtnBusy()
+
+	wsp.runPingTest(cfg, func(err error) {
+		wsp.testPingBtnResult(gen, err)
+
+		if err != nil && gen == wsp.testPingGen {
+			dialog.ShowError(err, wsp.parentWindow)
+		}
+	})
+}
+
+func (wsp *StorageSettingsPopup) onSaveBtn() {
+	logger.FuncDebug()
+
+	selectedIndex := wsp.appConfig.BehaviorConfig.SelectedStorageId.Get()
+	if selectedIndex < 0 {
+		return
+	}
+
+	storages := wsp.appConfig.StorageSettings.Get()
+	selectedIndex = min(selectedIndex, len(storages)-1)
+	site := storages[selectedIndex]
+
+	cfg := wsp.formToConfig()
+
+	if cfg.PingStyle == config.PingDisabled {
+		*site = cfg
+		wsp.persistSave(selectedIndex)
+		return
+	}
+
+	wsp.btnSave.Disable()
+	gen := wsp.testPingBtnBusy()
+
+	wsp.runPingTest(cfg, func(err error) {
+		wsp.testPingBtnResult(gen, err)
+
+		if err != nil {
+			if gen != wsp.testPingGen {
+				return
+			}
+
+			dialog.ShowConfirm("Ping test failed",
+				fmt.Sprintf("The ping test failed before saving:\n\n%s\n\nSave anyway?", err),
+				func(confirmed bool) {
+					if !confirmed {
+						return
+					}
+
+					*site = cfg
+					wsp.persistSave(selectedIndex)
+				}, wsp.parentWindow)
+			return
+		}
+
+		*site = cfg
+		wsp.persistSave(selectedIndex)
+	})
+}
+
+func (wsp *StorageSettingsPopup) persistSave(selectedIndex int) {
+	logger.FuncDebug()
+
+	storages := wsp.appConfig.StorageSettings.Get()
 	wsp.appConfig.StorageSettings.Set(storages)
-	wsp.currentWebsite = *wsp.appConfig.StorageSettings.Get()[selectedIndex]
+	wsp.currentWebsite = *storages[min(selectedIndex, len(storages)-1)]
 
 	wsp.reload()
 	wsp.list.Refresh()

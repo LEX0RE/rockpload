@@ -84,7 +84,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 	accountBtn := widget.NewButtonWithIcon("", theme.AccountIcon(), func() { accountPopup.Show() })
 	accountBtn.Importance = widget.LowImportance
 
-	StorageSettingsPopup := NewStorageSettingsPopup(NewPopup("Storage Settings", g.window, appConfig, accountManager))
+	StorageSettingsPopup := NewStorageSettingsPopup(NewPopup("Storage Settings", g.window, appConfig, accountManager), version)
 	storageSettingsBtn := widget.NewButtonWithIcon("", theme.StorageIcon(), func() { StorageSettingsPopup.Show() })
 	storageSettingsBtn.Importance = widget.LowImportance
 
