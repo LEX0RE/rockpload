@@ -74,6 +74,7 @@ func (b *playlistFilterBox) Disable() {
 type StorageInfoContainer struct {
 	titleLabel                *widget.Label
 	descContainer             *fyne.Container
+	enabledCheck              *widget.Check
 	urlEntry                  *widget.Entry
 	uploadStyleSelect         *widget.Select
 	pingStyleSelect           *widget.Select
@@ -154,7 +155,7 @@ func NewStorageSettingsPopup(p *Popup, version string) *StorageSettingsPopup {
 	wsp.editForm = wsp.createInfoContainer()
 	scrollableForm := container.NewVScroll(wsp.editForm)
 	buttonsBox := container.NewHBox(wsp.btnExport, layout.NewSpacer(), wsp.btnSave, wsp.btnDelete)
-	titleBar := container.NewBorder(nil, nil, nil, wsp.infoContainer.testPingBtn, wsp.infoContainer.titleLabel)
+	titleBar := container.NewBorder(nil, nil, wsp.infoContainer.enabledCheck, wsp.infoContainer.testPingBtn, wsp.infoContainer.titleLabel)
 
 	wsp.detailPanel = container.NewBorder(
 		container.NewVBox(titleBar, wsp.infoContainer.descContainer, widget.NewSeparator()),
@@ -173,7 +174,7 @@ func NewStorageSettingsPopup(p *Popup, version string) *StorageSettingsPopup {
 			site := wsp.appConfig.StorageSettings.Get()[i]
 
 			style := widget.RichTextStyleInline
-			if site.UploadStyle == config.UploadDisabled {
+			if !site.Enabled {
 				style.ColorName = theme.ColorNameError
 			} else {
 				style.ColorName = theme.ColorNameForeground
@@ -223,6 +224,11 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	logger.FuncDebug()
 
 	wsp.infoContainer.titleLabel = widget.NewLabelWithStyle("Select a storage", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+
+	wsp.infoContainer.enabledCheck = widget.NewCheck("Enabled", func(checked bool) {
+		wsp.currentWebsite.Enabled = checked
+		wsp.reload()
+	})
 
 	wsp.infoContainer.urlEntry = widget.NewEntry()
 
@@ -493,7 +499,7 @@ func (wsp *StorageSettingsPopup) reloadOptions() {
 	if preset == nil {
 		wsp.reloadPlaylistOptions()
 
-		wsp.infoContainer.uploadStyleSelect.SetOptions(config.UploadStyleLabels[:])
+		wsp.infoContainer.uploadStyleSelect.SetOptions(config.UploadStyleLabels[1:])
 		wsp.infoContainer.pingStyleSelect.SetOptions(config.PingStyleLabels[:])
 		wsp.infoContainer.tokenStyleSelect.SetOptions(config.TokenStyleLabels[:])
 		wsp.infoContainer.liveStyleSelect.SetOptions(config.LiveStyleLabels[:])
@@ -503,7 +509,6 @@ func (wsp *StorageSettingsPopup) reloadOptions() {
 	}
 
 	wsp.infoContainer.uploadStyleSelect.SetOptions([]string{
-		config.UploadDisabled.Label(),
 		preset.UploadStyle.Label(),
 	})
 	wsp.infoContainer.pingStyleSelect.SetOptions([]string{
@@ -543,6 +548,7 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	wsp.list.Select(formatedId)
 
 	wsp.infoContainer.titleLabel.SetText(wsp.currentWebsite.Name)
+	wsp.infoContainer.enabledCheck.SetChecked(wsp.currentWebsite.Enabled)
 	wsp.infoContainer.urlEntry.SetText(wsp.currentWebsite.URL)
 	wsp.infoContainer.uploadStyleSelect.SetSelected(wsp.currentWebsite.UploadStyle.Label())
 	wsp.infoContainer.pingStyleSelect.SetSelected(wsp.currentWebsite.PingStyle.Label())
@@ -603,6 +609,13 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	wsp.infoContainer.renameStyleForm.Widget.Show()
 	wsp.infoContainer.renamePathForm.Widget.Show()
 
+	if wsp.currentWebsite.Enabled {
+		wsp.infoContainer.titleLabel.Importance = widget.MediumImportance
+	} else {
+		wsp.infoContainer.titleLabel.Importance = widget.DangerImportance
+	}
+	wsp.infoContainer.titleLabel.Refresh()
+
 	wsp.infoContainer.helpLink.Text = wsp.currentWebsite.HelpText
 	wsp.infoContainer.helpLink.Refresh()
 
@@ -653,9 +666,16 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.renamePathForm.Widget.Hide()
 	}
 
-	switch wsp.currentWebsite.UploadStyle {
-	case config.MultipartUpload:
-	case config.LocalFileCopy:
+	switch {
+	case wsp.currentWebsite.Name == "":
+		fallthrough
+	default:
+		wsp.infoContainer.replayPathForm.Widget.Hide()
+		wsp.infoContainer.templateNameForm.Widget.Hide()
+		wsp.infoContainer.renameStyleForm.Widget.Hide()
+		wsp.infoContainer.renamePathForm.Widget.Hide()
+	case wsp.currentWebsite.UploadStyle == config.MultipartUpload:
+	case wsp.currentWebsite.UploadStyle == config.LocalFileCopy:
 		wsp.infoContainer.urlForm.Widget.Hide()
 		wsp.infoContainer.uriParamsForm.Widget.Hide()
 		wsp.infoContainer.tokenStyleForm.Widget.Hide()
@@ -668,14 +688,7 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.livePathForm.Widget.Hide()
 		wsp.infoContainer.renameStyleForm.Widget.Hide()
 		wsp.infoContainer.renamePathForm.Widget.Hide()
-	case config.PresignedSessionUpload:
-		wsp.infoContainer.templateNameForm.Widget.Hide()
-		wsp.infoContainer.renameStyleForm.Widget.Hide()
-		wsp.infoContainer.renamePathForm.Widget.Hide()
-	default:
-		fallthrough
-	case config.UploadDisabled:
-		wsp.infoContainer.replayPathForm.Widget.Hide()
+	case wsp.currentWebsite.UploadStyle == config.PresignedSessionUpload:
 		wsp.infoContainer.templateNameForm.Widget.Hide()
 		wsp.infoContainer.renameStyleForm.Widget.Hide()
 		wsp.infoContainer.renamePathForm.Widget.Hide()
@@ -707,6 +720,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 	wsp.btnDelete.Enable()
 	wsp.btnExport.Enable()
 
+	wsp.infoContainer.enabledCheck.Enable()
 	wsp.infoContainer.urlEntry.Enable()
 	wsp.infoContainer.uploadStyleSelect.Enable()
 	wsp.infoContainer.pingStyleSelect.Enable()
@@ -729,9 +743,16 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.infoContainer.livePathEntry.Disable()
 	}
 
-	switch wsp.currentWebsite.UploadStyle {
-	case config.MultipartUpload:
-	case config.LocalFileCopy:
+	switch {
+	case wsp.currentWebsite.Name == "":
+		fallthrough
+	default:
+		wsp.infoContainer.replayPathEntry.Disable()
+		wsp.infoContainer.templateNameEntry.Disable()
+		wsp.infoContainer.renameStyleSelect.Disable()
+		wsp.infoContainer.renamePathEntry.Disable()
+	case wsp.currentWebsite.UploadStyle == config.MultipartUpload:
+	case wsp.currentWebsite.UploadStyle == config.LocalFileCopy:
 		wsp.infoContainer.urlEntry.Disable()
 		wsp.infoContainer.uriParamsEntry.Disable()
 		wsp.infoContainer.tokenStyleSelect.Disable()
@@ -743,14 +764,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.infoContainer.livePathEntry.Disable()
 		wsp.infoContainer.renameStyleSelect.Disable()
 		wsp.infoContainer.renamePathEntry.Disable()
-	case config.PresignedSessionUpload:
-		wsp.infoContainer.templateNameEntry.Disable()
-		wsp.infoContainer.renameStyleSelect.Disable()
-		wsp.infoContainer.renamePathEntry.Disable()
-	default:
-		fallthrough
-	case config.UploadDisabled:
-		wsp.infoContainer.replayPathEntry.Disable()
+	case wsp.currentWebsite.UploadStyle == config.PresignedSessionUpload:
 		wsp.infoContainer.templateNameEntry.Disable()
 		wsp.infoContainer.renameStyleSelect.Disable()
 		wsp.infoContainer.renamePathEntry.Disable()
@@ -760,6 +774,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.btnDelete.Disable()
 
 		wsp.infoContainer.urlEntry.Disable()
+		wsp.infoContainer.uploadStyleSelect.Disable()
 		wsp.infoContainer.tokenStyleSelect.Disable()
 		wsp.infoContainer.pingPathEntry.Disable()
 		wsp.infoContainer.pingProbeIDEntry.Disable()
@@ -770,7 +785,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		if wsp.currentWebsite.IsPrimary {
 			wsp.btnSave.Disable()
 			wsp.btnExport.Disable()
-			wsp.infoContainer.uploadStyleSelect.Disable()
+			wsp.infoContainer.enabledCheck.Disable()
 			wsp.infoContainer.pingStyleSelect.Disable()
 			wsp.infoContainer.uriParamsEntry.Disable()
 			wsp.infoContainer.tokenEntry.Disable()
@@ -795,9 +810,12 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 
 	wsp.appConfig.BehaviorConfig.SelectedStorageId.Set(-1)
 	wsp.infoContainer.titleLabel.SetText("Select a storage")
+	wsp.infoContainer.titleLabel.Importance = widget.MediumImportance
+	wsp.infoContainer.titleLabel.Refresh()
 
 	wsp.currentWebsite = config.StorageConfig{}
 
+	wsp.infoContainer.enabledCheck.SetChecked(false)
 	wsp.infoContainer.urlEntry.SetText("")
 	wsp.infoContainer.uploadStyleSelect.ClearSelected()
 	wsp.infoContainer.pingStyleSelect.ClearSelected()
@@ -822,6 +840,7 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	wsp.btnSave.Disable()
 	wsp.btnExport.Disable()
 	wsp.infoContainer.testPingBtn.Disable()
+	wsp.infoContainer.enabledCheck.Disable()
 }
 
 func (wsp *StorageSettingsPopup) formToConfig() config.StorageConfig {
@@ -829,6 +848,7 @@ func (wsp *StorageSettingsPopup) formToConfig() config.StorageConfig {
 
 	cfg := wsp.currentWebsite
 
+	cfg.Enabled = wsp.infoContainer.enabledCheck.Checked
 	cfg.URL = wsp.infoContainer.urlEntry.Text
 	cfg.UploadStyle = config.UploadStyleFromLabel(wsp.infoContainer.uploadStyleSelect.Selected)
 	cfg.PingStyle = config.PingStyleFromLabel(wsp.infoContainer.pingStyleSelect.Selected)
@@ -1034,7 +1054,8 @@ func (wsp *StorageSettingsPopup) onAddStorageBtn() {
 				URL:          "",
 				IsPrimary:    false,
 				IsPredefined: false,
-				UploadStyle:  config.UploadDisabled,
+				Enabled:      false,
+				UploadStyle:  config.MultipartUpload,
 				PingStyle:    config.PingDisabled,
 				TokenStyle:   config.NoToken,
 				LiveStyle:    config.LiveDisabled,

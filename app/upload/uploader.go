@@ -314,7 +314,7 @@ func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string
 	u.EventManager.Notify(EventUploadProgress, max(0, currentProgress-1)/maxProgress)
 
 	cfg := storage.GetConfig()
-	if cfg.UploadStyle == config.UploadDisabled {
+	if !cfg.Enabled {
 		return
 	}
 
@@ -371,7 +371,7 @@ func (u *Uploader) getStorages() []UploadStorage {
 	knownPlaylists := u.appConfig.BehaviorConfig.KnownPlaylists.Get()
 
 	for _, storageConfig := range u.appConfig.StorageSettings.Get() {
-		if storageConfig.UploadStyle == config.UploadDisabled {
+		if !storageConfig.Enabled {
 			continue
 		}
 

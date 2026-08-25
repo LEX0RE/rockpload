@@ -19,6 +19,7 @@ type StorageConfig struct {
 	IsPrimary           bool                    `json:"-"`
 	IsPredefined        bool                    `json:"-"`
 	IsTemporary         bool                    `json:"-"`
+	Enabled             bool                    `json:"enabled"`
 	URIParams           map[string]string       `json:"uri_params"`
 	TokenStyle          TokenStyleType          `json:"token_style"`
 	Token               string                  `json:"token,omitempty" secret:"true"`
@@ -48,6 +49,7 @@ var ROCKY_STORAGE = &StorageConfig{
 	IsPrimary:           true,
 	IsPredefined:        true,
 	IsTemporary:         false,
+	Enabled:             true,
 	UploadStyle:         MultipartUpload,
 	URIParams:           map[string]string{},
 	TokenStyle:          NoToken,
@@ -70,6 +72,7 @@ var BALLCHASING_STORAGE = &StorageConfig{
 	IsPrimary:    false,
 	IsPredefined: true,
 	IsTemporary:  false,
+	Enabled:      false,
 	URIParams:    map[string]string{"visibility": "public"},
 	TokenStyle:   RawToken,
 	Token:        "",
@@ -91,6 +94,7 @@ var BLAST_STORAGE = &StorageConfig{
 	IsPrimary:    false,
 	IsPredefined: true,
 	IsTemporary:  false,
+	Enabled:      false,
 	UploadStyle:  PresignedSessionUpload,
 	PingStyle:    PingNotFoundIsValid,
 	TokenStyle:   BearerToken,
@@ -113,6 +117,7 @@ var FILE_SYSTEM_STORAGE = &StorageConfig{
 	IsPrimary:    false,
 	IsPredefined: true,
 	IsTemporary:  false,
+	Enabled:      false,
 	URIParams:    map[string]string{},
 	TokenStyle:   NoToken,
 	Token:        "",
@@ -126,13 +131,14 @@ var FILE_SYSTEM_STORAGE = &StorageConfig{
 // Dev testing storage only
 var LOCALHOST_STORAGE = &StorageConfig{
 	Name:         LOCALHOST_NAME,
-	UploadStyle:  UploadDisabled,
+	UploadStyle:  MultipartUpload,
 	ReplayPath:   "/upload",
 	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	URL:          "http://localhost:3000",
 	IsPrimary:    false,
 	IsPredefined: false,
 	IsTemporary:  true,
+	Enabled:      false,
 	URIParams:    map[string]string{},
 	TokenStyle:   NoToken,
 	Token:        "",

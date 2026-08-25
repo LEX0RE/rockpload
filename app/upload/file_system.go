@@ -23,7 +23,7 @@ func NewFileSystem(config *config.StorageConfig, knownPlaylists []config.Playlis
 func (fs *FileSystem) UploadReplay(filePath string, replayUpload ReplayUpload) error {
 	logger.FuncDebug()
 
-	if fs.config.UploadStyle == config.UploadDisabled {
+	if !fs.config.Enabled {
 		return nil
 	}
 
