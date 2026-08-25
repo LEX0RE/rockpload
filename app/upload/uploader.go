@@ -137,6 +137,11 @@ func (u *Uploader) UploadLiveStats(liveStats *rocket_network.LiveStats) {
 		return
 	}
 
+	if liveStats == nil || liveStats.State == nil || liveStats.State.MatchGuid == "" {
+		logger.Rlogger.Debug("Skipping live stat upload, no matchGuid")
+		return
+	}
+
 	for _, storage := range u.getStorages() {
 		if storage.GetConfig().LiveStyle != config.LiveDisabled {
 			storage.UploadLive(liveStats)
