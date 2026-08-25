@@ -35,7 +35,6 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 	ballchasingIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == BALLCHASING_NAME })
 	if ballchasingIndex == -1 {
 		fresh := *BALLCHASING_STORAGE
-		fresh.UploadStyle = UploadDisabled
 		temp = append(temp, &fresh)
 	} else {
 		reconcilePreset(temp[ballchasingIndex], BALLCHASING_STORAGE)
@@ -44,7 +43,6 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 	blastIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == BLAST_NAME })
 	if blastIndex == -1 {
 		fresh := *BLAST_STORAGE
-		fresh.UploadStyle = UploadDisabled
 		temp = append(temp, &fresh)
 	} else {
 		reconcilePreset(temp[blastIndex], BLAST_STORAGE)
@@ -53,7 +51,6 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 	fileSystemIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == FILE_SYSTEM_NAME })
 	if fileSystemIndex == -1 {
 		fresh := *FILE_SYSTEM_STORAGE
-		fresh.UploadStyle = UploadDisabled
 		fresh.ReplayPath = constant.Paths.HomeDir
 		temp = append(temp, &fresh)
 	} else {
@@ -83,9 +80,7 @@ func reconcilePreset(sc *StorageConfig, preset *StorageConfig) {
 	sc.HelpText = preset.HelpText
 	sc.HelpURL = preset.HelpURL
 
-	if sc.UploadStyle != UploadDisabled && sc.UploadStyle != preset.UploadStyle {
-		sc.UploadStyle = preset.UploadStyle
-	}
+	sc.UploadStyle = preset.UploadStyle
 
 	if sc.PingStyle != PingDisabled && sc.PingStyle != preset.PingStyle {
 		sc.PingStyle = preset.PingStyle
@@ -99,14 +94,12 @@ func reconcilePreset(sc *StorageConfig, preset *StorageConfig) {
 type UploadStyleType int
 
 const (
-	UploadDisabled UploadStyleType = iota
-	LocalFileCopy
+	LocalFileCopy UploadStyleType = iota
 	MultipartUpload
 	PresignedSessionUpload
 )
 
 var UploadStyleLabels = [...]string{
-	UploadDisabled:         "Upload Disabled",
 	LocalFileCopy:          "Local File Copy",
 	MultipartUpload:        "Multipart Form POST",
 	PresignedSessionUpload: "Presigned Session (URL + status poll)",
@@ -116,7 +109,7 @@ func (s UploadStyleType) Label() string {
 	logger.FuncDebug()
 
 	if int(s) < 0 || int(s) >= len(UploadStyleLabels) {
-		return UploadStyleLabels[UploadDisabled]
+		return UploadStyleLabels[LocalFileCopy]
 	}
 
 	return UploadStyleLabels[s]
@@ -131,7 +124,7 @@ func UploadStyleFromLabel(label string) UploadStyleType {
 		}
 	}
 
-	return UploadDisabled
+	return LocalFileCopy
 }
 
 type PingStyleType int
@@ -364,13 +357,17 @@ func (a *AppConfig) migrateStorageStyles() (bool, error) {
 
 		site := a.StorageSettings.value[index]
 
-		site.UploadStyle = UploadDisabled
+		site.Enabled = legacy.SendReplay
 		if legacy.SendReplay {
 			if legacy.StorageType == legacyFileSystemStorageType {
 				site.UploadStyle = LocalFileCopy
 			} else {
 				site.UploadStyle = MultipartUpload
 			}
+		} else if preset, ok := STORAGE_PRESET[legacy.Name]; ok {
+			site.UploadStyle = preset.UploadStyle
+		} else {
+			site.UploadStyle = MultipartUpload
 		}
 
 		site.TokenStyle = NoToken
@@ -386,6 +383,78 @@ func (a *AppConfig) migrateStorageStyles() (bool, error) {
 		site.LiveStyle = LiveDisabled
 		if legacy.SendLive {
 			site.LiveStyle = LiveEnabled
+		}
+
+		migrated = true
+	}
+
+	return migrated, nil
+}
+
+// TODO Deprecated, previous storage schema had upload_style but no Enabled field
+func (a *AppConfig) migrateStorageEnabled() (bool, error) {
+	logger.FuncDebug()
+
+	data, err := os.ReadFile(constant.Paths.StorageSettingsFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	var rawEntries []json.RawMessage
+	if err := json.Unmarshal(data, &rawEntries); err != nil {
+		return false, nil
+	}
+
+	migrated := false
+	for _, rawEntry := range rawEntries {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(rawEntry, &fields); err != nil {
+			continue
+		}
+
+		if _, enabledPresent := fields["enabled"]; enabledPresent {
+			continue
+		}
+
+		uploadStyleRaw, hasUploadStyle := fields["upload_style"]
+		if !hasUploadStyle {
+			// Predates upload_style entirely; migrateStorageStyles handles this tier.
+			continue
+		}
+
+		var name string
+		if raw, ok := fields["name"]; ok {
+			_ = json.Unmarshal(raw, &name)
+		}
+
+		index := slices.IndexFunc(a.StorageSettings.value, func(c *StorageConfig) bool { return c.Name == name })
+		if index == -1 {
+			continue
+		}
+
+		var legacyUploadStyle int
+		_ = json.Unmarshal(uploadStyleRaw, &legacyUploadStyle)
+
+		site := a.StorageSettings.value[index]
+
+		site.Enabled = legacyUploadStyle != 0
+
+		switch legacyUploadStyle {
+		case 1:
+			site.UploadStyle = LocalFileCopy
+		case 2:
+			site.UploadStyle = MultipartUpload
+		case 3:
+			site.UploadStyle = PresignedSessionUpload
+		default:
+			if preset, ok := STORAGE_PRESET[name]; ok {
+				site.UploadStyle = preset.UploadStyle
+			} else {
+				site.UploadStyle = MultipartUpload
+			}
 		}
 
 		migrated = true

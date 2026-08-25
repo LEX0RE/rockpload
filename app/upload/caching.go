@@ -33,7 +33,7 @@ func LoadActiveUploadedCaches(storageConfigs []*config.StorageConfig, nAccount i
 
 	set := &UploadedCacheSet{}
 	for _, storageConfig := range storageConfigs {
-		if storageConfig.UploadStyle == config.UploadDisabled {
+		if !storageConfig.Enabled {
 			continue
 		}
 

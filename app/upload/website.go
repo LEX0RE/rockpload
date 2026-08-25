@@ -53,7 +53,7 @@ func NewWebsite(config *config.StorageConfig, version string, knownPlaylists []c
 func (w *Website) UploadReplay(filePath string, replayUpload ReplayUpload) error {
 	logger.FuncDebug()
 
-	if w.config.UploadStyle == config.UploadDisabled {
+	if !w.config.Enabled {
 		return nil
 	}
 

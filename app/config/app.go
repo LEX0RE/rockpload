@@ -153,7 +153,13 @@ func (a *AppConfig) migrateDepreciated(prefs fyne.Preferences) error {
 		return err
 	}
 
-	if modified || storageModified {
+	// TODO Deprecated, previous storage settings without an Enabled field
+	enabledModified, err := a.migrateStorageEnabled()
+	if err != nil {
+		return err
+	}
+
+	if modified || storageModified || enabledModified {
 		a.Save()
 	}
 
