@@ -32,7 +32,18 @@ fi
 if [[ ! "$ANDROID_APP_VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
     ANDROID_APP_VERSION="0.0.1"
 fi
-APP_BUILD="${ANDROID_APP_BUILD:-1}"
+
+IFS='.' read -r -a VERSION_PARTS <<< "$ANDROID_APP_VERSION"
+VERSION_MAJOR="${VERSION_PARTS[0]:-0}"
+VERSION_MINOR="${VERSION_PARTS[1]:-0}"
+VERSION_PATCH="${VERSION_PARTS[2]:-0}"
+if [ "$VERSION_MINOR" -ge 100 ] || [ "$VERSION_PATCH" -ge 100 ]; then
+    echo "ANDROID_APP_VERSION=$ANDROID_APP_VERSION has a minor or patch >= 100." >&2
+    echo "The versionCode formula (major*10000 + minor*100 + patch) can't represent that without colliding with the next major/minor. Widen the formula before releasing." >&2
+    exit 1
+fi
+DEFAULT_APP_BUILD=$((VERSION_MAJOR * 10000 + VERSION_MINOR * 100 + VERSION_PATCH))
+APP_BUILD="${ANDROID_APP_BUILD:-$DEFAULT_APP_BUILD}"
 OUTPUT="$RELEASE_PATH/${PACKAGE_NAME}_${VERSION_CLEAN}-android.apk"
 
 mkdir -p "$RELEASE_PATH"
