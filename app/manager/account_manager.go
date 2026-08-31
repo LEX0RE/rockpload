@@ -168,7 +168,7 @@ func (am *AccountManager) GetActives() []*rocket_network.Account {
 
 	actives := make([]*rocket_network.Account, 0, len(am.appConfig.AccountSettings.Get()))
 	for _, ac := range am.appConfig.AccountSettings.Get() {
-		if ac.IsUnused {
+		if ac.IsUnused || !ac.Player.IsAuthenticated() {
 			continue
 		}
 
