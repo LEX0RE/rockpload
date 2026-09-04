@@ -127,7 +127,7 @@ github.com/chromedp/chromedp/kb
 # github.com/chromedp/sysutil v1.1.0
 ## explicit; go 1.23
 github.com/chromedp/sysutil
-# github.com/dank/rlapi v0.1.22
+# github.com/dank/rlapi v0.1.23
 ## explicit; go 1.24.5
 github.com/dank/rlapi
 # github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2
