@@ -19,8 +19,9 @@ import (
 
 const (
 	baseURL      = "https://api.rlpp.psynet.gg/rpc"
-	gameVersion  = "260825.79374.526531"
-	featureSet   = "PrimeUpdate59_1"
+	gameVersion  = "260918.75141.528314"
+	featureSet   = "PrimeUpdate60"
+	buildSecret  = "ce31914a39dbf2f3ab13ea54d00b7fe87bc5473a2f04707d78de54039ded8951"
 	psySigKey    = "c338bd36fb8c42b1a431d30add939fc7"
 	pingInterval = 20 * time.Second
 	pongTimeout  = 10 * time.Second
@@ -143,6 +144,7 @@ func (p *PsyNet) postJSON(path []string, params interface{}, result interface{})
 	req.Header.Set("PsyEnvironment", "Prod")
 	req.Header.Set("PsyRequestID", p.requestID.getID())
 	req.Header.Set("PsySig", generatePsySig(body))
+	req.Header.Set("PsyBuildSecret", buildSecret)
 
 	resp, err := p.client.Do(req)
 	if err != nil {

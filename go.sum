@@ -12,6 +12,8 @@ github.com/chromedp/sysutil v1.1.0 h1:PUFNv5EcprjqXZD9nJb9b/c9ibAbxiYo4exNWZyipw
 github.com/chromedp/sysutil v1.1.0/go.mod h1:WiThHUdltqCNKGc4gaU50XgYjwjYIhKWoHGPTUfWTJ8=
 github.com/dank/rlapi v0.1.24 h1:mGMsWVnUX4eOH1p34Wt724GaMkoBXm/9mJhvz7jJhcA=
 github.com/dank/rlapi v0.1.24/go.mod h1:Ni9EDtQdYIjBGYola2qbdDDqTl9+x5zI5eC3p0P+04w=
+github.com/dank/rlapi v0.1.26 h1:EAsS6fENvLdg4GZ0Lj/4RD0hL2wewbbdCw839FiqBn8=
+github.com/dank/rlapi v0.1.26/go.mod h1:Ni9EDtQdYIjBGYola2qbdDDqTl9+x5zI5eC3p0P+04w=
 github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2 h1:CgF8+TNFvlnxEbplSgS70ZI4IUFEzVkY+ICNqTVE/AM=
 github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2/go.mod h1:buzQsO8HHkZX2Q45fdfGH1xejPjuDQaXH8btcYMFzPM=
 github.com/felixge/fgprof v0.9.3 h1:VvyZxILNuCiUCSXtPtYmmtGvb65nqXh2QFWc0Wpf2/g=
