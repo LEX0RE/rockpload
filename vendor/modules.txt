@@ -59,8 +59,8 @@ fyne.io/systray/internal/generated/notifier
 ## explicit; go 1.18
 github.com/BurntSushi/toml
 github.com/BurntSushi/toml/internal
-# github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f
-## explicit; go 1.26
+# github.com/chromedp/cdproto v0.157.4
+## explicit; go 1.27
 github.com/chromedp/cdproto
 github.com/chromedp/cdproto/accessibility
 github.com/chromedp/cdproto/ads
@@ -89,6 +89,7 @@ github.com/chromedp/cdproto/extensions
 github.com/chromedp/cdproto/fedcm
 github.com/chromedp/cdproto/fetch
 github.com/chromedp/cdproto/filesystem
+github.com/chromedp/cdproto/findinpage
 github.com/chromedp/cdproto/headlessexperimental
 github.com/chromedp/cdproto/heapprofiler
 github.com/chromedp/cdproto/indexeddb
@@ -119,14 +120,11 @@ github.com/chromedp/cdproto/tracing
 github.com/chromedp/cdproto/webaudio
 github.com/chromedp/cdproto/webauthn
 github.com/chromedp/cdproto/webmcp
-# github.com/chromedp/chromedp v0.16.0
-## explicit; go 1.26
+# github.com/chromedp/chromedp v0.19.1
+## explicit; go 1.27
 github.com/chromedp/chromedp
 github.com/chromedp/chromedp/device
 github.com/chromedp/chromedp/kb
-# github.com/chromedp/sysutil v1.1.0
-## explicit; go 1.23
-github.com/chromedp/sysutil
 # github.com/dank/rlapi v0.1.26
 ## explicit; go 1.24.5
 github.com/dank/rlapi
@@ -167,14 +165,6 @@ github.com/go-gl/glfw/v3.3/glfw/glfw/deps/mingw
 github.com/go-gl/glfw/v3.3/glfw/glfw/deps/vs2008
 github.com/go-gl/glfw/v3.3/glfw/glfw/include/GLFW
 github.com/go-gl/glfw/v3.3/glfw/glfw/src
-# github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68
-## explicit; go 1.26
-github.com/go-json-experiment/json
-github.com/go-json-experiment/json/internal
-github.com/go-json-experiment/json/internal/jsonflags
-github.com/go-json-experiment/json/internal/jsonopts
-github.com/go-json-experiment/json/internal/jsonwire
-github.com/go-json-experiment/json/jsontext
 # github.com/go-text/render v0.2.1
 ## explicit; go 1.19
 github.com/go-text/render
@@ -192,19 +182,6 @@ github.com/go-text/typesetting/internal/unicodedata
 github.com/go-text/typesetting/language
 github.com/go-text/typesetting/segmenter
 github.com/go-text/typesetting/shaping
-# github.com/gobwas/httphead v0.1.0
-## explicit; go 1.15
-github.com/gobwas/httphead
-# github.com/gobwas/pool v0.2.1
-## explicit
-github.com/gobwas/pool
-github.com/gobwas/pool/internal/pmath
-github.com/gobwas/pool/pbufio
-github.com/gobwas/pool/pbytes
-# github.com/gobwas/ws v1.4.0
-## explicit; go 1.16
-github.com/gobwas/ws
-github.com/gobwas/ws/wsutil
 # github.com/godbus/dbus/v5 v5.1.0
 ## explicit; go 1.12
 github.com/godbus/dbus/v5

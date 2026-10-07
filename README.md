@@ -1,7 +1,7 @@
 # Rockpload
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.26.1-00ADD8?logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go)](https://go.dev/)
 [![Discord](https://img.shields.io/discord/1503472270478413864?color=7289da&label=discord&logo=discord&logoColor=white)](https://discord.gg/bFw6mcVXSW)
 
 <p align="center">
@@ -48,7 +48,7 @@ Download the latest release from the [GitHub Releases](https://github.com/LEX0RE
 ### Build from Source
 
 **Prerequisites:**
-- Go 1.26.1 or later
+- Go 1.27 or later
 - CGO toolchain (GCC on Linux, MinGW on Windows for cross-compilation)
 
 **Build:**

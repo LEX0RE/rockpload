@@ -41,10 +41,10 @@ type Key struct {
 	Native int64
 	// Windows is the Windows scan code.
 	Windows int64
-	// Shift indicates whether or not the Shift modifier should be sent.
+	// Shift indicates whether the Shift modifier is sent.
 	Shift bool
-	// Print indicates whether or not the character is a printable character
-	// (i.e., should a "char" event be generated).
+	// Print indicates whether the character is a printable character
+	// (that is, whether a "char" event is generated).
 	Print bool
 }
 
@@ -54,15 +54,15 @@ func EncodeUnidentified(r rune) []*input.DispatchKeyEventParams {
 	// create
 	keyDown := input.DispatchKeyEventParams{
 		Key: "Unidentified",
-		/*NativeVirtualKeyCode:  int64(r), // not sure if should be specifying the key code or not ...
+		/*NativeVirtualKeyCode:  int64(r), // not sure whether to specify the key code ...
 		WindowsVirtualKeyCode: int64(r),*/
 	}
 	keyUp := keyDown
-	keyDown.Type, keyUp.Type = input.KeyDown, input.KeyUp
+	keyDown.Type, keyUp.Type = KeyDown, KeyUp
 	// printable, so create char event
 	if unicode.IsPrint(r) {
 		keyChar := keyDown
-		keyChar.Type = input.KeyChar
+		keyChar.Type = KeyChar
 		keyChar.Text = string(r)
 		keyChar.UnmodifiedText = string(r)
 
@@ -93,18 +93,18 @@ func Encode(r rune) []*input.DispatchKeyEventParams {
 		keyDown.NativeVirtualKeyCode = 0
 	}
 	if v.Shift {
-		keyDown.Modifiers |= input.ModifierShift
+		keyDown.Modifiers |= int64(ModifierShift)
 	}
 	keyUp := keyDown
-	keyDown.Type, keyUp.Type = input.KeyDown, input.KeyUp
+	keyDown.Type, keyUp.Type = KeyDown, KeyUp
 	// printable, so create char event
 	if v.Print {
 		keyChar := keyDown
-		keyChar.Type = input.KeyChar
+		keyChar.Type = KeyChar
 		keyChar.Text = v.Text
 		keyChar.UnmodifiedText = v.Unmodified
-		// the virtual key code for char events for printable characters will
-		// be different than the defined keycode when not shifted...
+		// the virtual key code of a char event for a printable character
+		// differs from the defined keycode when the key is not shifted.
 		//
 		// specifically, it always sends the ascii value as the scan code,
 		// which is available as the rune.
@@ -360,7 +360,7 @@ var Keys = map[rune]*Key{
 	'\u0102': &Key{"AltLeft", "Alt", "", "", 164, 164, false, false},
 	'\u0104': &Key{"CapsLock", "CapsLock", "", "", 20, 20, false, false},
 	'\u0105': &Key{"ControlLeft", "Control", "", "", 162, 162, false, false},
-	'\u0106': &Key{"Fn", "Fn", "", "", 0, 0, false, false},
+	'\u0106': &Key{"Fn", "Fn", "", "", 255, 0, false, false},
 	'\u0107': &Key{"FnLock", "FnLock", "", "", 0, 0, false, false},
 	'\u0108': &Key{"Hyper", "Hyper", "", "", 0, 0, false, false},
 	'\u0109': &Key{"MetaLeft", "Meta", "", "", 91, 91, false, false},

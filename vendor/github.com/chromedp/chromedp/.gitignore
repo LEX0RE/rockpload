@@ -5,9 +5,14 @@ cdp-*.log
 cdp-*.txt
 *.out
 
-/chromedp.test
-/chromedp.test.exe
+chromedp.test
+chromedp.test.exe
 
 /*.jpeg
 /*.png
 /*.pdf
+
+# The Claude Code permissions of one person.
+.claude/settings.local.json
+go.work
+go.work.sum

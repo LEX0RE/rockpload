@@ -8,7 +8,7 @@ All contributions are welcome, including bug fixes, refactors, and new features.
 
 ## Prerequisites
 
-- Go 1.26.1
+- Go 1.27
 - CGO toolchain
 - Linux GCC toolchain for Linux builds
 - MinGW toolchain for Windows cross-compilation when building from Linux:
