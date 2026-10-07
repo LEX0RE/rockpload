@@ -36,14 +36,12 @@
           ];
         in
         {
-          default = pkgs.buildGoModule {
+          default = pkgs.buildGoLatestModule {
             pname = "rockpload";
             version = rockploadVersion;
 
             src = self;
             vendorHash = null;
-
-            go = pkgs.go_1_27;
 
             nativeBuildInputs = with pkgs; [
               makeWrapper
@@ -107,7 +105,7 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
-              go_1_27
+              go_latest
               gopls
               go-tools
               gotools
