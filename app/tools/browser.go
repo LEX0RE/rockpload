@@ -72,17 +72,16 @@ func OpenAutoChromiumBrowser(url string, profileId int) (authCode string, err er
 
 	logger.Rlogger.Debug("Opening browser for Epic Games authentication...")
 
-	err = chromedp.Run(ctx,
+	err = chromedp.Do(ctx,
 		chromedp.Navigate(url),
 
-		chromedp.ActionFunc(func(ctx context.Context) error {
+		chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
 			for {
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
 
-				var text string
-				evaluateErr := chromedp.Evaluate(`document.body.innerText`, &text).Do(ctx)
+				text, evaluateErr := chromedp.Evaluate[string](`document.body.innerText`)(ctx, t)
 
 				if evaluateErr != nil {
 					if strings.Contains(evaluateErr.Error(), "target closed") || strings.Contains(evaluateErr.Error(), "session deleted") {
