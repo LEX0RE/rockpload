@@ -52,6 +52,7 @@ jobs:
           fi
 
       - name: Install Build Dependencies
+        timeout-minutes: 5
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
