@@ -43,7 +43,7 @@
             src = self;
             vendorHash = null;
 
-            go = pkgs.go_1_26;
+            go = pkgs.go_1_27;
 
             nativeBuildInputs = with pkgs; [
               makeWrapper
@@ -107,7 +107,7 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
-              go_1_26
+              go_1_27
               gopls
               go-tools
               gotools
