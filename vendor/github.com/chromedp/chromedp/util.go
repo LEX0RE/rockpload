@@ -1,124 +1,10 @@
 package chromedp
 
 import (
-	"context"
-	"encoding/json"
-	"net"
-	"net/http"
-	"net/url"
-	"strings"
-	"time"
-
 	"github.com/chromedp/cdproto"
 	"github.com/chromedp/cdproto/cdp"
 	"slices"
 )
-
-// forceIP tries to force the host component in urlstr to be an IP address.
-//
-// Since Chrome 66+, Chrome DevTools Protocol clients connecting to a browser
-// must send the "Host:" header as either an IP address, or "localhost".
-// See https://github.com/chromium/chromium/commit/0e914b95f7cae6e8238e4e9075f248f801c686e6.
-func forceIP(ctx context.Context, urlstr string) (string, error) {
-	u, err := url.Parse(urlstr)
-	if err != nil {
-		return "", err
-	}
-	host, port, err := net.SplitHostPort(u.Host)
-	if err != nil {
-		return "", err
-	}
-	host, err = resolveHost(ctx, host)
-	if err != nil {
-		return "", err
-	}
-	u.Host = net.JoinHostPort(host, port)
-	return u.String(), nil
-}
-
-// resolveHost tries to resolve a host to be an IP address. If the host is
-// an IP address or "localhost", it returns the host directly.
-func resolveHost(ctx context.Context, host string) (string, error) {
-	if host == "localhost" {
-		return host, nil
-	}
-	ip := net.ParseIP(host)
-	if ip != nil {
-		return host, nil
-	}
-
-	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if err != nil {
-		return "", err
-	}
-
-	return addrs[0].IP.String(), nil
-}
-
-// modifyURL modifies the websocket debugger URL if the provided URL is not a
-// valid websocket debugger URL.
-//
-// A websocket debugger URL containing "/devtools/browser/" are considered
-// valid. In this case, urlstr will only be modified by forceIP.
-//
-// Otherwise, it will construct a URL like http://[host]:[port]/json/version
-// and query the valid websocket debugger URL from this endpoint. The [host]
-// and [port] are parsed from the urlstr. If the host component is not an IP,
-// it will be resolved to an IP first. Example parameters:
-//   - ws://127.0.0.1:9222/
-//   - http://127.0.0.1:9222/
-//   - http://container-name:9222/
-func modifyURL(ctx context.Context, urlstr string) (string, error) {
-	lctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-
-	if strings.Contains(urlstr, "/devtools/browser/") {
-		return forceIP(lctx, urlstr)
-	}
-
-	// replace the scheme and path to construct a URL like:
-	// http://127.0.0.1:9222/json/version
-	u, err := url.Parse(urlstr)
-	if err != nil {
-		return "", err
-	}
-	u.Scheme = "http"
-	host, port, err := net.SplitHostPort(u.Host)
-	if err != nil {
-		return "", err
-	}
-	host, err = resolveHost(ctx, host)
-	if err != nil {
-		return "", err
-	}
-	u.Host = net.JoinHostPort(host, port)
-	u.Path = "/json/version"
-
-	// to get "webSocketDebuggerUrl" in the response
-	req, err := http.NewRequestWithContext(lctx, "GET", u.String(), nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	var result map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
-	}
-	// the browser will construct the debugger URL using the "host" header of
-	// the /json/version request. For example, run headless-shell in a container:
-	//     docker run -d -p 9000:9222 chromedp/headless-shell:latest
-	// then:
-	//     curl http://127.0.0.1:9000/json/version
-	// and the websocket debugger URL will be something like:
-	// ws://127.0.0.1:9000/devtools/browser/...
-	wsURL := result["webSocketDebuggerUrl"].(string)
-	return wsURL, nil
-}
 
 func runListeners(list []cancelableListener, ev any) []cancelableListener {
 	for i := 0; i < len(list); {
@@ -136,42 +22,42 @@ func runListeners(list []cancelableListener, ev any) []cancelableListener {
 }
 
 // frameOp is a frame manipulation operation.
-type frameOp func(*cdp.Frame)
+type frameOp func(*Frame)
 
 func frameAttached(id cdp.FrameID) frameOp {
-	return func(f *cdp.Frame) {
+	return func(f *Frame) {
 		f.ParentID = id
-		setFrameState(f, cdp.FrameAttached)
+		setFrameState(f, FrameAttached)
 	}
 }
 
-func frameDetached(f *cdp.Frame) {
-	f.ParentID = cdp.EmptyFrameID
-	clearFrameState(f, cdp.FrameAttached)
+func frameDetached(f *Frame) {
+	f.ParentID = EmptyFrameID
+	clearFrameState(f, FrameAttached)
 }
 
-func frameStartedLoading(f *cdp.Frame) {
-	setFrameState(f, cdp.FrameLoading)
+func frameStartedLoading(f *Frame) {
+	setFrameState(f, FrameLoading)
 }
 
-func frameStoppedLoading(f *cdp.Frame) {
-	clearFrameState(f, cdp.FrameLoading)
+func frameStoppedLoading(f *Frame) {
+	clearFrameState(f, FrameLoading)
 }
 
 // setFrameState sets the frame state via bitwise or (|).
-func setFrameState(f *cdp.Frame, fs cdp.FrameState) {
+func setFrameState(f *Frame, fs FrameState) {
 	f.State |= fs
 }
 
 // clearFrameState clears the frame state via bit clear (&^).
-func clearFrameState(f *cdp.Frame, fs cdp.FrameState) {
+func clearFrameState(f *Frame, fs FrameState) {
 	f.State &^= fs
 }
 
 // nodeOp is a node manipulation operation.
-type nodeOp func(*cdp.Node)
+type nodeOp func(*Node)
 
-func walk(m map[cdp.NodeID]*cdp.Node, n *cdp.Node) {
+func walk(m map[cdp.NodeID]*Node, n *Node) {
 	n.RLock()
 	defer n.RUnlock()
 	m[n.NodeID] = n
@@ -203,7 +89,7 @@ func walk(m map[cdp.NodeID]*cdp.Node, n *cdp.Node) {
 		walk(m, c)
 	}
 
-	for _, c := range []*cdp.Node{n.ContentDocument, n.TemplateContent} {
+	for _, c := range []*Node{n.ContentDocument, n.TemplateContent} {
 		if c == nil {
 			continue
 		}
@@ -217,8 +103,8 @@ func walk(m map[cdp.NodeID]*cdp.Node, n *cdp.Node) {
 	}
 }
 
-func setChildNodes(m map[cdp.NodeID]*cdp.Node, nodes []*cdp.Node) nodeOp {
-	return func(n *cdp.Node) {
+func setChildNodes(m map[cdp.NodeID]*Node, nodes []*Node) nodeOp {
+	return func(n *Node) {
 		n.Lock()
 		n.Children = nodes
 		n.Unlock()
@@ -228,7 +114,7 @@ func setChildNodes(m map[cdp.NodeID]*cdp.Node, nodes []*cdp.Node) nodeOp {
 }
 
 func attributeModified(name, value string) nodeOp {
-	return func(n *cdp.Node) {
+	return func(n *Node) {
 		n.Lock()
 		defer n.Unlock()
 
@@ -251,7 +137,7 @@ func attributeModified(name, value string) nodeOp {
 }
 
 func attributeRemoved(name string) nodeOp {
-	return func(n *cdp.Node) {
+	return func(n *Node) {
 		n.Lock()
 		defer n.Unlock()
 
@@ -267,12 +153,12 @@ func attributeRemoved(name string) nodeOp {
 }
 
 func inlineStyleInvalidated(ids []cdp.NodeID) nodeOp {
-	return func(n *cdp.Node) {
+	return func(n *Node) {
 	}
 }
 
 func characterDataModified(characterData string) nodeOp {
-	return func(n *cdp.Node) {
+	return func(n *Node) {
 		n.Lock()
 		defer n.Unlock()
 
@@ -281,7 +167,7 @@ func characterDataModified(characterData string) nodeOp {
 }
 
 func childNodeCountUpdated(count int64) nodeOp {
-	return func(n *cdp.Node) {
+	return func(n *Node) {
 		n.Lock()
 		defer n.Unlock()
 
@@ -289,8 +175,8 @@ func childNodeCountUpdated(count int64) nodeOp {
 	}
 }
 
-func childNodeInserted(m map[cdp.NodeID]*cdp.Node, prevID cdp.NodeID, c *cdp.Node) nodeOp {
-	return func(n *cdp.Node) {
+func childNodeInserted(m map[cdp.NodeID]*Node, prevID cdp.NodeID, c *Node) nodeOp {
+	return func(n *Node) {
 		n.Lock()
 		n.Children = insertNode(n.Children, prevID, c)
 		n.Unlock()
@@ -299,8 +185,8 @@ func childNodeInserted(m map[cdp.NodeID]*cdp.Node, prevID cdp.NodeID, c *cdp.Nod
 	}
 }
 
-func childNodeRemoved(m map[cdp.NodeID]*cdp.Node, id cdp.NodeID) nodeOp {
-	return func(n *cdp.Node) {
+func childNodeRemoved(m map[cdp.NodeID]*Node, id cdp.NodeID) nodeOp {
+	return func(n *Node) {
 		n.Lock()
 		defer n.Unlock()
 
@@ -309,8 +195,8 @@ func childNodeRemoved(m map[cdp.NodeID]*cdp.Node, id cdp.NodeID) nodeOp {
 	}
 }
 
-func shadowRootPushed(m map[cdp.NodeID]*cdp.Node, c *cdp.Node) nodeOp {
-	return func(n *cdp.Node) {
+func shadowRootPushed(m map[cdp.NodeID]*Node, c *Node) nodeOp {
+	return func(n *Node) {
 		n.Lock()
 		n.ShadowRoots = append(n.ShadowRoots, c)
 		n.Unlock()
@@ -319,8 +205,8 @@ func shadowRootPushed(m map[cdp.NodeID]*cdp.Node, c *cdp.Node) nodeOp {
 	}
 }
 
-func shadowRootPopped(m map[cdp.NodeID]*cdp.Node, id cdp.NodeID) nodeOp {
-	return func(n *cdp.Node) {
+func shadowRootPopped(m map[cdp.NodeID]*Node, id cdp.NodeID) nodeOp {
+	return func(n *Node) {
 		n.Lock()
 		defer n.Unlock()
 
@@ -329,8 +215,8 @@ func shadowRootPopped(m map[cdp.NodeID]*cdp.Node, id cdp.NodeID) nodeOp {
 	}
 }
 
-func pseudoElementAdded(m map[cdp.NodeID]*cdp.Node, c *cdp.Node) nodeOp {
-	return func(n *cdp.Node) {
+func pseudoElementAdded(m map[cdp.NodeID]*Node, c *Node) nodeOp {
+	return func(n *Node) {
 		n.Lock()
 		n.PseudoElements = append(n.PseudoElements, c)
 		n.Unlock()
@@ -339,8 +225,8 @@ func pseudoElementAdded(m map[cdp.NodeID]*cdp.Node, c *cdp.Node) nodeOp {
 	}
 }
 
-func pseudoElementRemoved(m map[cdp.NodeID]*cdp.Node, id cdp.NodeID) nodeOp {
-	return func(n *cdp.Node) {
+func pseudoElementRemoved(m map[cdp.NodeID]*Node, id cdp.NodeID) nodeOp {
+	return func(n *Node) {
 		n.Lock()
 		defer n.Unlock()
 
@@ -350,7 +236,7 @@ func pseudoElementRemoved(m map[cdp.NodeID]*cdp.Node, id cdp.NodeID) nodeOp {
 }
 
 func distributedNodesUpdated(nodes []*cdp.BackendNode) nodeOp {
-	return func(n *cdp.Node) {
+	return func(n *Node) {
 		n.Lock()
 		defer n.Unlock()
 
@@ -358,12 +244,43 @@ func distributedNodesUpdated(nodes []*cdp.BackendNode) nodeOp {
 	}
 }
 
-func scrollableFlagUpdated(m map[cdp.NodeID]*cdp.Node, id cdp.NodeID) nodeOp {
-	return func(n *cdp.Node) {
+func scrollableFlagUpdated(isScrollable bool) nodeOp {
+	return func(n *Node) {
+		n.Lock()
+		defer n.Unlock()
+
+		n.IsScrollable = isScrollable
 	}
 }
 
-func insertNode(n []*cdp.Node, prevID cdp.NodeID, c *cdp.Node) []*cdp.Node {
+func adRelatedStateUpdated(provenance *cdp.AdProvenance) nodeOp {
+	return func(n *Node) {
+		n.Lock()
+		defer n.Unlock()
+
+		n.AdProvenance = provenance
+	}
+}
+
+func adoptedStyleSheetsModified(ids []cdp.StyleSheetID) nodeOp {
+	return func(n *Node) {
+		n.Lock()
+		defer n.Unlock()
+
+		n.AdoptedStyleSheets = ids
+	}
+}
+
+func affectedByStartingStylesFlagUpdated(affected bool) nodeOp {
+	return func(n *Node) {
+		n.Lock()
+		defer n.Unlock()
+
+		n.AffectedByStartingStyles = affected
+	}
+}
+
+func insertNode(n []*Node, prevID cdp.NodeID, c *Node) []*Node {
 	var i int
 	var found bool
 	for ; i < len(n); i++ {
@@ -374,7 +291,7 @@ func insertNode(n []*cdp.Node, prevID cdp.NodeID, c *cdp.Node) []*cdp.Node {
 	}
 
 	if !found {
-		return append([]*cdp.Node{c}, n...)
+		return append([]*Node{c}, n...)
 	}
 
 	i++
@@ -385,7 +302,7 @@ func insertNode(n []*cdp.Node, prevID cdp.NodeID, c *cdp.Node) []*cdp.Node {
 	return n
 }
 
-func removeNode(n []*cdp.Node, id cdp.NodeID) []*cdp.Node {
+func removeNode(n []*Node, id cdp.NodeID) []*Node {
 	if len(n) == 0 {
 		return n
 	}

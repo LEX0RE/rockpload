@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,132 +18,231 @@ import (
 	"github.com/chromedp/cdproto/runtime"
 )
 
-// QueryAction are element query actions that select node elements from the
-// browser's DOM for retrieval or manipulation.
+// Selectable is what an element query accepts as the selector. The type of the
+// selector chooses the lookup. A plain string is a [Search]. A named string
+// type that this package does not define also counts as a [Search].
 //
-// See [Query] for details on building element query selectors.
-type QueryAction Action
-
-// Selector holds information pertaining to an element selection query.
+// The set of selector types is closed. A type that you define cannot add a new
+// lookup. For a custom lookup, use the option [ByFunc]. It replaces the lookup
+// of the selector with a func that receives the [Target] of the tab and the
+// [Node] where the query starts, and returns the node IDs of the elements. The
+// target is a session for [cdp.Call]. The start node is the root of the
+// document, or the node of [FromNode]. The selector is then only a label in
+// error messages, so pass "" or any string. For example, this lookup finds the
+// elements with a data-testid attribute:
 //
-// See [Query] for information on building an element selector and relevant
-// options.
-type Selector struct {
-	sel           any
-	fromNode      *cdp.Node
-	retryInterval time.Duration
-	exp           int
-	by            func(context.Context, *cdp.Node) ([]cdp.NodeID, error)
-	wait          func(context.Context, *cdp.Frame, runtime.ExecutionContextID, ...cdp.NodeID) ([]*cdp.Node, error)
-	after         []func(context.Context, runtime.ExecutionContextID, ...*cdp.Node) error
+//	func byTestID(id string) chromedp.QueryOption {
+//		return chromedp.ByFunc(func(ctx context.Context, t *chromedp.Target, n *chromedp.Node) ([]cdp.NodeID, error) {
+//			res, err := cdp.Call(ctx, t, dom.QuerySelectorAll, dom.QuerySelectorAllParams{
+//				NodeID:   n.NodeID,
+//				Selector: fmt.Sprintf("[data-testid=%q]", id),
+//			})
+//			return res.NodeIDs, err
+//		})
+//	}
+//
+//	err := chromedp.Do(ctx, chromedp.Click("", byTestID("submit")))
+type Selectable interface {
+	~string | ~[]cdp.NodeID
 }
 
-// Query is a query action that queries the browser for specific element
-// node(s) matching the criteria.
+// Search is a selector that the browser resolves with DOM.performSearch. It
+// matches nodes by plain text, CSS selector or XPath query. It is the lookup of
+// a plain string.
+type Search string
+
+// CSS is a selector for the first element that matches a CSS selector. It uses
+// DOM.querySelector.
+type CSS string
+
+// CSSAll is a selector for every element that matches a CSS selector. It uses
+// DOM.querySelectorAll.
+type CSSAll string
+
+// ID is a selector for the element with this id. A leading "#" is optional. It
+// uses DOM.querySelector.
+type ID string
+
+// JSPath is a selector for the elements that a JavaScript expression gives. It
+// uses Runtime.evaluate. Use it only with trusted values, because chromedp
+// passes the expression to the browser without a check.
+type JSPath string
+
+// NodeIDs is a selector for the elements with these node IDs.
+type NodeIDs []cdp.NodeID
+
+// Selector holds the data of an element selection query.
 //
-// Query actions that target a browser DOM element node (or nodes) make use of
-// Query, in conjunction with the [After] option to retrieve data or
-// to modify the element(s) selected by the query.
+// See [Query] for how to build an element selector and its options.
+type Selector struct {
+	text          string
+	ids           []cdp.NodeID
+	fromNode      *Node
+	retryInterval time.Duration
+	exp           int
+	by            func(context.Context, *Target, *Node) ([]cdp.NodeID, error)
+	wait          func(context.Context, *Target, *Frame, runtime.ExecutionContextID, ...cdp.NodeID) ([]*Node, error)
+	after         []func(context.Context, *Target, []*Node) error
+}
+
+// Query is an action that queries the browser for element nodes that match the
+// criteria, and waits until they meet the node conditions. It returns no
+// value. To get the nodes, see [Nodes].
+//
+// Query actions that target element nodes share one selector. Use the [After]
+// option or [QueryAfter] to read data from the selected elements or to change
+// them.
 //
 // For example:
 //
-//	chromedp.Run(ctx, chromedp.SendKeys(`thing`, chromedp.ByID))
+//	chromedp.Do(ctx, chromedp.SendKeys(chromedp.ID("thing"), "hello"))
 //
-// The above will perform a [SendKeys] action on the first element matching a
-// browser CSS query for "#thing".
+// This runs a [SendKeys] action on the first element that has the id "thing".
 //
-// [Element] selection queries work in conjunction with specific actions and form
-// the primary way of automating [Tasks] in the browser. They are typically
-// written in the following form:
+// Element selection queries work with specific actions. They are the main way
+// to automate steps in the browser. They have this form:
 //
-//	Action(selector[, parameter1, ...parameterN][,result][, queryOptions...])
+//	Action(selector[, parameter1, ...parameterN][, queryOptions...])
 //
 // Where:
 //
-//   - Action - the action to perform
-//   - selector - element query selection (typically a string), that any matching node(s) will have the action applied
-//   - parameter[1-N] - parameter(s) needed for the individual action (if any)
-//   - result - pointer to a result (if any)
-//   - queryOptions - changes how queries are executed, or how nodes are waited for
+//   - Action - the action to run
+//   - selector - the element query, a [Selectable] value. The action applies to every node that matches it.
+//   - parameter[1-N] - the parameters that the action needs (if any)
+//   - queryOptions - change how the query runs, or how it waits for nodes
+//
+// An action that reads a value returns it. For example, [Text] returns the
+// text as a string.
+//
+// # Selectors
+//
+// The type of the selector chooses the lookup that the browser runs. A plain
+// string, or any other string type that this package does not define, is a
+// [Search].
+//
+// The [Search] type (the default) queries elements by plain text, CSS
+// selector, or XPath query. It wraps DOM.performSearch.
+//
+// The [ID] type queries a single element by its CSS ID. It wraps
+// DOM.querySelector. ID is like document.querySelector('#' + ID) in the
+// browser.
+//
+// The [CSS] type queries a single element with a CSS selector. It wraps
+// DOM.querySelector. CSS is like document.querySelector() in the browser.
+//
+// The [CSSAll] type queries elements with a CSS selector. It wraps
+// DOM.querySelectorAll. CSSAll is like document.querySelectorAll() in the
+// browser.
+//
+// The [JSPath] type queries a single element by its "JS Path" value. It wraps
+// Runtime.evaluate. JSPath is like a JavaScript snippet that returns an
+// element in the browser. Use it only with trusted element queries. chromedp
+// passes the query directly to Runtime.evaluate and does not sanitize it. The
+// type is useful for DOM elements that the other types cannot retrieve, such
+// as ShadowDOM elements. The expression can give a node, an array or a NodeList
+// of nodes, or null or undefined. Null, undefined and an empty list select no
+// element, so [WaitNotPresent] succeeds and the other waits keep waiting. Any
+// other value is an error, and the query returns it at once.
+//
+// The [NodeIDs] type selects the elements with the given node IDs. It uses
+// DOM.requestChildNodes to retrieve them.
+//
+// A type outside the [Selectable] set, such as an int or a *[Node], does not
+// compile.
 //
 // # Query Options
 //
-// By* options specify the type of element query used By the browser to perform
-// the selection query. When not specified, element queries will use [BySearch]
-// (a wrapper for DOM.performSearch).
+// The Node* options set node conditions. The query waits until the condition
+// is true. Without a Node* option, the query uses the [NodeReady] condition.
 //
-// Node* options specify node conditions that cause the query to wait until the
-// specified condition is true. When not specified, queries will use the
-// [NodeReady] wait condition.
+// The [AtLeast] option sets the minimum number of nodes that the query must
+// return. The default is 1.
 //
-// The [AtLeast] option alters the minimum number of nodes that must be returned
-// by the element query. If not specified, the default value is 1.
+// The [After] option sets a func that runs after the query returns one or more
+// elements and the node condition is true.
 //
-// The [After] option is used to specify a func that will be executed when
-// element query has returned one or more elements, and after the node condition is
-// true.
-//
-// # By Options
-//
-// The [BySearch] (default) option enables querying for elements by plain text,
-// CSS selector or XPath query, wrapping DOM.performSearch.
-//
-// The [ByID] option enables querying for a single element with the matching CSS
-// ID, wrapping DOM.querySelector. ByID is similar to calling
-// document.querySelector('#' + ID) from within the browser.
-//
-// The [ByQuery] option enables querying for a single element using a CSS
-// selector, wrapping DOM.querySelector. ByQuery is similar to calling
-// document.querySelector() from within the browser.
-//
-// The [ByQueryAll] option enables querying for elements using a CSS selector,
-// wrapping DOM.querySelectorAll. ByQueryAll is similar to calling
-// document.querySelectorAll() from within the browser.
-//
-// The [ByJSPath] option enables querying for a single element using its "JS
-// Path" value, wrapping Runtime.evaluate. ByJSPath is similar to executing a
-// JavaScript snippet that returns an element from within the browser. ByJSPath
-// should be used only with trusted element queries, as it is passed directly
-// to Runtime.evaluate, and no attempt is made to sanitize the query. Useful
-// for querying DOM elements that cannot be retrieved using other By* funcs,
-// such as ShadowDOM elements.
+// The [ByFunc] option replaces the lookup of the selector with a custom func.
 //
 // # Node Options
 //
-// The [NodeReady] (default) option causes the query to wait until all element
-// nodes matching the selector have been retrieved from the browser.
+// The [NodeReady] option (the default) makes the query wait until the browser
+// has returned all element nodes that match the selector.
 //
-// The [NodeVisible] option causes the query to wait until all element nodes
-// matching the selector have been retrieved from the browser, and are visible.
+// The [NodeVisible] option makes the query wait until the browser has returned
+// all element nodes that match the selector, and they are visible.
 //
-// The [NodeNotVisible] option causes the query to wait until all element nodes
-// matching the selector have been retrieved from the browser, and are not
+// The [NodeNotVisible] option makes the query wait until the browser has
+// returned all element nodes that match the selector, and they are not
 // visible.
 //
-// The [NodeEnabled] option causes the query to wait until all element nodes
-// matching the selector have been retrieved from the browser, and are enabled
-// (i.e., do not have a 'disabled' attribute).
+// The [NodeEnabled] option makes the query wait until the browser has returned
+// all element nodes that match the selector. The nodes must be enabled (that
+// is, they have no 'disabled' attribute).
 //
-// The [NodeSelected] option causes the query to wait until all element nodes
-// matching the selector have been retrieved from the browser, and are
-// selected (i.e., has a 'selected' attribute).
+// The [NodeSelected] option makes the query wait until the browser has
+// returned all element nodes that match the selector. The nodes must be
+// selected (that is, they have a 'selected' attribute).
 //
-// The [NodeNotPresent] option causes the query to wait until there are no
-// element nodes matching the selector.
-func Query(sel any, opts ...QueryOption) QueryAction {
+// The [NodeNotPresent] option makes the query wait until no element node
+// matches the selector.
+func Query[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, nil, opts...)
+}
+
+// QueryAfter is an element query action that queries the browser for selector
+// sel. It waits until the node conditions of the query are met, then runs f
+// and returns its value.
+func QueryAfter[T any, S Selectable](sel S, f func(ctx context.Context, t *Target, nodes []*Node) (T, error), opts ...QueryOption) Action[T] {
+	s := newSelector(sel, opts)
+	return func(ctx context.Context, t *Target) (T, error) {
+		var res T
+		err := s.run(ctx, t, func(ctx context.Context, nodes []*Node) error {
+			var err error
+			res, err = f(ctx, t, nodes)
+			return err
+		})
+		return res, err
+	}
+}
+
+// queryDo is like QueryAfter for a func that returns no value. A nil f only
+// waits for the nodes.
+func queryDo[S Selectable](sel S, f func(ctx context.Context, t *Target, nodes []*Node) error, opts ...QueryOption) Action[Void] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) (Void, error) {
+		if f == nil {
+			return Void{}, nil
+		}
+		return Void{}, f(ctx, t, nodes)
+	}, opts...)
+}
+
+// first returns the first node of the query result, or an error when the query
+// matched no node.
+func first[S Selectable](sel S, nodes []*Node) (*Node, error) {
+	if len(nodes) < 1 {
+		return nil, fmt.Errorf("selector %q did not return any nodes", describe(sel))
+	}
+	return nodes[0], nil
+}
+
+// withOpts returns the options followed by the extra options, without changing
+// the array of opts.
+func withOpts(opts []QueryOption, extra ...QueryOption) []QueryOption {
+	return append(opts[:len(opts):len(opts)], extra...)
+}
+
+// newSelector builds the selector of sel and applies the options. The type of
+// sel chooses the lookup. The option [ByFunc] can replace it.
+func newSelector[S Selectable](sel S, opts []QueryOption) *Selector {
 	s := &Selector{
-		sel:           sel,
 		exp:           1,
 		retryInterval: 5 * time.Millisecond,
 	}
+	s.text, s.ids, s.by = lookup(sel)
 
 	// apply options
 	for _, o := range opts {
 		o(s)
-	}
-
-	if s.by == nil {
-		BySearch(s)
 	}
 
 	if s.wait == nil {
@@ -152,13 +252,10 @@ func Query(sel any, opts ...QueryOption) QueryAction {
 	return s
 }
 
-// Do executes the selector, only finishing if the selector's by, wait, and
-// after funcs succeed, or if the context is cancelled.
-func (s *Selector) Do(ctx context.Context) error {
-	t := cdp.ExecutorFromContext(ctx).(*Target)
-	if t == nil {
-		return ErrInvalidTarget
-	}
+// run executes the selector. It finishes only when the by, wait, after, and
+// last funcs succeed, or when the context is canceled. The last func can be
+// nil.
+func (s *Selector) run(ctx context.Context, t *Target, last func(context.Context, []*Node) error) error {
 	return retryWithSleep(ctx, s.retryInterval, func(ctx context.Context) (bool, error) {
 		frame, root, execCtx, ok := t.ensureFrame()
 		if !ok {
@@ -175,8 +272,8 @@ func (s *Selector) Do(ctx context.Context) error {
 			t.frameMu.RUnlock()
 
 			// TODO: we probably want to use the nested frame
-			// instead, but note that util.go stores the nested
-			// frame's nodes in the root frame's Nodes map.
+			// instead. Note that util.go stores the nodes of the
+			// nested frame in the Nodes map of the root frame.
 			// frame = t.frames[fromNode.FrameID]
 			// if frame == nil {
 			// 	return fmt.Errorf("FromNode provided does not belong to any active frame")
@@ -190,16 +287,20 @@ func (s *Selector) Do(ctx context.Context) error {
 			fromNode = doc
 		}
 
-		ids, err := s.by(ctx, fromNode)
+		ids, err := s.by(ctx, t, fromNode)
 		if err != nil {
 			var e *cdproto.Error
-			// When the selector is invalid (for example, "#a:b" or "#3"), it will
-			// always fail with "DOM Error while querying". It does not make sense
-			// to retry in this case.
-			// Maybe "DOM Error while querying" is also used for other errors other
-			// than invalid selector. But the response does not contain anything
-			// else that can be used to distinguish them. So we have to go with it.
+			// When the selector is invalid (for example, "#a:b" or "#3"), the
+			// browser always fails with "DOM Error while querying". It makes no
+			// sense to retry in this case.
+			// "DOM Error while querying" can also mean other errors. But the
+			// response has nothing else that tells them apart. So we have to go
+			// with it.
 			if errors.As(err, &e) && e.Message == "DOM Error while querying" {
+				return true, err
+			}
+			// A JSPath value of the wrong type does not change by itself.
+			if errors.Is(err, errNotNode) {
 				return true, err
 			}
 			return false, nil
@@ -207,13 +308,18 @@ func (s *Selector) Do(ctx context.Context) error {
 		if len(ids) < s.exp {
 			return false, nil
 		}
-		nodes, err := s.wait(ctx, frame, execCtx, ids...)
-		// if nodes==nil, we're not yet ready
+		nodes, err := s.wait(ctx, t, frame, execCtx, ids...)
+		// if nodes==nil, we are not yet ready
 		if nodes == nil || err != nil {
 			return false, nil
 		}
 		for _, f := range s.after {
-			if err := f(ctx, execCtx, nodes...); err != nil {
+			if err := f(ctx, t, nodes); err != nil {
+				return true, err
+			}
+		}
+		if last != nil {
+			if err := last(ctx, nodes); err != nil {
 				return true, err
 			}
 		}
@@ -221,18 +327,10 @@ func (s *Selector) Do(ctx context.Context) error {
 	})
 }
 
-// selAsString forces sel into a string.
-func (s *Selector) selAsString() string {
-	if sel, ok := s.sel.(string); ok {
-		return sel
-	}
-	return fmt.Sprintf("%s", s.sel)
-}
-
 // waitReady waits for the specified nodes to be ready.
-func (s *Selector) waitReady(check func(context.Context, runtime.ExecutionContextID, *cdp.Node) error) func(context.Context, *cdp.Frame, runtime.ExecutionContextID, ...cdp.NodeID) ([]*cdp.Node, error) {
-	return func(ctx context.Context, cur *cdp.Frame, execCtx runtime.ExecutionContextID, ids ...cdp.NodeID) ([]*cdp.Node, error) {
-		nodes := make([]*cdp.Node, len(ids))
+func (s *Selector) waitReady(check func(context.Context, *Target, runtime.ExecutionContextID, *Node) error) func(context.Context, *Target, *Frame, runtime.ExecutionContextID, ...cdp.NodeID) ([]*Node, error) {
+	return func(ctx context.Context, t *Target, cur *Frame, execCtx runtime.ExecutionContextID, ids ...cdp.NodeID) ([]*Node, error) {
+		nodes := make([]*Node, len(ids))
 		cur.RLock()
 		for i, id := range ids {
 			nodes[i] = cur.Nodes[id]
@@ -247,11 +345,11 @@ func (s *Selector) waitReady(check func(context.Context, runtime.ExecutionContex
 		if check != nil {
 			errc := make(chan error, 1)
 			for _, n := range nodes {
-				go func(n *cdp.Node) {
+				go func(n *Node) {
 					select {
 					case <-ctx.Done():
 						errc <- ctx.Err()
-					case errc <- check(ctx, execCtx, n):
+					case errc <- check(ctx, t, execCtx, n):
 					}
 				}(n)
 			}
@@ -271,200 +369,271 @@ func (s *Selector) waitReady(check func(context.Context, runtime.ExecutionContex
 	}
 }
 
-// QueryAfter is an element query action that queries the browser for selector
-// sel. Waits until the visibility conditions of the query have been met, after
-// which executes f.
-func QueryAfter(sel any, f func(context.Context, runtime.ExecutionContextID, ...*cdp.Node) error, opts ...QueryOption) QueryAction {
-	return Query(sel, append(opts, After(f))...)
-}
-
 // QueryOption is an element query action option.
 type QueryOption = func(*Selector)
 
-// FromNode is an element query action option where a query will be run. That
-// is, the query will only look at the node's element sub-tree. By default, or
-// when passed nil, the document's root element will be used.
+// FromNode is an element query action option that sets the node where the
+// query runs. That is, the query looks only at the element sub-tree of the
+// node. By default, or when you pass nil, the query uses the root element of
+// the document.
 //
-// Note that, at present, BySearch and ByJSPath do not support FromNode; this
-// option is mainly useful for ByQuery selectors.
-func FromNode(node *cdp.Node) QueryOption {
+// Note: [Search] and [JSPath] selectors do not support FromNode now. The
+// option is mainly useful for [CSS] selectors.
+//
+// FromNode does not reach into an iframe from another site. Chrome runs such an
+// iframe in its own process, as a separate target, and the node of the iframe
+// element has no ContentDocument. A query from that node finds nothing and
+// waits until its context ends. See [WithTargetID] for how to attach to the
+// iframe.
+func FromNode(node *Node) QueryOption {
 	return func(s *Selector) { s.fromNode = node }
 }
 
-// ByFunc is an element query action option to set the func used to select elements.
-func ByFunc(f func(context.Context, *cdp.Node) ([]cdp.NodeID, error)) QueryOption {
+// ByFunc is an element query action option that sets the func that selects
+// elements. It replaces the lookup that the type of the selector chooses. The
+// selector is then only a label in error messages, so pass "" or any string.
+func ByFunc(f func(context.Context, *Target, *Node) ([]cdp.NodeID, error)) QueryOption {
 	return func(s *Selector) {
 		s.by = f
 	}
 }
 
-// ByQuery is an element query action option to select a single element by the
-// DOM.querySelector command.
-//
-// Similar to calling document.querySelector() in the browser.
-func ByQuery(s *Selector) {
-	ByFunc(func(ctx context.Context, n *cdp.Node) ([]cdp.NodeID, error) {
-		nodeID, err := dom.QuerySelector(n.NodeID, s.selAsString()).Do(ctx)
+// lookupFunc finds the element node IDs of a query. It starts at the node n.
+type lookupFunc = func(ctx context.Context, t *Target, n *Node) ([]cdp.NodeID, error)
+
+// lookup returns what a selector of the type S needs. These are the text for
+// error messages, the node IDs and the func that selects the elements. A string
+// type that this package does not define counts as a [Search].
+func lookup[S Selectable](sel S) (text string, ids []cdp.NodeID, by lookupFunc) {
+	switch v := any(sel).(type) {
+	case CSS:
+		return string(v), nil, queryOne(string(v))
+	case CSSAll:
+		return string(v), nil, queryAll(string(v))
+	case ID:
+		return string(v), nil, queryOne("#" + strings.TrimPrefix(string(v), "#"))
+	case JSPath:
+		return string(v), nil, evaluatePath(string(v))
+	case NodeIDs:
+		return fmt.Sprint([]cdp.NodeID(v)), v, requestNodes(v)
+	case Search:
+		return string(v), nil, search(string(v))
+	case string:
+		return v, nil, search(v)
+	case []cdp.NodeID:
+		return fmt.Sprint(v), v, requestNodes(v)
+	}
+
+	// The type is a string type or a node ID slice type that the user
+	// defined.
+	v := reflect.ValueOf(sel)
+	if v.Kind() == reflect.String {
+		return v.String(), nil, search(v.String())
+	}
+	ids = v.Convert(reflect.TypeFor[[]cdp.NodeID]()).Interface().([]cdp.NodeID)
+	return fmt.Sprint(ids), ids, requestNodes(ids)
+}
+
+// describe returns the text of a selector for error messages.
+func describe[S Selectable](sel S) string {
+	text, _, _ := lookup(sel)
+	return text
+}
+
+// queryOne selects a single element by the DOM.querySelector command.
+func queryOne(selector string) lookupFunc {
+	return func(ctx context.Context, t *Target, n *Node) ([]cdp.NodeID, error) {
+		res, err := cdp.Call(ctx, t, dom.QuerySelector, dom.QuerySelectorParams{NodeID: n.NodeID, Selector: selector})
 		if err != nil {
 			return nil, err
 		}
 
-		if nodeID == cdp.EmptyNodeID {
+		if res.NodeID == EmptyNodeID {
 			return []cdp.NodeID{}, nil
 		}
 
-		return []cdp.NodeID{nodeID}, nil
-	})(s)
+		return []cdp.NodeID{res.NodeID}, nil
+	}
 }
 
-// ByQueryAll is an element query action option to select elements by the
-// DOM.querySelectorAll command.
-//
-// Similar to calling document.querySelectorAll() in the browser.
-func ByQueryAll(s *Selector) {
-	ByFunc(func(ctx context.Context, n *cdp.Node) ([]cdp.NodeID, error) {
-		return dom.QuerySelectorAll(n.NodeID, s.selAsString()).Do(ctx)
-	})(s)
+// queryAll selects elements by the DOM.querySelectorAll command.
+func queryAll(selector string) lookupFunc {
+	return func(ctx context.Context, t *Target, n *Node) ([]cdp.NodeID, error) {
+		res, err := cdp.Call(ctx, t, dom.QuerySelectorAll, dom.QuerySelectorAllParams{NodeID: n.NodeID, Selector: selector})
+		return res.NodeIDs, err
+	}
 }
 
-// ByID is an element query option to select a single element by its CSS #id.
-//
-// Similar to calling document.querySelector('#' + ID) in the browser.
-func ByID(s *Selector) {
-	s.sel = "#" + strings.TrimPrefix(s.selAsString(), "#")
-	ByQuery(s)
-}
-
-// BySearch is an element query option to select elements by the DOM.performSearch
-// command. It matches nodes by plain text, CSS selector or XPath query.
-func BySearch(s *Selector) {
-	ByFunc(func(ctx context.Context, n *cdp.Node) ([]cdp.NodeID, error) {
-		id, count, err := dom.PerformSearch(s.selAsString()).Do(ctx)
+// search selects elements by the DOM.performSearch command. It matches nodes by
+// plain text, CSS selector or XPath query.
+func search(query string) lookupFunc {
+	return func(ctx context.Context, t *Target, n *Node) ([]cdp.NodeID, error) {
+		found, err := cdp.Call(ctx, t, dom.PerformSearch, dom.PerformSearchParams{Query: query})
 		if err != nil {
 			return nil, err
 		}
 
 		defer func() {
-			_ = dom.DiscardSearchResults(id).Do(ctx)
+			_, _ = cdp.Call(ctx, t, dom.DiscardSearchResults, dom.DiscardSearchResultsParams{SearchID: found.SearchID})
 		}()
 
-		if count < 1 {
+		if found.ResultCount < 1 {
 			return []cdp.NodeID{}, nil
 		}
 
-		nodes, err := dom.GetSearchResults(id, 0, count).Do(ctx)
+		res, err := cdp.Call(ctx, t, dom.GetSearchResults, dom.GetSearchResultsParams{
+			SearchID: found.SearchID,
+			ToIndex:  found.ResultCount,
+		})
 		if err != nil {
 			return nil, err
 		}
 
-		return nodes, nil
-	})(s)
-}
-
-// ByJSPath is an element query option to select elements by the "JS Path"
-// value (as shown in the Chrome DevTools UI).
-//
-// Allows for the direct querying of DOM elements that otherwise cannot be
-// retrieved using the other By* funcs, such as ShadowDOM elements.
-//
-// Note: Do not use with an untrusted selector value, as any defined selector
-// will be passed to runtime.Evaluate.
-func ByJSPath(s *Selector) {
-	ByFunc(func(ctx context.Context, n *cdp.Node) ([]cdp.NodeID, error) {
-		// set up eval command
-		p := runtime.Evaluate(s.selAsString()).
-			WithAwaitPromise(true).
-			WithObjectGroup("console").
-			WithIncludeCommandLineAPI(true)
-
-		// execute
-		v, exp, err := p.Do(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if exp != nil {
-			return nil, exp
-		}
-
-		// use the ObjectID from the evaluation to get the nodeID
-		nodeID, err := dom.RequestNode(v.ObjectID).Do(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		if nodeID == cdp.EmptyNodeID {
-			return []cdp.NodeID{}, nil
-		}
-
-		return []cdp.NodeID{nodeID}, nil
-	})(s)
-}
-
-// ByNodeID is an element query option to select elements by their node IDs.
-//
-// Uses DOM.requestChildNodes to retrieve elements with specific node IDs.
-//
-// Note: must be used with []cdp.NodeID.
-func ByNodeID(s *Selector) {
-	ids, ok := s.sel.([]cdp.NodeID)
-	if !ok {
-		panic("ByNodeID can only work on []cdp.NodeID")
+		return res.NodeIDs, nil
 	}
+}
 
-	ByFunc(func(ctx context.Context, n *cdp.Node) ([]cdp.NodeID, error) {
+// evaluatePath selects the elements that a JavaScript expression gives, by the
+// Runtime.evaluate command. The expression can give a node, an array or a
+// NodeList of nodes, or null or undefined. The last one and an empty list select
+// no element, so that [NodeNotPresent] succeeds and the other conditions wait.
+// Any other value is an error that [Selector.run] does not retry.
+func evaluatePath(expression string) lookupFunc {
+	return func(ctx context.Context, t *Target, n *Node) ([]cdp.NodeID, error) {
+		v, err := cdp.Call(ctx, t, runtime.Evaluate, runtime.EvaluateParams{
+			Expression:            expression,
+			AwaitPromise:          new(true),
+			ObjectGroup:           "console",
+			IncludeCommandLineAPI: new(true),
+		})
+		if err != nil {
+			return nil, err
+		}
+		if v.ExceptionDetails != nil {
+			return nil, &ExceptionError{v.ExceptionDetails}
+		}
+
+		obj := v.Result
+		switch {
+		case obj.Type == runtime.RemoteObjectTypeUndefined, obj.Subtype == runtime.RemoteObjectSubtypeNull:
+			return []cdp.NodeID{}, nil
+		case obj.Subtype == runtime.RemoteObjectSubtypeNode && obj.ObjectID != "":
+			return requestNode(ctx, t, obj.ObjectID)
+		case obj.Subtype != runtime.RemoteObjectSubtypeArray || obj.ObjectID == "":
+			return nil, fmt.Errorf("JSPath %q gave a %s and not a node: %w", expression, valueKind(obj), errNotNode)
+		}
+
+		// An array or a NodeList: its indexes are its own properties.
+		props, err := cdp.Call(ctx, t, runtime.GetProperties, runtime.GetPropertiesParams{
+			ObjectID:      obj.ObjectID,
+			OwnProperties: new(true),
+		})
+		if err != nil {
+			return nil, err
+		}
+		ids := []cdp.NodeID{}
+		for _, p := range props.Result {
+			if _, err := strconv.ParseUint(p.Name, 10, 32); err != nil || p.Value == nil {
+				continue
+			}
+			if p.Value.Subtype != runtime.RemoteObjectSubtypeNode {
+				return nil, fmt.Errorf("JSPath %q gave a list with a value that is not a node: %w", expression, errNotNode)
+			}
+			nodeIDs, err := requestNode(ctx, t, p.Value.ObjectID)
+			if err != nil {
+				return nil, err
+			}
+			ids = append(ids, nodeIDs...)
+		}
+		return ids, nil
+	}
+}
+
+// valueKind names the kind of a value for an error message.
+func valueKind(obj *runtime.RemoteObject) string {
+	if obj.ClassName != "" {
+		return obj.ClassName
+	}
+	return string(obj.Type)
+}
+
+// errNotNode marks the error of a JSPath expression that gave a value that is
+// not a node, an array or NodeList of nodes, null or undefined. A retry gives
+// the same error, so [Selector.run] returns it at once.
+var errNotNode = errors.New("not a node")
+
+// requestNode returns the ID of the node that the object is.
+func requestNode(ctx context.Context, t *Target, id runtime.RemoteObjectID) ([]cdp.NodeID, error) {
+	res, err := cdp.Call(ctx, t, dom.RequestNode, dom.RequestNodeParams{ObjectID: id})
+	if err != nil {
+		return nil, err
+	}
+	if res.NodeID == EmptyNodeID {
+		return []cdp.NodeID{}, nil
+	}
+	return []cdp.NodeID{res.NodeID}, nil
+}
+
+// requestNodes selects the elements with the given node IDs. It uses the
+// DOM.requestChildNodes command.
+func requestNodes(ids []cdp.NodeID) lookupFunc {
+	return func(ctx context.Context, t *Target, n *Node) ([]cdp.NodeID, error) {
 		for _, id := range ids {
-			err := dom.RequestChildNodes(id).WithPierce(true).Do(ctx)
+			_, err := cdp.Call(ctx, t, dom.RequestChildNodes, dom.RequestChildNodesParams{NodeID: id, Pierce: new(true)})
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		return ids, nil
-	})(s)
+	}
 }
 
 // WaitFunc is an element query option to set a custom node condition wait.
-func WaitFunc(wait func(context.Context, *cdp.Frame, runtime.ExecutionContextID, ...cdp.NodeID) ([]*cdp.Node, error)) QueryOption {
+func WaitFunc(wait func(context.Context, *Target, *Frame, runtime.ExecutionContextID, ...cdp.NodeID) ([]*Node, error)) QueryOption {
 	return func(s *Selector) {
 		s.wait = wait
 	}
 }
 
-// NodeReady is an element query option to wait until all queried element nodes
-// have been sent by the browser.
+// NodeReady is an element query option that waits until the browser has sent
+// all queried element nodes.
 func NodeReady(s *Selector) {
 	WaitFunc(s.waitReady(nil))(s)
 }
 
-func callFunctionOnNode(ctx context.Context, node *cdp.Node, function string, res any, args ...any) error {
-	r, err := dom.ResolveNode().WithNodeID(node.NodeID).Do(ctx)
+// callFunctionOnNode calls the function with the node as its "this" value, and
+// returns the decoded result.
+func callFunctionOnNode[T any](ctx context.Context, t *Target, node *Node, function string, args ...any) (T, error) {
+	var zero T
+	r, err := cdp.Call(ctx, t, dom.ResolveNode, dom.ResolveNodeParams{NodeID: node.NodeID})
 	if err != nil {
-		return err
+		return zero, err
 	}
-	err = CallFunctionOn(function, res,
-		func(p *runtime.CallFunctionOnParams) *runtime.CallFunctionOnParams {
-			return p.WithObjectID(r.ObjectID)
+	res, _, err := callFunctionOn[T](ctx, t, function,
+		func(p *runtime.CallFunctionOnParams) {
+			p.ObjectID = r.Object.ObjectID
 		},
 		args...,
-	).Do(ctx)
+	)
+
+	// Try to release the remote object, also when the call failed.
+	// It fails if the page navigated or closed,
+	// and we can ignore the error in this case.
+	_, _ = cdp.Call(ctx, t, runtime.ReleaseObject, runtime.ReleaseObjectParams{ObjectID: r.Object.ObjectID})
+
 	if err != nil {
-		return err
+		return zero, err
 	}
-
-	// Try to release the remote object.
-	// It will fail if the page is navigated or closed,
-	// and it's okay to ignore the error in this case.
-	_ = runtime.ReleaseObject(r.ObjectID).Do(ctx)
-
-	return nil
+	return res, nil
 }
 
-// NodeVisible is an element query option to wait until all queried element
-// nodes have been sent by the browser and are visible.
+// NodeVisible is an element query option that waits until the browser has sent
+// all queried element nodes and they are visible.
 func NodeVisible(s *Selector) {
-	WaitFunc(s.waitReady(func(ctx context.Context, execCtx runtime.ExecutionContextID, n *cdp.Node) error {
-		// check box model
-		_, err := dom.GetBoxModel().WithNodeID(n.NodeID).Do(ctx)
+	WaitFunc(s.waitReady(func(ctx context.Context, t *Target, execCtx runtime.ExecutionContextID, n *Node) error {
+		// get the box model
+		_, err := cdp.Call(ctx, t, dom.GetBoxModel, dom.GetBoxModelParams{NodeID: n.NodeID})
 		if err != nil {
 			if isCouldNotComputeBoxModelError(err) {
 				return ErrNotVisible
@@ -473,9 +642,8 @@ func NodeVisible(s *Selector) {
 			return err
 		}
 
-		// check visibility
-		var res bool
-		err = callFunctionOnNode(ctx, n, visibleJS, &res)
+		// make sure that the visibility is as expected
+		res, err := callFunctionOnNode[bool](ctx, t, n, visibleJS)
 		if err != nil {
 			return err
 		}
@@ -486,12 +654,12 @@ func NodeVisible(s *Selector) {
 	}))(s)
 }
 
-// NodeNotVisible is an element query option to wait until all queried element
-// nodes have been sent by the browser and are not visible.
+// NodeNotVisible is an element query option that waits until the browser has
+// sent all queried element nodes and they are not visible.
 func NodeNotVisible(s *Selector) {
-	WaitFunc(s.waitReady(func(ctx context.Context, execCtx runtime.ExecutionContextID, n *cdp.Node) error {
-		// check box model
-		_, err := dom.GetBoxModel().WithNodeID(n.NodeID).Do(ctx)
+	WaitFunc(s.waitReady(func(ctx context.Context, t *Target, execCtx runtime.ExecutionContextID, n *Node) error {
+		// get the box model
+		_, err := cdp.Call(ctx, t, dom.GetBoxModel, dom.GetBoxModelParams{NodeID: n.NodeID})
 		if err != nil {
 			if isCouldNotComputeBoxModelError(err) {
 				return nil
@@ -500,9 +668,8 @@ func NodeNotVisible(s *Selector) {
 			return err
 		}
 
-		// check visibility
-		var res bool
-		err = callFunctionOnNode(ctx, n, visibleJS, &res)
+		// make sure that the visibility is as expected
+		res, err := callFunctionOnNode[bool](ctx, t, n, visibleJS)
 		if err != nil {
 			return err
 		}
@@ -513,11 +680,11 @@ func NodeNotVisible(s *Selector) {
 	}))(s)
 }
 
-// NodeEnabled is an element query option to wait until all queried element
-// nodes have been sent by the browser and are enabled (i.e., do not have a
+// NodeEnabled is an element query option that waits until the browser has sent
+// all queried element nodes. The nodes must be enabled (that is, they have no
 // 'disabled' attribute).
 func NodeEnabled(s *Selector) {
-	WaitFunc(s.waitReady(func(ctx context.Context, execCtx runtime.ExecutionContextID, n *cdp.Node) error {
+	WaitFunc(s.waitReady(func(ctx context.Context, t *Target, execCtx runtime.ExecutionContextID, n *Node) error {
 		n.RLock()
 		defer n.RUnlock()
 
@@ -531,11 +698,11 @@ func NodeEnabled(s *Selector) {
 	}))(s)
 }
 
-// NodeSelected is an element query option to wait until all queried element
-// nodes have been sent by the browser and are selected (i.e., has 'selected'
-// attribute).
+// NodeSelected is an element query option that waits until the browser has
+// sent all queried element nodes. The nodes must be selected (that is, they
+// have a 'selected' attribute).
 func NodeSelected(s *Selector) {
-	WaitFunc(s.waitReady(func(ctx context.Context, execCtx runtime.ExecutionContextID, n *cdp.Node) error {
+	WaitFunc(s.waitReady(func(ctx context.Context, t *Target, execCtx runtime.ExecutionContextID, n *Node) error {
 		n.RLock()
 		defer n.RUnlock()
 
@@ -549,66 +716,66 @@ func NodeSelected(s *Selector) {
 	}))(s)
 }
 
-// NodeNotPresent is an element query option to wait until no elements are
-// present that match the query.
+// NodeNotPresent is an element query option that waits until no element
+// matches the query.
 //
-// Note: forces the expected number of element nodes to be 0.
+// Note: it sets the expected number of element nodes to 0.
 func NodeNotPresent(s *Selector) {
 	s.exp = 0
-	WaitFunc(func(ctx context.Context, cur *cdp.Frame, execCtx runtime.ExecutionContextID, ids ...cdp.NodeID) ([]*cdp.Node, error) {
+	WaitFunc(func(ctx context.Context, t *Target, cur *Frame, execCtx runtime.ExecutionContextID, ids ...cdp.NodeID) ([]*Node, error) {
 		if len(ids) != 0 {
 			return nil, ErrHasResults
 		}
-		return []*cdp.Node{}, nil
+		return []*Node{}, nil
 	})(s)
 }
 
-// AtLeast is an element query option to set a minimum number of elements that
-// must be returned by the query.
+// AtLeast is an element query option that sets the minimum number of elements
+// that the query must return.
 //
-// By default, a query will have a value of 1.
+// By default, a query needs 1.
 func AtLeast(n int) QueryOption {
 	return func(s *Selector) {
 		s.exp = n
 	}
 }
 
-// RetryInterval is an element query action option to set the retry interval to specify
-// how often it should retry when it failed to select the target element(s).
+// RetryInterval is an element query action option that sets how often the
+// query retries when it fails to select the target elements.
 //
-// The default value is 5ms.
+// The default is 5ms.
 func RetryInterval(interval time.Duration) QueryOption {
 	return func(s *Selector) {
 		s.retryInterval = interval
 	}
 }
 
-// After is an element query option that sets a func to execute after the
-// matched nodes have been returned by the browser, and after the node
-// condition is true.
-func After(f func(context.Context, runtime.ExecutionContextID, ...*cdp.Node) error) QueryOption {
+// After is an element query option that sets a func to run when the browser
+// has returned the matched nodes and the node condition is true.
+func After(f func(ctx context.Context, t *Target, nodes []*Node) error) QueryOption {
 	return func(s *Selector) {
 		s.after = append(s.after, f)
 	}
 }
 
-// Populate is an element query option that causes the queried nodes to be
-// retrieved for later use. Use a depth of -1 to retrieve all child nodes. When
-// pierce is true, will pierce child containers (e.g. iframes and the like)
+// Populate is an element query option that retrieves the queried nodes for
+// later use. Use a depth of -1 to retrieve all child nodes. When pierce is
+// true, it also pierces child containers (for example iframes).
 //
-// NOTE: this could be extremely resource intensive. Avoid doing this unless
-// necessary.
+// NOTE: this can use a lot of resources. Use it only when necessary.
 func Populate(depth int64, pierce bool, opts ...PopulateOption) QueryOption {
-	return After(func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
+	return After(func(ctx context.Context, t *Target, nodes []*Node) error {
 		var d time.Duration
 		for _, o := range opts {
 			o(&d)
 		}
 		for _, n := range nodes {
-			if err := dom.RequestChildNodes(n.NodeID).
-				WithDepth(depth).
-				WithPierce(pierce).
-				Do(ctx); err != nil {
+			_, err := cdp.Call(ctx, t, dom.RequestChildNodes, dom.RequestChildNodesParams{
+				NodeID: n.NodeID,
+				Depth:  &depth,
+				Pierce: &pierce,
+			})
+			if err != nil {
 				return err
 			}
 		}
@@ -622,110 +789,101 @@ func Populate(depth int64, pierce bool, opts ...PopulateOption) QueryOption {
 // PopulateOption is an element populate action option.
 type PopulateOption = func(*time.Duration)
 
-// PopulateWait is populate option to set a wait interval after requesting
-// child nodes.
+// PopulateWait is a populate option that sets a wait interval after the
+// request for child nodes.
 func PopulateWait(wait time.Duration) PopulateOption {
 	return func(d *time.Duration) {
 		*d = wait
 	}
 }
 
-// WaitReady is an element query action that waits until the element matching
-// the selector is ready (i.e., has been "loaded").
-func WaitReady(sel any, opts ...QueryOption) QueryAction {
+// WaitReady is an element query action that waits until the element that
+// matches the selector is ready (that is, "loaded").
+func WaitReady[S Selectable](sel S, opts ...QueryOption) Action[Void] {
 	return Query(sel, opts...)
 }
 
 // WaitVisible is an element query action that waits until the element matching
 // the selector is visible.
-func WaitVisible(sel any, opts ...QueryOption) QueryAction {
-	return Query(sel, append(opts, NodeVisible)...)
+func WaitVisible[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return Query(sel, withOpts(opts, NodeVisible)...)
 }
 
 // WaitNotVisible is an element query action that waits until the element
 // matching the selector is not visible.
-func WaitNotVisible(sel any, opts ...QueryOption) QueryAction {
-	return Query(sel, append(opts, NodeNotVisible)...)
+func WaitNotVisible[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return Query(sel, withOpts(opts, NodeNotVisible)...)
 }
 
-// WaitEnabled is an element query action that waits until the element matching
-// the selector is enabled (i.e., does not have attribute 'disabled').
-func WaitEnabled(sel any, opts ...QueryOption) QueryAction {
-	return Query(sel, append(opts, NodeEnabled)...)
+// WaitEnabled is an element query action that waits until the element that
+// matches the selector is enabled (that is, it has no attribute 'disabled').
+func WaitEnabled[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return Query(sel, withOpts(opts, NodeEnabled)...)
 }
 
-// WaitSelected is an element query action that waits until the element
-// matching the selector is selected (i.e., has attribute 'selected').
-func WaitSelected(sel any, opts ...QueryOption) QueryAction {
-	return Query(sel, append(opts, NodeSelected)...)
+// WaitSelected is an element query action that waits until the element that
+// matches the selector is selected (that is, it has the attribute 'selected').
+func WaitSelected[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return Query(sel, withOpts(opts, NodeSelected)...)
 }
 
-// WaitNotPresent is an element query action that waits until no elements are
-// present matching the selector.
-func WaitNotPresent(sel any, opts ...QueryOption) QueryAction {
-	return Query(sel, append(opts, NodeNotPresent)...)
+// WaitNotPresent is an element query action that waits until no element
+// that matches the selector is present.
+func WaitNotPresent[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return Query(sel, withOpts(opts, NodeNotPresent)...)
 }
 
 // Nodes is an element query action that retrieves the document element nodes
 // matching the selector.
-func Nodes(sel any, nodes *[]*cdp.Node, opts ...QueryOption) QueryAction {
-	if nodes == nil {
-		panic("nodes cannot be nil")
-	}
-
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, n ...*cdp.Node) error {
-		*nodes = n
-		return nil
+func Nodes[S Selectable](sel S, opts ...QueryOption) Action[[]*Node] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) ([]*Node, error) {
+		return nodes, nil
 	}, opts...)
 }
 
-// NodeIDs is an element query action that retrieves the element node IDs matching the
-// selector.
-func NodeIDs(sel any, ids *[]cdp.NodeID, opts ...QueryOption) QueryAction {
-	if ids == nil {
-		panic("nodes cannot be nil")
-	}
-
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
+// QueryNodeIDs is an element query action that retrieves the element node IDs
+// matching the selector.
+func QueryNodeIDs[S Selectable](sel S, opts ...QueryOption) Action[[]cdp.NodeID] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) ([]cdp.NodeID, error) {
 		nodeIDs := make([]cdp.NodeID, len(nodes))
 		for i, n := range nodes {
 			nodeIDs[i] = n.NodeID
 		}
 
-		*ids = nodeIDs
-
-		return nil
+		return nodeIDs, nil
 	}, opts...)
 }
 
 // Focus is an element query action that focuses the first element node matching the
 // selector.
-func Focus(sel any, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func Focus[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		return dom.Focus().WithNodeID(nodes[0].NodeID).Do(ctx)
+		_, err = cdp.Call(ctx, t, dom.Focus, dom.FocusParams{NodeID: n.NodeID})
+		return err
 	}, opts...)
 }
 
 // Blur is an element query action that unfocuses (blurs) the first element node
 // matching the selector.
-func Blur(sel any, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func Blur[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		var res bool
-		err := callFunctionOnNode(ctx, nodes[0], blurJS, &res)
+		res, err := callFunctionOnNode[bool](ctx, t, n, blurJS)
 		if err != nil {
 			return err
 		}
 
 		if !res {
-			return fmt.Errorf("could not blur node %d", nodes[0].NodeID)
+			return fmt.Errorf("could not blur node %d", n.NodeID)
 		}
 
 		return nil
@@ -734,63 +892,57 @@ func Blur(sel any, opts ...QueryOption) QueryAction {
 
 // Dimensions is an element query action that retrieves the box model dimensions for the
 // first element node matching the selector.
-func Dimensions(sel any, model **dom.BoxModel, opts ...QueryOption) QueryAction {
-	if model == nil {
-		panic("model cannot be nil")
-	}
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func Dimensions[S Selectable](sel S, opts ...QueryOption) Action[*dom.BoxModel] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) (*dom.BoxModel, error) {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return nil, err
 		}
-		var err error
-		*model, err = dom.GetBoxModel().WithNodeID(nodes[0].NodeID).Do(ctx)
-		return err
+		res, err := cdp.Call(ctx, t, dom.GetBoxModel, dom.GetBoxModelParams{NodeID: n.NodeID})
+		if err != nil {
+			return nil, err
+		}
+		return res.Model, nil
 	}, opts...)
 }
 
 // Text is an element query action that retrieves the visible text of the first element
 // node matching the selector.
-func Text(sel any, text *string, opts ...QueryOption) QueryAction {
-	if text == nil {
-		panic("text cannot be nil")
-	}
-
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func Text[S Selectable](sel S, opts ...QueryOption) Action[string] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) (string, error) {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return "", err
 		}
 
-		return callFunctionOnNode(ctx, nodes[0], textJS, text)
+		return callFunctionOnNode[string](ctx, t, n, textJS)
 	}, opts...)
 }
 
 // TextContent is an element query action that retrieves the text content of the first element
 // node matching the selector.
-func TextContent(sel any, text *string, opts ...QueryOption) QueryAction {
-	if text == nil {
-		panic("text cannot be nil")
-	}
-
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func TextContent[S Selectable](sel S, opts ...QueryOption) Action[string] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) (string, error) {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return "", err
 		}
 
-		return callFunctionOnNode(ctx, nodes[0], textContentJS, text)
+		return callFunctionOnNode[string](ctx, t, n, textContentJS)
 	}, opts...)
 }
 
 // Clear is an element query action that clears the values of any input/textarea element
 // nodes matching the selector.
-func Clear(sel any, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func Clear[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		if _, err := first(sel, nodes); err != nil {
+			return err
 		}
 
 		for _, n := range nodes {
-			if n.NodeType != cdp.NodeTypeElement || (n.NodeName != "INPUT" && n.NodeName != "TEXTAREA") {
-				return fmt.Errorf("selector %q matched node %d with name %s", sel, n.NodeID, strings.ToLower(n.NodeName))
+			if n.NodeType != NodeTypeElement || (n.NodeName != "INPUT" && n.NodeName != "TEXTAREA") {
+				return fmt.Errorf("selector %q matched node %d with name %s", describe(sel), n.NodeID, strings.ToLower(n.NodeName))
 			}
 		}
 
@@ -798,18 +950,17 @@ func Clear(sel any, opts ...QueryOption) QueryAction {
 		var wg sync.WaitGroup
 		for i, n := range nodes {
 			wg.Add(1)
-			go func(i int, n *cdp.Node) {
+			go func(i int, n *Node) {
 				defer wg.Done()
 
-				var a Action
 				if n.NodeName == "INPUT" {
-					a = dom.SetAttributeValue(n.NodeID, "value", "")
+					_, errs[i] = cdp.Call(ctx, t, dom.SetAttributeValue, dom.SetAttributeValueParams{NodeID: n.NodeID, Name: "value"})
 				} else {
 					// find textarea's child #text node
 					var textID cdp.NodeID
 					var found bool
 					for _, c := range n.Children {
-						if c.NodeType == cdp.NodeTypeText {
+						if c.NodeType == NodeTypeText {
 							textID = c.NodeID
 							found = true
 							break
@@ -821,9 +972,8 @@ func Clear(sel any, opts ...QueryOption) QueryAction {
 						return
 					}
 
-					a = dom.SetNodeValue(textID, "")
+					_, errs[i] = cdp.Call(ctx, t, dom.SetNodeValue, dom.SetNodeValueParams{NodeID: textID})
 				}
-				errs[i] = a.Do(ctx)
 			}(i, n)
 		}
 		wg.Wait()
@@ -841,84 +991,70 @@ func Clear(sel any, opts ...QueryOption) QueryAction {
 // Value is an element query action that retrieves the JavaScript value field of the
 // first element node matching the selector.
 //
-// Useful for retrieving an element's JavaScript value, namely form, input,
-// textarea, select, or any other element with a '.value' field.
-func Value(sel any, value *string, opts ...QueryOption) QueryAction {
-	if value == nil {
-		panic("value cannot be nil")
-	}
-
-	return JavascriptAttribute(sel, "value", value, opts...)
+// Use it to read the JavaScript value of a form, input, textarea, select, or
+// other element with a '.value' field.
+//
+// Value follows [JavascriptAttribute]. An element without a '.value' field
+// gives an error that wraps [ErrJSUndefined].
+func Value[S Selectable](sel S, opts ...QueryOption) Action[string] {
+	return JavascriptAttribute[string](sel, "value", opts...)
 }
 
 // SetValue is an element query action that sets the JavaScript value of the first
 // element node matching the selector.
 //
-// Useful for setting an element's JavaScript value, namely form, input,
-// textarea, select, or other element with a '.value' field.
-func SetValue(sel any, value string, opts ...QueryOption) QueryAction {
+// Use it to set the JavaScript value of a form, input, textarea, select, or
+// other element with a '.value' field.
+func SetValue[S Selectable](sel S, value string, opts ...QueryOption) Action[Void] {
 	return SetJavascriptAttribute(sel, "value", value, opts...)
+}
+
+// attributeMap returns the attributes of the node as a map.
+func attributeMap(n *Node) map[string]string {
+	n.RLock()
+	defer n.RUnlock()
+
+	m := make(map[string]string)
+	attrs := n.Attributes
+	for i := 0; i < len(attrs); i += 2 {
+		m[attrs[i]] = attrs[i+1]
+	}
+	return m
 }
 
 // Attributes is an element query action that retrieves the element attributes for the
 // first element node matching the selector.
-func Attributes(sel any, attributes *map[string]string, opts ...QueryOption) QueryAction {
-	if attributes == nil {
-		panic("attributes cannot be nil")
-	}
-
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func Attributes[S Selectable](sel S, opts ...QueryOption) Action[map[string]string] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) (map[string]string, error) {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return nil, err
 		}
-
-		nodes[0].RLock()
-		defer nodes[0].RUnlock()
-
-		m := make(map[string]string)
-		attrs := nodes[0].Attributes
-		for i := 0; i < len(attrs); i += 2 {
-			m[attrs[i]] = attrs[i+1]
-		}
-
-		*attributes = m
-
-		return nil
+		return attributeMap(n), nil
 	}, opts...)
 }
 
 // AttributesAll is an element query action that retrieves the element attributes for
 // all element nodes matching the selector.
-//
-// Note: this should be used with the ByQueryAll query option.
-func AttributesAll(sel any, attributes *[]map[string]string, opts ...QueryOption) QueryAction {
-	if attributes == nil {
-		panic("attributes cannot be nil")
-	}
-
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+// Note: use it with a [CSSAll] selector.
+func AttributesAll[S Selectable](sel S, opts ...QueryOption) Action[[]map[string]string] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) ([]map[string]string, error) {
+		if _, err := first(sel, nodes); err != nil {
+			return nil, err
 		}
 
-		for _, node := range nodes {
-			node.RLock()
-			m := make(map[string]string)
-			attrs := node.Attributes
-			for i := 0; i < len(attrs); i += 2 {
-				m[attrs[i]] = attrs[i+1]
-			}
-			*attributes = append(*attributes, m)
-			node.RUnlock()
+		all := make([]map[string]string, 0, len(nodes))
+		for _, n := range nodes {
+			all = append(all, attributeMap(n))
 		}
-		return nil
+		return all, nil
 	}, opts...)
 }
 
 // SetAttributes is an element query action that sets the element attributes for the
 // first element node matching the selector.
-func SetAttributes(sel any, attributes map[string]string, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
+func SetAttributes[S Selectable](sel S, attributes map[string]string, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
 		if len(nodes) < 1 {
 			return errors.New("expected at least one element")
 		}
@@ -929,20 +1065,31 @@ func SetAttributes(sel any, attributes map[string]string, opts ...QueryOption) Q
 			i++
 		}
 
-		return dom.SetAttributesAsText(nodes[0].NodeID, strings.Join(attrs, " ")).Do(ctx)
+		_, err := cdp.Call(ctx, t, dom.SetAttributesAsText, dom.SetAttributesAsTextParams{
+			NodeID: nodes[0].NodeID,
+			Text:   strings.Join(attrs, " "),
+		})
+		return err
 	}, opts...)
 }
 
-// AttributeValue is an element query action that retrieves the element attribute value
-// for the first element node matching the selector.
-func AttributeValue(sel any, name string, value *string, ok *bool, opts ...QueryOption) QueryAction {
-	if value == nil {
-		panic("value cannot be nil")
-	}
+// AttributeResult is the result of the [AttributeValue] action.
+type AttributeResult struct {
+	// Value is the value of the attribute. It is empty when the attribute
+	// does not exist.
+	Value string
 
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
+	// Exists is true when the element has the attribute.
+	Exists bool
+}
+
+// AttributeValue is an element query action that retrieves the element attribute value
+// for the first element node matching the selector. The result tells whether the
+// attribute exists.
+func AttributeValue[S Selectable](sel S, name string, opts ...QueryOption) Action[AttributeResult] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) (AttributeResult, error) {
 		if len(nodes) < 1 {
-			return errors.New("expected at least one element")
+			return AttributeResult{}, errors.New("expected at least one element")
 		}
 
 		nodes[0].RLock()
@@ -951,80 +1098,84 @@ func AttributeValue(sel any, name string, value *string, ok *bool, opts ...Query
 		attrs := nodes[0].Attributes
 		for i := 0; i < len(attrs); i += 2 {
 			if attrs[i] == name {
-				*value = attrs[i+1]
-				if ok != nil {
-					*ok = true
-				}
-				return nil
+				return AttributeResult{Value: attrs[i+1], Exists: true}, nil
 			}
 		}
 
-		if ok != nil {
-			*ok = false
-		}
-
-		return nil
+		return AttributeResult{}, nil
 	}, opts...)
 }
 
 // SetAttributeValue is an element query action that sets the element attribute with
 // name to value for the first element node matching the selector.
-func SetAttributeValue(sel any, name, value string, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func SetAttributeValue[S Selectable](sel S, name, value string, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		return dom.SetAttributeValue(nodes[0].NodeID, name, value).Do(ctx)
+		_, err = cdp.Call(ctx, t, dom.SetAttributeValue, dom.SetAttributeValueParams{NodeID: n.NodeID, Name: name, Value: value})
+		return err
 	}, opts...)
 }
 
 // RemoveAttribute is an element query action that removes the element attribute with
 // name from the first element node matching the selector.
-func RemoveAttribute(sel any, name string, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func RemoveAttribute[S Selectable](sel S, name string, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		return dom.RemoveAttribute(nodes[0].NodeID, name).Do(ctx)
+		_, err = cdp.Call(ctx, t, dom.RemoveAttribute, dom.RemoveAttributeParams{NodeID: n.NodeID, Name: name})
+		return err
 	}, opts...)
 }
 
 // JavascriptAttribute is an element query action that retrieves the JavaScript
-// attribute for the first element node matching the selector.
-func JavascriptAttribute(sel any, name string, res any, opts ...QueryOption) QueryAction {
-	if res == nil {
-		panic("res cannot be nil")
-	}
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+// attribute for the first element node matching the selector. It decodes the
+// attribute into the type T, as [Evaluate] does, with one difference. When the
+// attribute is null, for example "onclick" with no handler, JavascriptAttribute
+// returns the zero value of T and no error, and it does not return [ErrJSNull].
+// An attribute that the element does not have is undefined, and the action
+// returns an error that wraps [ErrJSUndefined] for a type that cannot be nil.
+func JavascriptAttribute[T any, S Selectable](sel S, name string, opts ...QueryOption) Action[T] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) (T, error) {
+		var zero T
+		n, err := first(sel, nodes)
+		if err != nil {
+			return zero, err
 		}
 
-		if err := callFunctionOnNode(ctx, nodes[0], attributeJS, res, name); err != nil {
-			return fmt.Errorf("could not retrieve attribute %q: %w", name, err)
+		res, err := callFunctionOnNode[T](ctx, t, n, attributeJS, name)
+		if errors.Is(err, ErrJSNull) {
+			return zero, nil
+		}
+		if err != nil {
+			return zero, fmt.Errorf("could not retrieve attribute %q: %w", name, err)
 		}
 
-		return nil
+		return res, nil
 	}, opts...)
 }
 
 // SetJavascriptAttribute is an element query action that sets the JavaScript attribute
 // for the first element node matching the selector.
-func SetJavascriptAttribute(sel any, name, value string, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func SetJavascriptAttribute[S Selectable](sel S, name, value string, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		var res string
-		err := callFunctionOnNode(ctx, nodes[0], setAttributeJS, &res, name, value)
+		res, err := callFunctionOnNode[string](ctx, t, n, setAttributeJS, name, value)
 		if err != nil {
 			return err
 		}
 		if res != value {
-			return fmt.Errorf("could not set value on node %d", nodes[0].NodeID)
+			return fmt.Errorf("could not set value on node %d", n.NodeID)
 		}
 
 		return nil
@@ -1033,63 +1184,110 @@ func SetJavascriptAttribute(sel any, name, value string, opts ...QueryOption) Qu
 
 // OuterHTML is an element query action that retrieves the outer html of the first
 // element node matching the selector.
-func OuterHTML(sel any, html *string, opts ...QueryOption) QueryAction {
-	if html == nil {
-		panic("html cannot be nil")
-	}
-	return JavascriptAttribute(sel, "outerHTML", html, opts...)
+func OuterHTML[S Selectable](sel S, opts ...QueryOption) Action[string] {
+	return JavascriptAttribute[string](sel, "outerHTML", opts...)
 }
 
 // InnerHTML is an element query action that retrieves the inner html of the first
 // element node matching the selector.
-func InnerHTML(sel any, html *string, opts ...QueryOption) QueryAction {
-	if html == nil {
-		panic("html cannot be nil")
-	}
-	return JavascriptAttribute(sel, "innerHTML", html, opts...)
+func InnerHTML[S Selectable](sel S, opts ...QueryOption) Action[string] {
+	return JavascriptAttribute[string](sel, "innerHTML", opts...)
 }
 
 // Click is an element query action that sends a mouse click event to the first element
 // node matching the selector.
-func Click(sel any, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func Click[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		return MouseClickNode(nodes[0]).Do(ctx)
-	}, append(opts, NodeVisible)...)
+		_, err = MouseClickNode(n)(ctx, t)
+		return err
+	}, withOpts(opts, NodeVisible)...)
+}
+
+// Tap is an element query action that sends a touch tap to the center of the
+// first element node matching the selector. The action scrolls the node into
+// view, and then sends a touchStart event and a touchEnd event. See [TapXY].
+//
+// The browser sends the touch events and the click event to the page only when
+// touch emulation is on. Use [EmulateViewport] with [EmulateTouch] for it.
+func Tap[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
+		}
+
+		x, y, err := nodeCenter(ctx, t, n)
+		if err != nil {
+			return err
+		}
+
+		_, err = TapXY(x, y)(ctx, t)
+		return err
+	}, withOpts(opts, NodeVisible)...)
 }
 
 // DoubleClick is an element query action that sends a mouse double click event to the
 // first element node matching the selector.
-func DoubleClick(sel any, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func DoubleClick[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		return MouseClickNode(nodes[0], ClickCount(2)).Do(ctx)
-	}, append(opts, NodeVisible)...)
+		_, err = MouseClickNode(n, ClickCount(2))(ctx, t)
+		return err
+	}, withOpts(opts, NodeVisible)...)
 }
 
-// SendKeys is an element query action that synthesizes the key up, char, and down
-// events as needed for the runes in v, sending them to the first element node
-// matching the selector.
+// SendKeys is an element query action that sends key events to the first
+// element node that matches the selector. It synthesizes the key down, char,
+// and key up events that the runes in v need.
 //
-// See the [keys] for a complete example on how to use SendKeys.
+// See [keys] for a complete example of how to use SendKeys.
 //
-// Note: when the element query matches an input[type="file"] node, then
-// dom.SetFileInputFiles is used to set the upload path of the input node to v.
+// Note: when the element query matches an input[type="file"] node, SendKeys
+// uses dom.SetFileInputFiles to set the upload path of the input node to v.
+//
+// A "\n" in v is the Enter key. SendKeys sends it as "\r", which is the same as
+// [kb.Enter]: a keyDown event, a char event with the text "\r", and a keyUp
+// event. An editor that handles Enter on keydown and cancels the default, such
+// as Lexical, can then insert two line breaks, because the char event inserts
+// one more. To send the Enter key with no char event, send a rawKeyDown event
+// and a keyUp event with the command [input.DispatchKeyEvent]:
+//
+//	enter := chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+//		for _, typ := range []input.DispatchKeyEventType{
+//			input.DispatchKeyEventTypeRawKeyDown, input.DispatchKeyEventTypeKeyUp,
+//		} {
+//			_, err := cdp.Call(ctx, t, input.DispatchKeyEvent, input.DispatchKeyEventParams{
+//				Type: typ, Key: "Enter", Code: "Enter",
+//				WindowsVirtualKeyCode: 13, NativeVirtualKeyCode: 13,
+//			})
+//			if err != nil {
+//				return err
+//			}
+//		}
+//		return nil
+//	})
+//	err := chromedp.Do(ctx,
+//		chromedp.SendKeys(sel, "Hello"),
+//		enter,
+//		chromedp.SendKeys(sel, "World"),
+//	)
 //
 // [keys]: https://github.com/chromedp/examples/tree/master/keys
-func SendKeys(sel any, v string, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func SendKeys[S Selectable](sel S, v string, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
-
-		n := nodes[0]
 
 		// grab type attribute from node
 		typ, attrs := "", n.Attributes
@@ -1103,41 +1301,46 @@ func SendKeys(sel any, v string, opts ...QueryOption) QueryAction {
 
 		// when working with input[type="file"], call dom.SetFileInputFiles
 		if n.NodeName == "INPUT" && typ == "file" {
-			return dom.SetFileInputFiles([]string{v}).WithNodeID(n.NodeID).Do(ctx)
+			_, err := cdp.Call(ctx, t, dom.SetFileInputFiles, dom.SetFileInputFilesParams{Files: []string{v}, NodeID: n.NodeID})
+			return err
 		}
 
-		return KeyEventNode(n, v).Do(ctx)
-	}, append(opts, NodeVisible)...)
+		_, err = KeyEventNode(n, v)(ctx, t)
+		return err
+	}, withOpts(opts, NodeVisible)...)
 }
 
-// SetUploadFiles is an element query action that sets the files to upload (i.e., for a
-// input[type="file"] node) for the first element node matching the selector.
-func SetUploadFiles(sel any, files []string, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+// SetUploadFiles is an element query action that sets the files to upload for
+// the first element node matching the selector. The node must be an
+// input[type="file"] node.
+func SetUploadFiles[S Selectable](sel S, files []string, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		return dom.SetFileInputFiles(files).WithNodeID(nodes[0].NodeID).Do(ctx)
+		_, err = cdp.Call(ctx, t, dom.SetFileInputFiles, dom.SetFileInputFilesParams{Files: files, NodeID: n.NodeID})
+		return err
 	}, opts...)
 }
 
 // Submit is an element query action that submits the parent form of the first element
 // node matching the selector.
-func Submit(sel any, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func Submit[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		var res bool
-		err := callFunctionOnNode(ctx, nodes[0], submitJS, &res)
+		res, err := callFunctionOnNode[bool](ctx, t, n, submitJS)
 		if err != nil {
 			return err
 		}
 
 		if !res {
-			return fmt.Errorf("could not call submit on node %d", nodes[0].NodeID)
+			return fmt.Errorf("could not call submit on node %d", n.NodeID)
 		}
 
 		return nil
@@ -1146,20 +1349,20 @@ func Submit(sel any, opts ...QueryOption) QueryAction {
 
 // Reset is an element query action that resets the parent form of the first element
 // node matching the selector.
-func Reset(sel any, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func Reset[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		var res bool
-		err := callFunctionOnNode(ctx, nodes[0], resetJS, &res)
+		res, err := callFunctionOnNode[bool](ctx, t, n, resetJS)
 		if err != nil {
 			return err
 		}
 
 		if !res {
-			return fmt.Errorf("could not call reset on node %d", nodes[0].NodeID)
+			return fmt.Errorf("could not call reset on node %d", n.NodeID)
 		}
 
 		return nil
@@ -1168,75 +1371,64 @@ func Reset(sel any, opts ...QueryOption) QueryAction {
 
 // ComputedStyle is an element query action that retrieves the computed style of the
 // first element node matching the selector.
-func ComputedStyle(sel any, style *[]*css.ComputedStyleProperty, opts ...QueryOption) QueryAction {
-	if style == nil {
-		panic("style cannot be nil")
-	}
-
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
-		}
-
-		computed, _, err := css.GetComputedStyleForNode(nodes[0].NodeID).Do(ctx)
+func ComputedStyle[S Selectable](sel S, opts ...QueryOption) Action[[]*css.ComputedStyleProperty] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) ([]*css.ComputedStyleProperty, error) {
+		n, err := first(sel, nodes)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		*style = computed
+		res, err := cdp.Call(ctx, t, css.GetComputedStyleForNode, css.GetComputedStyleForNodeParams{NodeID: n.NodeID})
+		if err != nil {
+			return nil, err
+		}
 
-		return nil
+		return res.ComputedStyle, nil
 	}, opts...)
 }
 
 // MatchedStyle is an element query action that retrieves the matched style information
 // for the first element node matching the selector.
-func MatchedStyle(sel any, style **css.GetMatchedStylesForNodeReturns, opts ...QueryOption) QueryAction {
-	if style == nil {
-		panic("style cannot be nil")
-	}
-
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
-		}
-
-		var err error
-		ret := &css.GetMatchedStylesForNodeReturns{}
-		p := css.GetMatchedStylesForNode(nodes[0].NodeID)
-		err = cdp.Execute(ctx, css.CommandGetMatchedStylesForNode, p, ret)
+func MatchedStyle[S Selectable](sel S, opts ...QueryOption) Action[*css.GetMatchedStylesForNodeResult] {
+	return QueryAfter(sel, func(ctx context.Context, t *Target, nodes []*Node) (*css.GetMatchedStylesForNodeResult, error) {
+		n, err := first(sel, nodes)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		*style = ret
+		res, err := cdp.Call(ctx, t, css.GetMatchedStylesForNode, css.GetMatchedStylesForNodeParams{NodeID: n.NodeID})
+		if err != nil {
+			return nil, err
+		}
 
-		return nil
+		return &res, nil
 	}, opts...)
 }
 
 // ScrollIntoView is an element query action that scrolls the window to the
 // first element node matching the selector.
-func ScrollIntoView(sel any, opts ...QueryOption) QueryAction {
-	return QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-		if len(nodes) < 1 {
-			return fmt.Errorf("selector %q did not return any nodes", sel)
+func ScrollIntoView[S Selectable](sel S, opts ...QueryOption) Action[Void] {
+	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
+		n, err := first(sel, nodes)
+		if err != nil {
+			return err
 		}
 
-		return dom.ScrollIntoViewIfNeeded().WithNodeID(nodes[0].NodeID).Do(ctx)
+		_, err = cdp.Call(ctx, t, dom.ScrollIntoViewIfNeeded, dom.ScrollIntoViewIfNeededParams{NodeID: n.NodeID})
+		return err
 	}, opts...)
 }
 
 // DumpTo is an element query action that writes a readable tree of the first
-// element node matching the selector and its children, up to the specified
-// depth.
+// element node matching the selector and its children. The tree ends at the
+// specified depth.
 //
 // See [Dump] for a simpler interface.
-func DumpTo(sel any, w io.Writer, prefix, indent string, nodeIDs bool, depth int64, pierce bool, wait time.Duration, opts ...QueryOption) QueryAction {
-	return Query(sel, append(opts,
+func DumpTo[S Selectable](sel S, w io.Writer, prefix, indent string, nodeIDs bool, depth int64, pierce bool, wait time.Duration, opts ...QueryOption) Action[Void] {
+	return Query(sel, withOpts(opts,
 		Populate(depth, pierce, PopulateWait(wait)),
-		After(func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
-			var n *cdp.Node
+		After(func(ctx context.Context, t *Target, nodes []*Node) error {
+			var n *Node
 			if len(nodes) > 0 {
 				n = nodes[0]
 			}
@@ -1247,11 +1439,10 @@ func DumpTo(sel any, w io.Writer, prefix, indent string, nodeIDs bool, depth int
 }
 
 // Dump is an element query action that writes a readable tree of the first
-// element node matching the selector and its children, up to the specified
-// depth.
+// element node matching the selector and its children. The tree ends at the
+// specified depth.
 //
-// See [DumpTo] for more configurable options, which includes the ability to
-// set the sleep wait timeout.
-func Dump(sel any, w io.Writer, opts ...QueryOption) QueryAction {
+// See [DumpTo] for more options, which include the sleep wait timeout.
+func Dump[S Selectable](sel S, w io.Writer, opts ...QueryOption) Action[Void] {
 	return DumpTo(sel, w, "", "  ", false, -1, true, 80*time.Millisecond, opts...)
 }

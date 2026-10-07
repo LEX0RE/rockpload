@@ -1,145 +1,168 @@
 package chromedp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"reflect"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/runtime"
 )
 
-// EvaluateAction are actions that evaluate JavaScript expressions using
-// runtime.Evaluate.
-type EvaluateAction Action
+// Evaluate is an action that evaluates the JavaScript expression and decodes
+// the result of the script into the type T.
+//
+// When T is [Void], Evaluate ignores the script result.
+//
+// When T is []byte, the result is the raw JSON-encoded value of the script
+// result.
+//
+// When T is *runtime.RemoteObject, the result is the low-level protocol type,
+// and Evaluate does not convert it. The original objects can stay in memory
+// until the page navigates or closes. Use `runtime.ReleaseObject` or
+// `runtime.ReleaseObjectGroup` to ask the browser to release them.
+//
+// For all other types, the script returns the result "by value" (that is,
+// JSON-encoded). Evaluate then decodes it into a value of type T. Only a chan,
+// func, interface, map, pointer, or slice type can be nil. When the script
+// result is "undefined" or "null" and T cannot be nil, the action returns
+// [ErrJSUndefined] or [ErrJSNull] respectively. The expression `null` gives
+// [ErrJSNull] for an int, and a nil pointer for a *int. The expression
+// `Promise.resolve(1)` needs the option [EvalAwaitPromise].
+//
+// For example:
+//
+//	n, err := chromedp.Run(ctx, chromedp.Evaluate[int](`1 + 2`))
+func Evaluate[T any](expression string, opts ...EvaluateOption) Action[T] {
+	return func(ctx context.Context, t *Target) (T, error) {
+		var zero T
 
-// Evaluate is an action to evaluate the JavaScript expression, unmarshaling
-// the result of the script evaluation to res.
-//
-// When res is nil, the script result will be ignored.
-//
-// When res is a *[]byte, the raw JSON-encoded value of the script
-// result will be placed in res.
-//
-// When res is a **runtime.RemoteObject, res will be set to the low-level
-// protocol type, and no attempt will be made to convert the result.
-// The original objects could be maintained in memory until the page is
-// navigated or closed. `runtime.ReleaseObject` or `runtime.ReleaseObjectGroup`
-// can be used to ask the browser to release the original objects.
-//
-// For all other cases, the result of the script will be returned "by value" (i.e.,
-// JSON-encoded), and subsequently an attempt will be made to json.Unmarshal
-// the script result to res. When the script result is "undefined" or "null",
-// and the value that res points to can not be nil (only the value of a chan,
-// func, interface, map, pointer, or slice can be nil), it returns [ErrJSUndefined]
-// or [ErrJSNull] respectively.
-func Evaluate(expression string, res any, opts ...EvaluateOption) EvaluateAction {
-	return ActionFunc(func(ctx context.Context) error {
 		// set up parameters
-		p := runtime.Evaluate(expression)
-		switch res.(type) {
-		case **runtime.RemoteObject:
-		default:
-			p = p.WithReturnByValue(true)
+		p := &runtime.EvaluateParams{Expression: expression}
+		if !wantsRemoteObject[T]() {
+			p.ReturnByValue = new(true)
 		}
 
 		// apply opts
 		for _, o := range opts {
-			p = o(p)
+			o(p)
 		}
 
 		// evaluate
-		v, exp, err := p.Do(ctx)
+		r, err := cdp.Call(ctx, t, runtime.Evaluate, *p)
 		if err != nil {
-			return err
+			return zero, err
 		}
-		if exp != nil {
-			return exp
+		if r.ExceptionDetails != nil {
+			return zero, &ExceptionError{r.ExceptionDetails}
 		}
 
-		return parseRemoteObject(v, res)
-	})
+		return parseRemoteObject[T](r.Result)
+	}
 }
 
-func parseRemoteObject(v *runtime.RemoteObject, res any) (err error) {
-	if res == nil {
-		return
-	}
+// wantsRemoteObject reports whether the type T is *runtime.RemoteObject.
+func wantsRemoteObject[T any]() bool {
+	var v T
+	_, ok := any(&v).(**runtime.RemoteObject)
+	return ok
+}
 
-	switch x := res.(type) {
+// parseRemoteObject decodes the remote object into a value of the type T.
+func parseRemoteObject[T any](v *runtime.RemoteObject) (T, error) {
+	var res T
+	switch x := any(&res).(type) {
+	case *Void:
+		return res, nil
+
 	case **runtime.RemoteObject:
 		*x = v
-		return
+		return res, nil
 
 	case *[]byte:
 		*x = v.Value
-		return
+		return res, nil
 	}
 
 	value := v.Value
-	if value == nil {
-		rv := reflect.ValueOf(res)
-		if rv.Kind() == reflect.Pointer {
-			switch rv.Elem().Kind() {
-			// Common kinds that can be nil.
-			case reflect.Pointer, reflect.Map, reflect.Slice:
-			// It's weird that res is a pointer to the following kinds,
-			// but they can be nil too.
-			case reflect.Chan, reflect.Func, reflect.Interface:
-			default:
-				// When the value that `res` points to can not be set to nil,
-				// return [ErrJSUndefined] or [ErrJSNull] respectively.
-				if v.Type == "undefined" {
-					return ErrJSUndefined
-				}
-				return ErrJSNull
+	if value == nil || isJSONNull(value) {
+		switch reflect.TypeFor[T]().Kind() {
+		// Common kinds that can be nil.
+		case reflect.Pointer, reflect.Map, reflect.Slice:
+		// These kinds are unusual for T, but they can be nil too.
+		case reflect.Chan, reflect.Func, reflect.Interface:
+		default:
+			// When the value of the type T cannot be nil, return
+			// [ErrJSUndefined] or [ErrJSNull] respectively.
+			if v.Type == "undefined" {
+				return res, ErrJSUndefined
 			}
+			return res, ErrJSNull
 		}
-		// Change the value to the json literal null to make json.Unmarshal happy.
+		// Change the value to the JSON literal null, so that json.Unmarshal accepts it.
 		value = []byte("null")
 	}
 
-	return json.Unmarshal(value, res)
+	err := json.Unmarshal(value, &res)
+	return res, err
+}
+
+// isJSONNull reports whether value is the JSON literal null.
+func isJSONNull(value []byte) bool {
+	return string(bytes.TrimSpace(value)) == "null"
 }
 
 // EvaluateAsDevTools is an action that evaluates a JavaScript expression as
-// Chrome DevTools would, evaluating the expression in the "console" context,
-// and making the Command Line API available to the script.
+// Chrome DevTools does. It evaluates the expression in the "console" context
+// and makes the Command Line API available to the script.
 //
-// See [Evaluate] for more information on how script expressions are evaluated.
+// See [Evaluate] for how the expressions are evaluated.
 //
-// Note: this should not be used with untrusted JavaScript.
-func EvaluateAsDevTools(expression string, res any, opts ...EvaluateOption) EvaluateAction {
-	return Evaluate(expression, res, append(opts, EvalObjectGroup("console"), EvalWithCommandLineAPI)...)
+// Note: do not use this with untrusted JavaScript.
+func EvaluateAsDevTools[T any](expression string, opts ...EvaluateOption) Action[T] {
+	return Evaluate[T](expression, append(opts[:len(opts):len(opts)], EvalObjectGroup("console"), EvalWithCommandLineAPI)...)
 }
 
 // EvaluateOption is the type for JavaScript evaluation options.
-type EvaluateOption = func(*runtime.EvaluateParams) *runtime.EvaluateParams
+type EvaluateOption = func(*runtime.EvaluateParams)
 
 // EvalObjectGroup is an evaluate option to set the object group.
 func EvalObjectGroup(objectGroup string) EvaluateOption {
-	return func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-		return p.WithObjectGroup(objectGroup)
+	return func(p *runtime.EvaluateParams) {
+		p.ObjectGroup = objectGroup
 	}
 }
 
-// EvalWithCommandLineAPI is an evaluate option to make the DevTools Command
+// EvalWithCommandLineAPI is an evaluate option that makes the DevTools Command
 // Line API available to the evaluated script.
 //
-// See [Evaluate] for more information on how evaluate actions work.
+// See [Evaluate] for how evaluate actions work.
 //
-// Note: this should not be used with untrusted JavaScript.
-func EvalWithCommandLineAPI(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-	return p.WithIncludeCommandLineAPI(true)
+// Note: do not use this with untrusted JavaScript.
+func EvalWithCommandLineAPI(p *runtime.EvaluateParams) {
+	p.IncludeCommandLineAPI = new(true)
 }
 
-// EvalIgnoreExceptions is an evaluate option that will cause JavaScript
-// evaluation to ignore exceptions.
-func EvalIgnoreExceptions(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-	return p.WithSilent(true)
+// EvalIgnoreExceptions is an evaluate option that makes the evaluation ignore
+// exceptions.
+func EvalIgnoreExceptions(p *runtime.EvaluateParams) {
+	p.Silent = new(true)
 }
 
-// EvalAsValue is an evaluate option that will cause the evaluated JavaScript
-// expression to encode the result of the expression as a JSON-encoded value.
-func EvalAsValue(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-	return p.WithReturnByValue(true)
+// EvalAwaitPromise is an evaluate option that makes the evaluation wait for a
+// promise that the expression returns, and use its result. A promise that is
+// rejected makes the action return an [*ExceptionError]. Without the option,
+// the result of an expression that returns a promise is the promise object, and
+// not its value.
+//
+//	v, err := chromedp.Run(ctx, chromedp.Evaluate[string](`fetch("/api").then(r => r.text())`, chromedp.EvalAwaitPromise))
+func EvalAwaitPromise(p *runtime.EvaluateParams) {
+	p.AwaitPromise = new(true)
+}
+
+// EvalAsValue is an evaluate option that makes the evaluation encode the
+// result of the expression as a JSON-encoded value.
+func EvalAsValue(p *runtime.EvaluateParams) {
+	p.ReturnByValue = new(true)
 }

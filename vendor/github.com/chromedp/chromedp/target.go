@@ -7,13 +7,14 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 	"github.com/chromedp/cdproto"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
-	jsonv2 "github.com/go-json-experiment/json"
 )
 
 // Target manages a Chrome DevTools Protocol target.
@@ -27,22 +28,34 @@ type Target struct {
 
 	messageQueue chan *cdproto.Message
 
+	// events holds the subscriptions made with Subscribe.
+	events subscribers
+
+	// exposedMu protects exposed, the names of the funcs that ExposeFunc made
+	// available to the page, and exposedSeq, the number of the last binding.
+	exposedMu  sync.Mutex
+	exposed    map[string]struct{}
+	exposedSeq int
+
 	// frameMu protects frames, execContexts, and cur.
 	frameMu sync.RWMutex
 	// frames is the set of encountered frames.
-	frames       map[cdp.FrameID]*cdp.Frame
+	frames       map[cdp.FrameID]*Frame
 	execContexts map[cdp.FrameID]runtime.ExecutionContextID
+	// execUniqueIDs holds the unique id of each execution context in
+	// execContexts, because the destroyed event names a context by it.
+	execUniqueIDs map[cdp.FrameID]string
 	// cur is the current top level frame.
 	cur cdp.FrameID
 
 	// logging funcs
 	logf, errf func(string, ...any)
 
-	// Indicates if the target is a worker target.
+	// isWorker is true when the target is a worker target.
 	isWorker bool
 }
 
-func (t *Target) enclosingFrame(node *cdp.Node) cdp.FrameID {
+func (t *Target) enclosingFrame(node *Node) cdp.FrameID {
 	t.frameMu.RLock()
 	top := t.frames[t.cur]
 	t.frameMu.RUnlock()
@@ -50,8 +63,8 @@ func (t *Target) enclosingFrame(node *cdp.Node) cdp.FrameID {
 	defer top.RUnlock()
 	for {
 		if node == nil {
-			// Avoid crashing. This can happen if we're using an old
-			// node that has been replaced, for example.
+			// Avoid crashing. This can happen if we are using an old
+			// node that the browser replaced, for example.
 			return ""
 		}
 		if node.FrameID != "" {
@@ -62,16 +75,16 @@ func (t *Target) enclosingFrame(node *cdp.Node) cdp.FrameID {
 	return node.FrameID
 }
 
-// ensureFrame ensures the top frame of this target is loaded and returns the top frame,
-// the root node and the ExecutionContextID of this top frame; otherwise, it will return
-// false as its last return value.
-func (t *Target) ensureFrame() (*cdp.Frame, *cdp.Node, runtime.ExecutionContextID, bool) {
+// ensureFrame makes sure that the top frame of this target is loaded. It
+// returns the top frame, the root node, and the ExecutionContextID of the top
+// frame. Otherwise it returns false as its last return value.
+func (t *Target) ensureFrame() (*Frame, *Node, runtime.ExecutionContextID, bool) {
 	t.frameMu.RLock()
 	frame := t.frames[t.cur]
 	execCtx := t.execContexts[t.cur]
 	t.frameMu.RUnlock()
 
-	// the frame hasn't loaded yet.
+	// the frame has not loaded yet.
 	if frame == nil || execCtx == 0 {
 		return nil, nil, 0, false
 	}
@@ -93,15 +106,16 @@ func (t *Target) run(ctx context.Context) {
 		value  any
 	}
 	// syncEventQueue is used to handle events synchronously within Target.
-	// TODO: If this queue gets full, the goroutine below could get stuck on
-	// a send, and response callbacks would never run, resulting in a
-	// deadlock. Can we fix this without potentially using lots of memory?
+	// TODO: If this queue gets full, the goroutine below can get stuck on a
+	// send. Then the response callbacks never run, and this causes a deadlock.
+	// Can we fix this without potentially using lots of memory?
 	syncEventQueue := make(chan eventValue, 4096)
 
 	// This goroutine receives events from the browser, calls listeners, and
 	// then passes the events onto the main goroutine for the target handler
 	// to update itself.
 	go func() {
+		defer t.events.close()
 		for {
 			select {
 			case <-ctx.Done():
@@ -114,11 +128,12 @@ func (t *Target) run(ctx context.Context) {
 					t.listenersMu.Unlock()
 					continue
 				}
+				t.events.publish(string(msg.Method), msg.Params)
 				ev, err := cdproto.UnmarshalMessage(msg, DefaultUnmarshalOptions)
 				if err != nil {
 					if _, ok := err.(cdp.ErrUnknownCommandOrEvent); ok {
-						// This is most likely an event received from an older
-						// Chrome which a newer cdproto doesn't have, as it is
+						// This is most likely an event from an older Chrome
+						// that a newer cdproto does not have, because it is
 						// deprecated. Ignore that error.
 						continue
 					}
@@ -158,7 +173,13 @@ func (t *Target) run(ctx context.Context) {
 	}
 }
 
-func (t *Target) Execute(ctx context.Context, method string, params, res any) error {
+// Call sends the command to the target, waits for the response, and decodes
+// the result into res. It satisfies [cdp.Session].
+//
+// Call returns a browser error as a [*cdproto.Error]. It returns an error when
+// the connection to the browser is lost, also when ctx never ends. The error
+// wraps the reason of the loss and [context.Canceled].
+func (t *Target) Call(ctx context.Context, method string, params, res any) error {
 	if method == target.CommandCloseTarget {
 		return errors.New("to close the target, cancel its context or use chromedp.Cancel")
 	}
@@ -196,6 +217,8 @@ func (t *Target) Execute(ctx context.Context, method string, params, res any) er
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-t.browser.LostConnection:
+		return t.browser.lostError(ctx)
 	case t.browser.cmdQueue <- cmd:
 	}
 
@@ -203,17 +226,26 @@ func (t *Target) Execute(ctx context.Context, method string, params, res any) er
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case msg := <-ch:
-		switch {
-		case msg == nil:
-			return ErrChannelClosed
-		case msg.Error != nil:
-			return msg.Error
-		case res != nil:
-			return jsonv2.Unmarshal(msg.Result, res, DefaultUnmarshalOptions)
+	case <-t.browser.LostConnection:
+		// The reply can arrive just before the loss is known.
+		select {
+		case msg := <-ch:
+			if msg != nil {
+				return decodeReply(msg, res)
+			}
+		default:
 		}
+		return t.browser.lostError(ctx)
+	case msg := <-ch:
+		return decodeReply(msg, res)
 	}
-	return nil
+}
+
+// Subscribe starts to buffer the target events with the method, and returns
+// the channel that the raw event parameters arrive on. It satisfies
+// [cdp.Session].
+func (t *Target) Subscribe(method string) (<-chan jsontext.Value, func()) {
+	return t.events.subscribe(method)
 }
 
 // runtimeEvent handles incoming runtime events.
@@ -233,27 +265,28 @@ func (t *Target) runtimeEvent(ev any) {
 		if aux.FrameID != "" {
 			t.frameMu.Lock()
 			t.execContexts[aux.FrameID] = ev.Context.ID
+			t.execUniqueIDs[aux.FrameID] = ev.Context.UniqueID
 			t.frameMu.Unlock()
 		}
 	case *runtime.EventExecutionContextDestroyed:
 		t.frameMu.Lock()
-		for frameID, ctxID := range t.execContexts {
-			if ctxID == ev.ExecutionContextID {
+		for frameID, uniqueID := range t.execUniqueIDs {
+			if uniqueID == ev.ExecutionContextUniqueID {
 				delete(t.execContexts, frameID)
+				delete(t.execUniqueIDs, frameID)
 			}
 		}
 		t.frameMu.Unlock()
 	case *runtime.EventExecutionContextsCleared:
 		t.frameMu.Lock()
-		for frameID := range t.execContexts {
-			delete(t.execContexts, frameID)
-		}
+		clear(t.execContexts)
+		clear(t.execUniqueIDs)
 		t.frameMu.Unlock()
 	}
 }
 
-// documentUpdated handles the document updated event, retrieving the document
-// root for the root frame.
+// documentUpdated handles the document updated event. It retrieves the
+// document root for the root frame.
 func (t *Target) documentUpdated(ctx context.Context) {
 	t.frameMu.RLock()
 	f := t.frames[t.cur]
@@ -272,16 +305,16 @@ func (t *Target) documentUpdated(ctx context.Context) {
 		close(f.Root.Invalidated)
 	}
 
-	f.Nodes = make(map[cdp.NodeID]*cdp.Node)
-	var err error
-	f.Root, err = dom.GetDocument().Do(cdp.WithExecutor(ctx, t))
-	if err == context.Canceled {
+	f.Nodes = make(map[cdp.NodeID]*Node)
+	res, err := cdp.Call(ctx, t, dom.GetDocument, dom.GetDocumentParams{})
+	if errors.Is(err, context.Canceled) {
 		return // TODO: perhaps not necessary, but useful to keep the tests less noisy
 	}
 	if err != nil {
 		t.errf("could not retrieve document root for %s: %v", f.ID, err)
 		return
 	}
+	f.Root = newNode(res.Root)
 	f.Root.Invalidated = make(chan struct{})
 	walk(f.Nodes, f.Root)
 }
@@ -294,7 +327,7 @@ func (t *Target) pageEvent(ev any) {
 	switch e := ev.(type) {
 	case *page.EventFrameNavigated:
 		t.frameMu.Lock()
-		t.frames[e.Frame.ID] = e.Frame
+		t.frames[e.Frame.ID] = &Frame{Frame: e.Frame}
 		if e.Frame.ParentID == "" {
 			// This frame is only the new top-level frame if it has
 			// no parent.
@@ -346,9 +379,9 @@ func (t *Target) pageEvent(ev any) {
 	f := t.frames[id]
 	if f == nil {
 		// This can happen if a frame is attached or starts loading
-		// before it's ever navigated to. We won't have all the frame
-		// details just yet, but that's okay.
-		f = &cdp.Frame{ID: id}
+		// before it is ever navigated to. We do not have all the frame
+		// details yet, but that is fine.
+		f = &Frame{Frame: &cdp.Frame{ID: id}}
 		t.frames[id] = f
 	}
 	t.frameMu.Unlock()
@@ -373,7 +406,7 @@ func (t *Target) domEvent(ctx context.Context, ev any) {
 		return
 
 	case *dom.EventSetChildNodes:
-		id, op = e.ParentID, setChildNodes(f.Nodes, e.Nodes)
+		id, op = e.ParentID, setChildNodes(f.Nodes, newNodes(e.Nodes))
 
 	case *dom.EventAttributeModified:
 		id, op = e.NodeID, attributeModified(e.Name, e.Value)
@@ -395,19 +428,19 @@ func (t *Target) domEvent(ctx context.Context, ev any) {
 		id, op = e.NodeID, childNodeCountUpdated(e.ChildNodeCount)
 
 	case *dom.EventChildNodeInserted:
-		id, op = e.ParentNodeID, childNodeInserted(f.Nodes, e.PreviousNodeID, e.Node)
+		id, op = e.ParentNodeID, childNodeInserted(f.Nodes, e.PreviousNodeID, newNode(e.Node))
 
 	case *dom.EventChildNodeRemoved:
 		id, op = e.ParentNodeID, childNodeRemoved(f.Nodes, e.NodeID)
 
 	case *dom.EventShadowRootPushed:
-		id, op = e.HostID, shadowRootPushed(f.Nodes, e.Root)
+		id, op = e.HostID, shadowRootPushed(f.Nodes, newNode(e.Root))
 
 	case *dom.EventShadowRootPopped:
 		id, op = e.HostID, shadowRootPopped(f.Nodes, e.RootID)
 
 	case *dom.EventPseudoElementAdded:
-		id, op = e.ParentID, pseudoElementAdded(f.Nodes, e.PseudoElement)
+		id, op = e.ParentID, pseudoElementAdded(f.Nodes, newNode(e.PseudoElement))
 
 	case *dom.EventPseudoElementRemoved:
 		id, op = e.ParentID, pseudoElementRemoved(f.Nodes, e.PseudoElementID)
@@ -416,7 +449,23 @@ func (t *Target) domEvent(ctx context.Context, ev any) {
 		id, op = e.InsertionPointID, distributedNodesUpdated(e.DistributedNodes)
 
 	case *dom.EventScrollableFlagUpdated:
-		id, op = e.NodeID, scrollableFlagUpdated(f.Nodes, e.NodeID)
+		id, op = e.NodeID, scrollableFlagUpdated(e.IsScrollable)
+
+	case *dom.EventAdRelatedStateUpdated:
+		id, op = e.NodeID, adRelatedStateUpdated(e.AdProvenance)
+
+	case *dom.EventAdoptedStyleSheetsModified:
+		id, op = e.NodeID, adoptedStyleSheetsModified(e.AdoptedStyleSheets)
+
+	case *dom.EventAffectedByStartingStylesFlagUpdated:
+		id, op = e.NodeID, affectedByStartingStylesFlagUpdated(e.AffectedByStartingStyles)
+
+		// ignored events
+	case *dom.EventTopLayerElementsUpdated:
+		// The event has no parameters and names no node. The top layer
+		// holds the elements that a page shows above all others, and
+		// chromedp does not keep it.
+		return
 
 	default:
 		t.errf("unhandled node event %T", ev)
@@ -425,7 +474,7 @@ func (t *Target) domEvent(ctx context.Context, ev any) {
 
 	n, ok := f.Nodes[id]
 	if !ok {
-		// Node ID has been invalidated. Nothing to do.
+		// The node ID is no longer valid. Nothing to do.
 		return
 	}
 
