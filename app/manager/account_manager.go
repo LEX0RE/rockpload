@@ -29,6 +29,8 @@ type AccountManager struct {
 	appConfig         *config.AppConfig
 	psyNetList        []*rlapi.PsyNet
 	lastWorkingPsynet *rlapi.PsyNet
+	// Best known build secret, used for versions detected without one (e.g. from RL logs).
+	buildSecret string
 
 	EventManager *tools.EventManager
 }
@@ -40,6 +42,7 @@ func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 		appConfig:    appConfig,
 		EventManager: tools.NewEventManager(),
 		psyNetList:   []*rlapi.PsyNet{},
+		buildSecret:  rlapi.NewPsyNet().GetBuildSecret(),
 	}
 
 	var lastWorkingVersion RLVersionInfo
@@ -49,6 +52,7 @@ func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 
 	am.AddPsyNetVersion(toRLVersionInfo(rlapi.NewPsyNet()))
 	am.AddPsyNetVersion(lastWorkingVersion)
+	am.setBuildSecret(lastWorkingVersion.BuildSecret)
 
 	am.seedKnownPlaylists()
 	am.RefreshProfile()
@@ -354,11 +358,13 @@ func (am *AccountManager) AddPsyNetVersion(rlVersionInfo RLVersionInfo) {
 		return
 	}
 
+	if rlVersionInfo.BuildSecret == "" {
+		rlVersionInfo.BuildSecret = am.buildSecret
+	}
+
 	duplicate := false
 	for _, psyNet := range am.psyNetList {
-		gameVersion, featureSet := psyNet.GetVersion()
-
-		if gameVersion == rlVersionInfo.GameVersion && featureSet == rlVersionInfo.FeatureSet {
+		if toRLVersionInfo(psyNet) == rlVersionInfo {
 			duplicate = true
 			break
 		}
@@ -367,7 +373,16 @@ func (am *AccountManager) AddPsyNetVersion(rlVersionInfo RLVersionInfo) {
 	if !duplicate {
 		newPsyNet := rlapi.NewPsyNet()
 		newPsyNet.SetVersion(rlVersionInfo.GameVersion, rlVersionInfo.FeatureSet)
+		newPsyNet.SetBuildSecret(rlVersionInfo.BuildSecret)
 		am.psyNetList = append(am.psyNetList, newPsyNet)
+	}
+}
+
+func (am *AccountManager) setBuildSecret(buildSecret string) {
+	logger.FuncDebug()
+
+	if buildSecret != "" {
+		am.buildSecret = buildSecret
 	}
 }
 
@@ -445,7 +460,7 @@ func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T
 		am.AddPsyNetVersion(toRLVersionInfo(rlapi.NewPsyNet()))
 	}
 
-	defaultGameVersion, defaultFeatureSet := am.psyNetList[0].GetVersion()
+	defaultVersion := toRLVersionInfo(am.psyNetList[0])
 	var result T
 	var err error
 
@@ -466,14 +481,14 @@ func tryRotatingPsyNet[T any](am *AccountManager, request func(*rlapi.PsyNet) (T
 		current := am.psyNetList[0]
 		am.psyNetList = append(am.psyNetList[1:], current)
 
-		tempGameVersion, tempFeatureSet := am.psyNetList[0].GetVersion()
-		if tempGameVersion == defaultGameVersion && tempFeatureSet == defaultFeatureSet {
+		if toRLVersionInfo(am.psyNetList[0]) == defaultVersion {
 			break
 		}
 	}
 
 	countBefore := len(am.psyNetList)
 	if remoteVersion, remoteErr := fetchRemoteGameVersion(); remoteErr == nil {
+		am.setBuildSecret(remoteVersion.BuildSecret)
 		am.AddPsyNetVersion(remoteVersion)
 	} else {
 		logger.Rlogger.Warn("Failed to fetch fallback PsyNet version from Rocky website", slog.Any("err", remoteErr))
@@ -500,16 +515,12 @@ func (am *AccountManager) updateLastWorkingPsyNet(psynet *rlapi.PsyNet) {
 		return
 	}
 
-	if am.lastWorkingPsynet != nil {
-		lwGameVersion, lwFeatureSet := am.lastWorkingPsynet.GetVersion()
-		currGameVersion, currFeatureSet := psynet.GetVersion()
-
-		if lwGameVersion == currGameVersion && lwFeatureSet == currFeatureSet {
-			return
-		}
+	if am.lastWorkingPsynet != nil && toRLVersionInfo(am.lastWorkingPsynet) == toRLVersionInfo(psynet) {
+		return
 	}
 
 	am.lastWorkingPsynet = psynet
+	am.setBuildSecret(psynet.GetBuildSecret())
 
 	if err := tools.SaveJSONFilePath(constant.Paths.LastCachedGameVersion, toRLVersionInfo(am.lastWorkingPsynet)); err != nil {
 		logger.Rlogger.Warn("Failed to save PsyNet version info to cache", slog.Any("err", err))
@@ -524,6 +535,7 @@ func toRLVersionInfo(psyNet *rlapi.PsyNet) RLVersionInfo {
 	return RLVersionInfo{
 		GameVersion: gameVersion,
 		FeatureSet:  featureSet,
+		BuildSecret: psyNet.GetBuildSecret(),
 	}
 }
 

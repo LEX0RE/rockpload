@@ -7,6 +7,7 @@ import (
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/manager"
+	"github.com/LEX0RE/rockpload/app/rlgame"
 	"github.com/LEX0RE/rockpload/app/rocket_network"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
@@ -39,6 +40,7 @@ type App struct {
 	statsApi       *rocket_network.StatsAPI
 	accountManager *manager.AccountManager
 	rlSupervisor   *manager.RLSupervisor
+	rlLocator      *rlgame.Locator
 }
 
 func NewApp(version string, app fyne.App) *App {
@@ -131,8 +133,13 @@ func (a *App) initManager() {
 
 	a.rlSupervisor = manager.NewRLSupervisor(a.appConfig, a.accountManager)
 
+	a.rlLocator = rlgame.NewLocator()
+	if a.supportsLocalStatsAPI() {
+		a.rlLocator.Refresh()
+	}
+
 	var err error
-	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.rlSupervisor, a.app.Clipboard)
+	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.rlSupervisor, a.rlLocator, a.app.Clipboard)
 	if err != nil {
 		logger.Rlogger.Error("Failed to initialize GUI:", slog.Any("err", err))
 	}
@@ -142,6 +149,7 @@ func (a *App) initEvents() {
 	logger.FuncDebug()
 
 	a.statsApi = rocket_network.NewStatsAPI()
+	a.statsApi.PortsProvider = a.rlLocator.StatsAPIPorts
 	uploadLiveStatsEvent := []tools.EventType{"CountdownBegin", "PodiumStart"}
 	a.statsApi.EventManager.MultiSubscribe(uploadLiveStatsEvent, tools.Listener{IsSync: false, Callback: func(data any) {
 		a.uploader.UploadLiveStats(a.statsApi.LastInfo)
@@ -272,6 +280,11 @@ func (a *App) initEvents() {
 	updateGUIFromSupervisorEvent := []tools.EventType{manager.EVENT_ON_RL_DETECTED, manager.EVENT_ON_RL_PLAYER_DETECTED, manager.EVENT_ON_RL_CLOSED}
 	a.rlSupervisor.EventManager.MultiSubscribe(updateGUIFromSupervisorEvent, tools.Listener{IsSync: false, Callback: func(data any) {
 		onUpdateState()
+	}})
+
+	// A new Launch.log is written on each launch, the game could have been moved or installed elsewhere
+	a.rlSupervisor.EventManager.Subscribe(manager.EVENT_ON_RL_DETECTED, tools.Listener{IsSync: false, Callback: func(data any) {
+		a.rlLocator.Refresh()
 	}})
 
 	a.rlSupervisor.EventManager.Subscribe(manager.EVENT_ON_RL_CLOSED, tools.Listener{IsSync: false, Callback: func(data any) {

@@ -13,6 +13,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/constant"
 	"github.com/LEX0RE/rockpload/app/manager"
+	"github.com/LEX0RE/rockpload/app/rlgame"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	"github.com/LEX0RE/rockpload/app/upload"
@@ -71,7 +72,7 @@ type GUI struct {
 	Clipboard func() fyne.Clipboard
 }
 
-func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager, rlSupervisor *manager.RLSupervisor, clipboard func() fyne.Clipboard) (g *GUI, err error) {
+func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager, rlSupervisor *manager.RLSupervisor, rlLocator *rlgame.Locator, clipboard func() fyne.Clipboard) (g *GUI, err error) {
 	logger.FuncDebug()
 	g = &GUI{
 		window:         window,
@@ -92,7 +93,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 	storageSettingsBtn := widget.NewButtonWithIcon("", theme.StorageIcon(), func() { StorageSettingsPopup.Show() })
 	storageSettingsBtn.Importance = widget.LowImportance
 
-	behaviorSettingsPopup := NewBehaviorSettingPopup(NewPopup("Behavior Settings", g.window, appConfig, accountManager))
+	behaviorSettingsPopup := NewBehaviorSettingPopup(NewPopup("Behavior Settings", g.window, appConfig, accountManager), rlLocator)
 	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { behaviorSettingsPopup.Show() })
 	settingsBtn.Importance = widget.LowImportance
 
