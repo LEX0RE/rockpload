@@ -2,10 +2,13 @@ package rocket_network
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
-	"net"
+	"sync"
 	"time"
 
+	"github.com/LEX0RE/rockpload/app/rlgame"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	"github.com/dank/rlapi"
@@ -104,7 +107,13 @@ type RLEvent struct {
 }
 
 type StatsAPI struct {
-	port          string
+	// PortsProvider returns the ports set in Rocket League StatsAPI config, the game defaults are used when it fails
+	PortsProvider func() (rlgame.StatsAPIPorts, error)
+
+	lastPorts     rlgame.StatsAPIPorts
+	connMu        sync.RWMutex
+	conn          statsAPIConn
+	transport     StatsAPITransport
 	lastStateTime int
 	isFirstSent   bool
 
@@ -113,8 +122,8 @@ type StatsAPI struct {
 }
 
 const (
-	defaultPort        = "49123"
 	dialTimeout        = 3 * time.Second
+	writeTimeout       = 3 * time.Second
 	listenerLoop       = 2 * time.Second
 	listenerErrorSleep = 5 * time.Second
 )
@@ -123,7 +132,7 @@ func NewStatsAPI() *StatsAPI {
 	logger.FuncDebug()
 
 	return &StatsAPI{
-		port:          defaultPort,
+		lastPorts:     rlgame.StatsAPIPorts{TCP: -1, Web: -1},
 		EventManager:  tools.NewEventManager(),
 		lastStateTime: -1,
 		isFirstSent:   false,
@@ -142,33 +151,101 @@ func (s *StatsAPI) StartListener() {
 
 func (s *StatsAPI) innerStartListener() {
 	logger.FuncDebug()
-	address := "localhost:" + s.port
 
 	for {
-		conn, err := net.DialTimeout("tcp", address, dialTimeout)
+		stream, transport, err := connectStatsAPI(s.currentPorts())
 		if err != nil {
 			time.Sleep(listenerErrorSleep)
 			continue
 		}
 
-		s.readLoop(conn)
+		logger.Rlogger.Info("Connected to StatsAPI", slog.String("Transport", string(transport)))
+		s.setConn(stream, transport)
+		s.readLoop(stream)
+		s.setConn(nil, "")
 
 		time.Sleep(listenerLoop)
 	}
 }
 
-func (s *StatsAPI) readLoop(conn net.Conn) {
+func (s *StatsAPI) setConn(conn statsAPIConn, transport StatsAPITransport) {
+	s.connMu.Lock()
+	defer s.connMu.Unlock()
+
+	s.conn = conn
+	s.transport = transport
+}
+
+// Transport returns the socket used to talk with the game, empty when not connected.
+func (s *StatsAPI) Transport() StatsAPITransport {
+	s.connMu.RLock()
+	defer s.connMu.RUnlock()
+
+	return s.transport
+}
+
+// SendCommand sends a command to the game on the connected socket (TCP or WebSocket).
+func (s *StatsAPI) SendCommand(command StatsAPICommand) error {
 	logger.FuncDebug()
 
-	defer conn.Close()
+	payload, err := json.Marshal(command)
+	if err != nil {
+		return err
+	}
 
-	decoder := json.NewDecoder(conn)
+	s.connMu.RLock()
+	conn := s.conn
+	s.connMu.RUnlock()
+
+	if conn == nil {
+		return ErrStatsAPINotConnected
+	}
+
+	if err := conn.Send(payload); err != nil {
+		logger.Rlogger.Error("Failed to send StatsAPI command", slog.String("Command", command.Command), slog.Any("err", err))
+		return err
+	}
+
+	logger.Rlogger.Debug("StatsAPI command sent", slog.String("Command", command.Command))
+
+	return nil
+}
+
+func (s *StatsAPI) currentPorts() rlgame.StatsAPIPorts {
+	logger.FuncDebug()
+
+	ports := rlgame.DefaultStatsAPIPorts()
+	if s.PortsProvider != nil {
+		if configPorts, err := s.PortsProvider(); err == nil {
+			ports = configPorts
+		}
+	}
+
+	if ports != s.lastPorts {
+		s.lastPorts = ports
+
+		if ports.TCP == 0 && ports.Web == 0 {
+			logger.Rlogger.Info("StatsAPI sockets are disabled in Rocket League config (Port=0 and WebPort=0)")
+		} else {
+			logger.Rlogger.Info("StatsAPI listening ports", slog.Int("Port", ports.TCP), slog.Int("WebPort", ports.Web))
+		}
+	}
+
+	return ports
+}
+
+func (s *StatsAPI) readLoop(stream io.ReadCloser) {
+	logger.FuncDebug()
+
+	defer stream.Close()
+
+	decoder := json.NewDecoder(stream)
 
 	for {
 		var rlEvent RLEvent
 		err := decoder.Decode(&rlEvent)
 		if err != nil {
-			if err.Error() == "EOF" {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 

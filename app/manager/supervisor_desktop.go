@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/LEX0RE/rockpload/app/config"
+	"github.com/LEX0RE/rockpload/app/rlgame"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	"github.com/LEX0RE/rockpload/app/tools/rtime"
@@ -136,7 +137,7 @@ func (rls *RLSupervisor) checkLogsFallback() {
 	}
 
 	for _, logFolder := range rls.rlLogsFolder {
-		filePath := filepath.Join(logFolder, "Launch.log")
+		filePath := filepath.Join(logFolder, rlgame.LaunchLogName)
 		stat, err := os.Stat(filePath)
 
 		if err == nil {
@@ -221,7 +222,7 @@ func (rls *RLSupervisor) superviseLog() {
 				continue
 			}
 
-			if strings.Contains(event.Name, "Launch.log") {
+			if strings.Contains(event.Name, rlgame.LaunchLogName) {
 				if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Chmod) != 0 {
 					rls.processLogFile(event.Name)
 				}
@@ -254,30 +255,9 @@ func (rls *RLSupervisor) updateRLLogsFolder() {
 
 	rls.rlLogsFolder = []string{}
 
-	homeDir, _ := os.UserHomeDir()
-
-	paths := []string{
-		// Base Windows
-		filepath.Join(homeDir, "Documents", "My Games", "Rocket League", "TAGame", "Logs"),
-		// Windows OneDrive
-		filepath.Join(homeDir, "OneDrive", "Documents", "My Games", "Rocket League", "TAGame", "Logs"),
-		// Linux Steam Proton
-		filepath.Join(homeDir, ".local", "share", "Steam", "steamapps", "compatdata", "252950", "pfx", "drive_c", "users", "steamuser", "Documents", "My Games", "Rocket League", "TAGame", "Logs"),
-		// Linux Heroic Launcher
-		filepath.Join(homeDir, "Games", "Heroic", "Prefixes", "RocketLeague", "pfx", "drive_c", "users", "steamuser", "Documents", "My Games", "Rocket League", "TAGame", "Logs"),
-		// Linux Heroic Launcher From Epic Games
-		filepath.Join(homeDir, "Games", "Heroic", "Prefixes", "default", "Epic Games", "pfx", "drive_c", "users", "steamuser", "Documents", "My Games", "Rocket League", "TAGame", "Logs"),
-		// MacOS
-		filepath.Join(homeDir, "Library", "Application Support", "Rocket League", "TAGame", "Logs"),
-	}
-
-	for _, path := range paths {
-		info, err := os.Stat(path)
-
-		if err == nil && info.IsDir() {
-			rls.rlLogsFolder = append(rls.rlLogsFolder, path)
-			rls.rlLogReader[filepath.Join(path, "Launch.log")] = &rlLogReader{lastReadPosition: -1, isInit: false}
-		}
+	for _, path := range rlgame.LogsFolders() {
+		rls.rlLogsFolder = append(rls.rlLogsFolder, path)
+		rls.rlLogReader[filepath.Join(path, rlgame.LaunchLogName)] = &rlLogReader{lastReadPosition: -1, isInit: false}
 	}
 
 	if len(rls.rlLogsFolder) == 0 {

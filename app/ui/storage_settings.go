@@ -1055,6 +1055,7 @@ func (wsp *StorageSettingsPopup) onAddStorageBtn() {
 				IsPrimary:    false,
 				IsPredefined: false,
 				Enabled:      false,
+				TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 				UploadStyle:  config.MultipartUpload,
 				PingStyle:    config.PingDisabled,
 				TokenStyle:   config.NoToken,

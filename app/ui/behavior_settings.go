@@ -12,6 +12,7 @@ import (
 
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/constant"
+	"github.com/LEX0RE/rockpload/app/rlgame"
 	"github.com/LEX0RE/rockpload/app/tools"
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	"github.com/LEX0RE/rockpload/app/upload"
@@ -29,6 +30,10 @@ type BehaviorSettingPopup struct {
 	settings      map[config.BehaviorSettingType]config.BehaviorSettingVisualDependency
 	settingsBox   *fyne.Container
 	settingInputs map[config.BehaviorSettingType]*behaviorSettingInput
+
+	rlLocator       *rlgame.Locator
+	statsAPIBox     *fyne.Container
+	statsAPIWarning *widget.Label
 }
 
 type behaviorSettingInput struct {
@@ -173,11 +178,12 @@ func newBehaviorSettingInput(visual config.BehaviorSettingVisualDependency, onCh
 	}
 }
 
-func NewBehaviorSettingPopup(p *Popup) *BehaviorSettingPopup {
+func NewBehaviorSettingPopup(p *Popup, rlLocator *rlgame.Locator) *BehaviorSettingPopup {
 	logger.FuncDebug()
 
 	sp := &BehaviorSettingPopup{
 		Popup:         p,
+		rlLocator:     rlLocator,
 		settings:      p.appConfig.BehaviorConfig.GetSettingsMap(),
 		settingInputs: make(map[config.BehaviorSettingType]*behaviorSettingInput),
 	}
@@ -196,6 +202,12 @@ func NewBehaviorSettingPopup(p *Popup) *BehaviorSettingPopup {
 		sp.settingInputs[settingType] = input
 		settingObjects = append(settingObjects, input.object)
 	}
+
+	if runtime.GOOS != "android" && runtime.GOOS != "ios" {
+		settingObjects = append(settingObjects, sp.createStatsAPIConfig())
+	}
+
+	settingObjects = append(settingObjects, widget.NewSeparator(), createExportLogBtn(p), createClearCacheBtn(p))
 
 	sp.settingsBox = container.NewVBox(settingObjects...)
 	for settingType := range sp.settingInputs {
@@ -229,10 +241,7 @@ func NewBehaviorSettingPopup(p *Popup) *BehaviorSettingPopup {
 	settingsScroll := container.NewVScroll(sp.settingsBox)
 	bottom := container.NewVBox(widget.NewSeparator(), saveBtn)
 
-	clearCacheBtn := createClearCacheBtn(p)
-
-	top := container.NewVBox(createExportLogBtn(p), clearCacheBtn, widget.NewSeparator())
-	content := container.NewBorder(top, bottom, nil, nil, settingsScroll)
+	content := container.NewBorder(nil, bottom, nil, nil, settingsScroll)
 
 	sp.SetContent(content)
 	sp.popup.Resize(fyne.NewSize(320, 400))
@@ -244,8 +253,47 @@ func (sp *BehaviorSettingPopup) Show() {
 	logger.FuncDebug()
 
 	sp.resetInputs()
+	sp.refreshStatsAPIWarning()
 
 	sp.Popup.Show()
+}
+
+func (sp *BehaviorSettingPopup) createStatsAPIConfig() fyne.CanvasObject {
+	logger.FuncDebug()
+
+	statsAPIPopup := NewStatsAPISettingPopup(NewPopup("Rocket League StatsAPI", sp.parentWindow, sp.appConfig, sp.accountManager), sp.rlLocator)
+	statsAPIPopup.onClosed = func() {
+		statsAPIPopup.Hide()
+		sp.refreshStatsAPIWarning()
+	}
+
+	configureBtn := widget.NewButton("Configure Rocket League StatsAPI", statsAPIPopup.Show)
+
+	sp.statsAPIWarning = widget.NewLabel("")
+	sp.statsAPIWarning.Wrapping = fyne.TextWrapWord
+	sp.statsAPIWarning.Importance = widget.WarningImportance
+	sp.statsAPIWarning.Hide()
+
+	sp.statsAPIBox = container.NewVBox(configureBtn, sp.statsAPIWarning)
+
+	return sp.statsAPIBox
+}
+
+func (sp *BehaviorSettingPopup) refreshStatsAPIWarning() {
+	logger.FuncDebug()
+
+	if sp.statsAPIWarning == nil {
+		return
+	}
+
+	warning := StatsAPIStatus(sp.rlLocator)
+	sp.statsAPIWarning.SetText(warning)
+
+	if warning != "" {
+		sp.statsAPIWarning.Show()
+	} else {
+		sp.statsAPIWarning.Hide()
+	}
 }
 
 func (sp *BehaviorSettingPopup) resetInputs() {
@@ -288,6 +336,19 @@ func (sp *BehaviorSettingPopup) refreshChildren(settingType config.BehaviorSetti
 			} else {
 				child.object.Hide()
 			}
+		}
+	}
+
+	// The StatsAPI config is not a setting, so it cannot be listed in Children
+	if settingType == config.SendLiveStat && sp.statsAPIBox != nil {
+		if visible {
+			sp.statsAPIBox.Show()
+		} else {
+			sp.statsAPIBox.Hide()
+		}
+
+		if sp.settingsBox != nil {
+			sp.settingsBox.Refresh()
 		}
 	}
 }
