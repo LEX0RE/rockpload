@@ -502,9 +502,9 @@ func evaluatePath(expression string) lookupFunc {
 	return func(ctx context.Context, t *Target, n *Node) ([]cdp.NodeID, error) {
 		v, err := cdp.Call(ctx, t, runtime.Evaluate, runtime.EvaluateParams{
 			Expression:            expression,
-			AwaitPromise:          new(true),
+			AwaitPromise:          ptr(true),
 			ObjectGroup:           "console",
-			IncludeCommandLineAPI: new(true),
+			IncludeCommandLineAPI: ptr(true),
 		})
 		if err != nil {
 			return nil, err
@@ -526,7 +526,7 @@ func evaluatePath(expression string) lookupFunc {
 		// An array or a NodeList: its indexes are its own properties.
 		props, err := cdp.Call(ctx, t, runtime.GetProperties, runtime.GetPropertiesParams{
 			ObjectID:      obj.ObjectID,
-			OwnProperties: new(true),
+			OwnProperties: ptr(true),
 		})
 		if err != nil {
 			return nil, err
@@ -579,7 +579,7 @@ func requestNode(ctx context.Context, t *Target, id runtime.RemoteObjectID) ([]c
 func requestNodes(ids []cdp.NodeID) lookupFunc {
 	return func(ctx context.Context, t *Target, n *Node) ([]cdp.NodeID, error) {
 		for _, id := range ids {
-			_, err := cdp.Call(ctx, t, dom.RequestChildNodes, dom.RequestChildNodesParams{NodeID: id, Pierce: new(true)})
+			_, err := cdp.Call(ctx, t, dom.RequestChildNodes, dom.RequestChildNodesParams{NodeID: id, Pierce: ptr(true)})
 			if err != nil {
 				return nil, err
 			}
@@ -1281,7 +1281,7 @@ func DoubleClick[S Selectable](sel S, opts ...QueryOption) Action[Void] {
 //		chromedp.SendKeys(sel, "World"),
 //	)
 //
-// [keys]: https://github.com/chromedp/examples/tree/master/keys
+// [keys]: https://github.com/chromedp/examples/tree/main/keys
 func SendKeys[S Selectable](sel S, v string, opts ...QueryOption) Action[Void] {
 	return queryDo(sel, func(ctx context.Context, t *Target, nodes []*Node) error {
 		n, err := first(sel, nodes)
