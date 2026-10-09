@@ -137,10 +137,12 @@ These words have one meaning in every document and in every Go comment.
 
 ## Go conventions
 
-The module needs Go 1.27 or newer, as `go.mod` says. The generated `cdproto`
-uses `encoding/json/v2`, which is in the standard library from Go 1.27. CI runs
-the newest stable release, which is Go 1.27 now. See
-`docs/decisions/2026-10-03-the-minimum-go-version-is-1-27.md`.
+The module needs Go 1.25 or newer, as `go.mod` says. Do not use a feature of
+Go 1.26 or later, such as `new(true)` or `errors.AsType`. Use the helper `ptr`
+for a pointer to a value. Import the JSON types from
+`github.com/chromedp/cdproto/cdp/jsonv2` and never from `encoding/json/v2`.
+CI runs Go 1.25, 1.26 and the newest stable release. See
+`docs/decisions/2026-10-06-support-go-1-25-and-later.md`.
 
 Wrap every error with `%w`, never `%s` or `%v`:
 
@@ -196,7 +198,7 @@ any other. `.gitignore` lists them. The maintainer can try an unreleased
 `go.mod` of the core.
 
 The `go.mod` of `remote/` and of `test/` require a released version of the core,
-`github.com/chromedp/chromedp v0.18.0` at this time, and hold no `replace`
+`github.com/chromedp/chromedp v0.20.0` at this time, and hold no `replace`
 directive. To try a change of the core in `remote` or `test`, add
 `replace github.com/chromedp/chromedp => ../` to that `go.mod` while you work,
 and never commit it. CI adds the directive at run time, so that `remote` and
@@ -223,9 +225,13 @@ installed:
 ./contrib/docker-test.sh
 ```
 
-The `IMAGE` variable chooses another image. CI runs the first command on Linux, Windows and macOS, and the container
-script on Linux only, on every push and pull request, with the newest stable Go
-release. It runs the three modules in turn, each one in its own directory. The
+The `IMAGE` variable chooses another image. CI runs the first command on Linux,
+Windows and macOS, on every push and pull request. Linux runs Go 1.25, Go 1.26
+and the newest stable release, and Windows and macOS run the newest stable
+release. The container script runs on Linux with the newest stable release only.
+Two more Linux jobs test `cdproto/cdp/jsonv2`: one with Go 1.25 and
+`GOEXPERIMENT=jsonv2`, and one with the tag `cdproto_jsoncompat` and
+`GOEXPERIMENT=nojsonv2`. CI runs the three modules in turn, each one in its own directory. The
 steps of `remote`, `test` and the container run even when an earlier step
 failed, so that one run shows every failure. See `.github/workflows/test.yml`.
 A second workflow, `.github/workflows/nightly.yml`, runs the container script every
