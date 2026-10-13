@@ -13,6 +13,7 @@ import (
 const (
 	BALLCHASING_NAME = "Ballchasing"
 	BLAST_NAME       = "BLAST.tv"
+	REPLAYLABS_NAME  = "ReplayLabs"
 	LOCALHOST_NAME   = "Localhost"
 	FILE_SYSTEM_NAME = "FileSystem"
 )
@@ -46,6 +47,14 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 		temp = append(temp, &fresh)
 	} else {
 		reconcilePreset(temp[blastIndex], BLAST_STORAGE)
+	}
+
+	replayLabsIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == REPLAYLABS_NAME })
+	if replayLabsIndex == -1 {
+		fresh := *REPLAYLABS_STORAGE
+		temp = append(temp, &fresh)
+	} else {
+		reconcilePreset(temp[replayLabsIndex], REPLAYLABS_STORAGE)
 	}
 
 	fileSystemIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == FILE_SYSTEM_NAME })

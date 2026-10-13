@@ -38,6 +38,7 @@ var STORAGE_PRESET = map[string]*StorageConfig{
 	ROCKY_STORAGE.Name: ROCKY_STORAGE,
 	BALLCHASING_NAME:   BALLCHASING_STORAGE,
 	BLAST_NAME:         BLAST_STORAGE,
+	REPLAYLABS_NAME:    REPLAYLABS_STORAGE,
 	FILE_SYSTEM_NAME:   FILE_SYSTEM_STORAGE,
 }
 
@@ -106,6 +107,29 @@ var BLAST_STORAGE = &StorageConfig{
 	LiveStyle:    LiveDisabled,
 	LivePath:     "",
 	RenameStyle:  RenameDisabled,
+}
+
+var REPLAYLABS_STORAGE = &StorageConfig{
+	Name:         REPLAYLABS_NAME,
+	HelpText:     "Need a token? Click here",
+	HelpURL:      "https://replaylabs.app/upload",
+	UploadStyle:  MultipartUpload,
+	ReplayPath:   "/replays",
+	URL:          "https://api.replaylabs.app/api/uploader/v1",
+	IsPrimary:    false,
+	IsPredefined: true,
+	IsTemporary:  false,
+	Enabled:      false,
+	URIParams:    map[string]string{},
+	TokenStyle:   BearerToken,
+	Token:        "",
+	PingStyle:    PingRequiresOK,
+	PingPath:     "/ping",
+	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
+	LiveStyle:    LiveDisabled,
+	LivePath:     "",
+	RenameStyle:  RenameDisabled,
+	RenamePath:   "",
 }
 
 var FILE_SYSTEM_STORAGE = &StorageConfig{
