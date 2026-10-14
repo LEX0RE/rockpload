@@ -90,6 +90,36 @@ func (am *AccountManager) GetByPlayerID(playerID string) *rocket_network.Account
 	return nil
 }
 
+func (am *AccountManager) LinkPlatform(ac *rocket_network.Account, playerID string, playerName string) {
+	logger.FuncDebug()
+
+	if ac == nil || ac.Player == nil {
+		return
+	}
+
+	changed := false
+
+	for _, other := range am.GetAll() {
+		if other == nil || other.Player == nil || other.Id() == ac.Id() {
+			continue
+		}
+
+		if other.Player.UnlinkPlatform(playerID) {
+			logger.Rlogger.Info("Unlinked platform identity from account", slog.Any("Account", other.AccountName()), slog.Any("PlatformPlayerID", playerID))
+			changed = true
+		}
+	}
+
+	if ac.Player.LinkPlatform(playerID, playerName) {
+		logger.Rlogger.Info("Linked platform identity to account", slog.Any("Account", ac.AccountName()), slog.Any("PlatformPlayerID", playerID), slog.Any("PlatformPlayerName", playerName))
+		changed = true
+	}
+
+	if changed {
+		am.appConfig.Save()
+	}
+}
+
 func (am *AccountManager) GetSelected() *rocket_network.Account {
 	logger.FuncDebug()
 

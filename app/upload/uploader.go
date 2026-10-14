@@ -209,12 +209,7 @@ func (u *Uploader) UploadMatchEntry(ac *rocket_network.Account, match rlapi.Matc
 		}
 		defer os.Remove(filePath)
 
-		playerID := ""
-		if ac.Player.PlayerID != nil {
-			playerID = ac.Player.PlayerID.String()
-		}
-
-		replayUpload := ReplayUpload{PlayerName: ac.Player.PlayerName, PlayerID: playerID, Replay: match}
+		replayUpload := ReplayUpload{PlayerName: ac.Player.PlayerName, PlayerIDs: ac.Player.KnownPlayerIDs(), Replay: match}
 
 		var uploadErrors []error
 
@@ -348,12 +343,7 @@ func (u *Uploader) singleUpload(uploadCtx *uploadCtx, getFilePath func() (string
 
 		logger.Rlogger.Debug("Uploading replay", slog.Any("matchGUID", match.Match.MatchGUID), slog.Any("filePath", filePath))
 
-		playerID := ""
-		if ac.Player.PlayerID != nil {
-			playerID = ac.Player.PlayerID.String()
-		}
-
-		err = storage.UploadReplay(filePath, ReplayUpload{PlayerName: ac.Player.PlayerName, PlayerID: playerID, Replay: match})
+		err = storage.UploadReplay(filePath, ReplayUpload{PlayerName: ac.Player.PlayerName, PlayerIDs: ac.Player.KnownPlayerIDs(), Replay: match})
 		if err != nil {
 			logger.Rlogger.Error("Upload error:", slog.Any("err", err))
 		} else {

@@ -35,10 +35,16 @@ type CachedMatchEntry struct {
 	Team1Score           int    `json:"team1_score"`
 }
 
+type LinkedPlatform struct {
+	PlayerID   string `json:"player_id"`
+	PlayerName string `json:"player_name"`
+}
+
 type Player struct {
 	PlayerName         string             `json:"player_name"`
 	Auth               *Auth              `json:"auth"`
 	PlayerID           *rlapi.PlayerID    `json:"player_id,omitempty"`
+	LinkedPlatforms    []LinkedPlatform   `json:"linked_platforms,omitempty"`
 	MatchHistory       []rlapi.MatchEntry `json:"-"`
 	CachedMatchHistory []CachedMatchEntry `json:"cached_match_history,omitempty"`
 	LastCheckOnline    bool               `json:"-"`
@@ -64,6 +70,7 @@ func (p *Player) Reset() {
 
 	p.PlayerName = "Player"
 	p.PlayerID = nil
+	p.LinkedPlatforms = nil
 	p.MatchHistory = nil
 	p.CachedMatchHistory = nil
 
@@ -239,6 +246,60 @@ func (p *Player) EqualStringID(otherPlayerStringID string) bool {
 	}
 
 	return strings.EqualFold(p.PlayerID.String(), otherPlayerStringID)
+}
+
+func (p *Player) LinkPlatform(playerID string, playerName string) bool {
+	logger.FuncDebug()
+
+	platform, _, err := rlapi.ParsePlayerID(playerID)
+	if err != nil || platform == rlapi.PlatformEpic {
+		return false
+	}
+
+	linked := LinkedPlatform{PlayerID: playerID, PlayerName: playerName}
+
+	for i, existing := range p.LinkedPlatforms {
+		existingPlatform, _, _ := rlapi.ParsePlayerID(existing.PlayerID)
+		if existingPlatform != platform {
+			continue
+		}
+
+		if existing == linked {
+			return false
+		}
+
+		p.LinkedPlatforms[i] = linked
+		return true
+	}
+
+	p.LinkedPlatforms = append(p.LinkedPlatforms, linked)
+	return true
+}
+
+func (p *Player) UnlinkPlatform(playerID string) bool {
+	logger.FuncDebug()
+
+	count := len(p.LinkedPlatforms)
+	p.LinkedPlatforms = slices.DeleteFunc(p.LinkedPlatforms, func(l LinkedPlatform) bool {
+		return strings.EqualFold(l.PlayerID, playerID)
+	})
+
+	return len(p.LinkedPlatforms) != count
+}
+
+func (p *Player) KnownPlayerIDs() []string {
+	logger.FuncDebug()
+
+	ids := make([]string, 0, len(p.LinkedPlatforms)+1)
+	if p.PlayerID != nil {
+		ids = append(ids, p.PlayerID.String())
+	}
+
+	for _, linked := range p.LinkedPlatforms {
+		ids = append(ids, linked.PlayerID)
+	}
+
+	return ids
 }
 
 func (p *Player) GetMatchHistoryIndex(matchGUID string) int {
