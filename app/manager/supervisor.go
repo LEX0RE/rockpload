@@ -20,4 +20,7 @@ type RLVersionInfo struct {
 type RLLogInfo struct {
 	VersionInfo  *RLVersionInfo
 	AccountFound *rocket_network.Account
+
+	PlatformPlayerID   string
+	PlatformPlayerName string
 }

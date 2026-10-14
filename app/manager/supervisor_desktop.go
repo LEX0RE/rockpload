@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 	"github.com/LEX0RE/rockpload/app/tools/rtime"
 
+	"github.com/dank/rlapi"
 	"github.com/fsnotify/fsnotify"
 	ps "github.com/mitchellh/go-ps"
 )
@@ -157,6 +159,7 @@ func (rls *RLSupervisor) onRLDetected() {
 	logger.FuncDebug()
 
 	logger.Rlogger.Debug("Rocket League program detected")
+	rls.linkPlatformsFromLogs()
 	rls.EventManager.Notify(EVENT_ON_RL_DETECTED, nil)
 }
 
@@ -171,7 +174,15 @@ func (rls *RLSupervisor) verifyRLPlayerDetected(logInfo *RLPlayerLogInfo) {
 		rls.RLLogInfo.AccountFound = byIDFound
 	}
 
-	if rls.RLLogInfo.AccountFound == nil || !rls.LastRLRunningState {
+	if rls.RLLogInfo.AccountFound == nil {
+		return
+	}
+
+	if rls.RLLogInfo.PlatformPlayerID != "" {
+		rls.accountManager.LinkPlatform(rls.RLLogInfo.AccountFound, rls.RLLogInfo.PlatformPlayerID, rls.RLLogInfo.PlatformPlayerName)
+	}
+
+	if !rls.LastRLRunningState {
 		return
 	}
 
@@ -191,6 +202,7 @@ func (rls *RLSupervisor) onRLClose() {
 	}
 
 	rls.resetMemory()
+	rls.linkPlatformsFromLogs()
 	rls.EventManager.Notify(EVENT_ON_RL_CLOSED, nil)
 }
 
@@ -199,6 +211,7 @@ func (rls *RLSupervisor) superviseLog() {
 
 	rls.resetMemory()
 	rls.updateRLLogsFolder()
+	rls.linkPlatformsFromLogs()
 
 	if len(rls.rlLogsFolder) == 0 {
 		return
@@ -331,42 +344,134 @@ func (rls *RLSupervisor) analyzeLogLine(line string) {
 		rls.updateFeatureSet(line)
 	}
 
-	if strings.Contains(line, "HandleLocalPlayerLoginStatusChanged") && strings.Contains(line, "LS_LoggedIn") {
-		rls.updateLoginPlayerInfo(line)
-	}
-
-	if strings.Contains(line, "Connect login result") && strings.Contains(line, "EOS_Success") {
-		rls.updateEpicLoginPlayerInfo(line)
-	}
+	rls.updateLoginPlayerInfo(line)
+	rls.updateEpicLoginPlayerInfo(line)
 }
 
 func (rls *RLSupervisor) updateEpicLoginPlayerInfo(logLine string) {
 	logger.FuncDebug()
 
-	marker := "'EOS_Success' for player '"
-
-	_, after, ok := strings.Cut(logLine, marker)
-	if !ok {
+	epicID := parseEpicConnectLine(logLine)
+	if epicID == "" {
 		return
 	}
 
-	playerID, _, ok := strings.Cut(after, "'")
-	if !ok || playerID == "" {
-		return
-	}
-
-	logInfo := &RLPlayerLogInfo{
-		ID: "Epic|" + playerID + "|0",
-	}
-
-	rls.verifyRLPlayerDetected(logInfo)
+	rls.verifyRLPlayerDetected(&RLPlayerLogInfo{ID: epicID})
 }
 
 func (rls *RLSupervisor) updateLoginPlayerInfo(logLine string) {
 	logger.FuncDebug()
 
-	if !strings.Contains(logLine, "PlayerName=") {
+	logInfo := parseLoginPlayerLine(logLine)
+	if logInfo == nil {
 		return
+	}
+
+	if !isEpicPlayerID(logInfo.ID) && logInfo.IsPrimary {
+		if rls.RLLogInfo == nil {
+			rls.RLLogInfo = &RLLogInfo{}
+		}
+
+		rls.RLLogInfo.PlatformPlayerID = logInfo.ID
+		rls.RLLogInfo.PlatformPlayerName = logInfo.Name
+	}
+
+	if isEpicPlayerID(logInfo.ID) {
+		rls.verifyRLPlayerDetected(logInfo)
+	}
+}
+
+func (rls *RLSupervisor) linkPlatformsFromLogs() {
+	logger.FuncDebug()
+
+	for _, logFolder := range rls.rlLogsFolder {
+		logFiles, err := filepath.Glob(filepath.Join(logFolder, "Launch*.log"))
+		if err != nil {
+			continue
+		}
+
+		sort.SliceStable(logFiles, func(i, j int) bool {
+			return fileModTime(logFiles[i]).Before(fileModTime(logFiles[j]))
+		})
+
+		for _, logFile := range logFiles {
+			rls.linkPlatformsFromLog(logFile)
+		}
+	}
+}
+
+func (rls *RLSupervisor) linkPlatformsFromLog(filePath string) {
+	logger.FuncDebug()
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	var platformInfo *RLPlayerLogInfo
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if logInfo := parseLoginPlayerLine(line); logInfo != nil && logInfo.IsPrimary && !isEpicPlayerID(logInfo.ID) {
+			platformInfo = logInfo
+			continue
+		}
+
+		if platformInfo == nil {
+			continue
+		}
+
+		if epicID := parseEpicConnectLine(line); epicID != "" {
+			if ac := rls.accountManager.GetByPlayerID(epicID); ac != nil {
+				rls.accountManager.LinkPlatform(ac, platformInfo.ID, platformInfo.Name)
+			}
+
+			platformInfo = nil
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		logger.Rlogger.Debug("Error while scanning RL logs file for linked platforms", slog.Any("file", filePath), slog.Any("err", err))
+	}
+}
+
+func fileModTime(filePath string) time.Time {
+	stat, err := os.Stat(filePath)
+	if err != nil {
+		return time.Time{}
+	}
+
+	return stat.ModTime()
+}
+
+func isEpicPlayerID(playerID string) bool {
+	return strings.HasPrefix(playerID, string(rlapi.PlatformEpic)+"|")
+}
+
+func parseEpicConnectLine(logLine string) string {
+	if !strings.Contains(logLine, "Connect login result") {
+		return ""
+	}
+
+	_, after, ok := strings.Cut(logLine, "'EOS_Success' for player '")
+	if !ok {
+		return ""
+	}
+
+	playerID, _, ok := strings.Cut(after, "'")
+	if !ok || playerID == "" {
+		return ""
+	}
+
+	return rlapi.NewPlayerID(rlapi.PlatformEpic, playerID).String()
+}
+
+func parseLoginPlayerLine(logLine string) *RLPlayerLogInfo {
+	if !strings.Contains(logLine, "HandleLocalPlayerLoginStatusChanged") || !strings.Contains(logLine, "LS_LoggedIn") || !strings.Contains(logLine, "PlayerName=") {
+		return nil
 	}
 
 	logInfo := &RLPlayerLogInfo{}
@@ -380,8 +485,8 @@ func (rls *RLSupervisor) updateLoginPlayerInfo(logLine string) {
 		if after, ok := strings.CutPrefix(word, "PlayerID="); ok {
 			parts := strings.Split(after, "|")
 
-			if len(parts) >= 2 {
-				logInfo.ID = "Epic|" + parts[1] + "|0"
+			if len(parts) >= 2 && parts[0] != "" && parts[1] != "" {
+				logInfo.ID = parts[0] + "|" + parts[1] + "|0"
 			}
 		}
 
@@ -390,11 +495,11 @@ func (rls *RLSupervisor) updateLoginPlayerInfo(logLine string) {
 		}
 	}
 
-	if logInfo.ID == "" || !strings.HasPrefix(logInfo.ID, "Epic") {
-		return
+	if logInfo.ID == "" || strings.HasPrefix(logInfo.ID, "Unknown") {
+		return nil
 	}
 
-	rls.verifyRLPlayerDetected(logInfo)
+	return logInfo
 }
 
 func (rls *RLSupervisor) updateGameVersion(logLine string) {

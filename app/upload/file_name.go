@@ -18,7 +18,7 @@ var replayUploadSequenceIndex = -1
 
 type ReplayUpload struct {
 	PlayerName string
-	PlayerID   string
+	PlayerIDs  []string
 	Replay     rlapi.MatchEntry
 }
 
@@ -48,7 +48,7 @@ func replayUploadFileName(filePath string, template string, replayUpload ReplayU
 	}
 
 	replacements := map[string]string{
-		"{PLAYER}":  replayUpload.PlayerName,
+		"{PLAYER}":  replayUpload.DisplayName(),
 		"{MODE}":    config.PlaylistDisplayName(replayUpload.Replay.Match.Playlist, knownPlaylists),
 		"{NUM}":     strconv.Itoa(replayUploadSequenceIndex),
 		"{YEAR}":    strconv.Itoa(replayTime.Year()),
@@ -89,22 +89,49 @@ func timeFromReplayTimestamp(timestamp int64) time.Time {
 	}
 }
 
+func (ru ReplayUpload) matchPlayer() *rlapi.MatchPlayer {
+	players := ru.Replay.Match.Players
+
+	for _, id := range ru.PlayerIDs {
+		for i := range players {
+			if strings.EqualFold(id, players[i].PlayerID) {
+				return &players[i]
+			}
+		}
+	}
+
+	for i := range players {
+		if ru.PlayerName != "" && players[i].PlayerName == ru.PlayerName {
+			return &players[i]
+		}
+	}
+
+	return nil
+}
+
+func (ru ReplayUpload) DisplayName() string {
+	if player := ru.matchPlayer(); player != nil && player.PlayerName != "" {
+		return player.PlayerName
+	}
+
+	return ru.PlayerName
+}
+
 func (ru ReplayUpload) PlayerWon() int {
 	if ru.Replay.Match.WinningTeam == -1 {
 		return -1
 	}
 
-	for _, player := range ru.Replay.Match.Players {
-		if player.PlayerID == ru.PlayerID || player.PlayerName == ru.PlayerName {
-			if player.LastTeam == ru.Replay.Match.WinningTeam {
-				return 1
-			} else {
-				return 0
-			}
-		}
+	player := ru.matchPlayer()
+	if player == nil {
+		return -1
 	}
 
-	return -1
+	if player.LastTeam == ru.Replay.Match.WinningTeam {
+		return 1
+	}
+
+	return 0
 }
 
 func sanitizeFileName(fileName string) string {
