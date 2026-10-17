@@ -131,13 +131,18 @@ func (u *Uploader) UploadLiveStats(liveStats *rocket_network.LiveStats) {
 
 	defer u.lockInLiveUpload.Unlock()
 
-	logger.Rlogger.Info("Start Upload Live Stats Process")
+	if liveStats != nil {
+		seconds, _ := liveStats.TimeSeconds()
+		logger.Rlogger.Info("Start Upload Live Stats Process", slog.Int("TimeSeconds", seconds), slog.Bool("Overtime", liveStats.Overtime()))
+	} else {
+		logger.Rlogger.Info("Start Upload Live Stats Process")
+	}
 
 	if !u.appConfig.BehaviorConfig.SendLiveStat.Get() {
 		return
 	}
 
-	if liveStats == nil || liveStats.State == nil || liveStats.State.MatchGuid == "" {
+	if liveStats == nil || liveStats.MatchGuid() == "" {
 		logger.Rlogger.Debug("Skipping live stat upload, no matchGuid")
 		return
 	}

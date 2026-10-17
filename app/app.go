@@ -150,7 +150,7 @@ func (a *App) initEvents() {
 
 	a.statsApi = rocket_network.NewStatsAPI()
 	a.statsApi.PortsProvider = a.rlLocator.StatsAPIPorts
-	uploadLiveStatsEvent := []tools.EventType{"CountdownBegin", "PodiumStart"}
+	uploadLiveStatsEvent := []tools.EventType{"CountdownBegin", "PodiumStart", rocket_network.EventOvertimeStarted}
 	a.statsApi.EventManager.MultiSubscribe(uploadLiveStatsEvent, tools.Listener{IsSync: false, Callback: func(data any) {
 		a.uploader.UploadLiveStats(a.statsApi.LastInfo)
 	}})
