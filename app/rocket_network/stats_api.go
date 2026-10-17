@@ -16,89 +16,34 @@ import (
 
 const (
 	EventFirstUpdateState tools.EventType = "first_update_state"
+	EventOvertimeStarted  tools.EventType = "overtime_started"
 )
 
-func assignPtr[T any](m map[string]any, key string, target **T, assign func(map[string]any, string, *T)) {
-	if _, ok := m[key]; !ok {
-		return
-	}
-
-	v := new(T)
-	assign(m, key, v)
-	*target = v
-}
-
-type UpdateState struct {
-	MatchGuid string
-	Players   []*UpdateStatePlayer
-	Game      *UpdateStateGame
-}
-
-type UpdateStatePlayer struct {
-	Name          string
-	PrimaryId     string
-	Shortcut      int
-	TeamNum       int
-	Score         int
-	Goals         int
-	Shots         int
-	Assists       int
-	Saves         int
-	Touches       int
-	CarTouches    int
-	Demos         int
-	Loadout       []string
-	PickupClass   string
-	bHasCar       *bool
-	Speed         *float64
-	Boost         *int
-	bBoosting     *bool
-	bOnGround     *bool
-	bOnWall       *bool
-	bPowersliding *bool
-	bDemolished   *bool
-	bSupersonic   *bool
-	Attacker      *UpdateStateTarget
-}
-
-type UpdateStateTarget struct {
-	Name     string
-	Shortcut int
-	TeamNum  int
-}
-
-type UpdateStateGame struct {
-	Teams       []*UpdateStateGameTeam
-	PlaylistId  int
-	TimeSeconds int
-	bOvertime   bool
-	Ball        *UpdateStateGameBall
-	bReplay     bool
-	bHasWinner  bool
-	Winner      string
-	Arena       string
-	Frame       *int
-	Elapsed     *float64
-	bHasTarget  bool
-	Target      *UpdateStateTarget
-}
-
-type UpdateStateGameBall struct {
-	Speed   float64
-	TeamNum int
-}
-
-type UpdateStateGameTeam struct {
-	Name           string
-	TeamNum        int
-	Score          int
-	ColorPrimary   string
-	ColorSecondary string
-}
-
 type LiveStats struct {
-	State  *UpdateState
+	State  map[string]any
 	Skills map[rlapi.PlayerID][]rlapi.Skill
+}
+
+func (l *LiveStats) MatchGuid() string {
+	guid, _ := l.State["MatchGuid"].(string)
+	return guid
+}
+
+func (l *LiveStats) TimeSeconds() (int, bool) {
+	game, _ := l.State["Game"].(map[string]any)
+	seconds, ok := game["TimeSeconds"].(float64)
+	return int(seconds), ok
+}
+
+func (l *LiveStats) Overtime() bool {
+	game, _ := l.State["Game"].(map[string]any)
+	overtime, _ := game["bOvertime"].(bool)
+	return overtime
+}
+
+func (l *LiveStats) PlayerCount() int {
+	players, _ := l.State["Players"].([]any)
+	return len(players)
 }
 
 type RLEvent struct {
@@ -116,6 +61,7 @@ type StatsAPI struct {
 	transport     StatsAPITransport
 	lastStateTime int
 	isFirstSent   bool
+	isOvertime    bool
 
 	LastInfo     *LiveStats
 	EventManager *tools.EventManager
@@ -266,19 +212,26 @@ func (s *StatsAPI) readLoop(stream io.ReadCloser) {
 		case "MatchCreated", "MatchDestroyed":
 			s.resetState()
 		case "UpdateState":
-			updateStateData := ExtractUpdateState(dynamicData)
+			if dynamicData != nil {
+				s.LastInfo.State = dynamicData
 
-			if updateStateData != nil {
-				s.LastInfo.State = updateStateData
+				if overtime := s.LastInfo.Overtime(); overtime != s.isOvertime {
+					s.isOvertime = overtime
+					if overtime {
+						s.EventManager.Notify(EventOvertimeStarted, nil)
+					}
+				}
 
-				if s.lastStateTime == -1 {
-					s.lastStateTime = s.LastInfo.State.Game.TimeSeconds
-				} else if s.lastStateTime != s.LastInfo.State.Game.TimeSeconds {
-					s.lastStateTime = s.LastInfo.State.Game.TimeSeconds
+				if seconds, ok := s.LastInfo.TimeSeconds(); ok {
+					if s.lastStateTime == -1 {
+						s.lastStateTime = seconds
+					} else if s.lastStateTime != seconds {
+						s.lastStateTime = seconds
 
-					if !s.isFirstSent && len(s.LastInfo.State.Players) > 0 {
-						s.isFirstSent = true
-						s.EventManager.Notify(EventFirstUpdateState, nil)
+						if !s.isFirstSent && s.LastInfo.PlayerCount() > 0 {
+							s.isFirstSent = true
+							s.EventManager.Notify(EventFirstUpdateState, nil)
+						}
 					}
 				}
 			}
@@ -297,144 +250,5 @@ func (s *StatsAPI) resetState() {
 	}
 	s.lastStateTime = -1
 	s.isFirstSent = false
-}
-
-func ExtractUpdateState(dynamicData map[string]any) *UpdateState {
-	logger.FuncDebug()
-
-	state := &UpdateState{}
-
-	assignStr := func(m map[string]any, key string, target *string) {
-		if v, ok := m[key].(string); ok {
-			*target = v
-		}
-	}
-
-	assignInt := func(m map[string]any, key string, target *int) {
-		if v, ok := m[key].(float64); ok {
-			*target = int(v)
-		}
-	}
-
-	assignFloat := func(m map[string]any, key string, target *float64) {
-		if v, ok := m[key].(float64); ok {
-			*target = v
-		}
-	}
-
-	assignBool := func(m map[string]any, key string, target *bool) {
-		if v, ok := m[key].(bool); ok {
-			*target = v
-		}
-	}
-
-	assignStrSlice := func(m map[string]any, key string, target *[]string) {
-		arr, ok := m[key].([]any)
-		if !ok {
-			return
-		}
-
-		items := make([]string, 0, len(arr))
-		for _, item := range arr {
-			if s, ok := item.(string); ok {
-				items = append(items, s)
-			}
-		}
-
-		*target = items
-	}
-
-	extractTarget := func(m map[string]any, key string) *UpdateStateTarget {
-		obj, ok := m[key].(map[string]any)
-		if !ok {
-			return nil
-		}
-
-		target := &UpdateStateTarget{}
-		assignStr(obj, "Name", &target.Name)
-		assignInt(obj, "Shortcut", &target.Shortcut)
-		assignInt(obj, "TeamNum", &target.TeamNum)
-
-		return target
-	}
-
-	assignStr(dynamicData, "MatchGuid", &state.MatchGuid)
-
-	if playersArr, ok := dynamicData["Players"].([]any); ok {
-		for _, playerAny := range playersArr {
-			if playerObj, ok := playerAny.(map[string]any); ok {
-				var newPlayer UpdateStatePlayer
-
-				assignStr(playerObj, "Name", &newPlayer.Name)
-				assignStr(playerObj, "PrimaryId", &newPlayer.PrimaryId)
-				assignInt(playerObj, "Shortcut", &newPlayer.Shortcut)
-				assignInt(playerObj, "TeamNum", &newPlayer.TeamNum)
-				assignInt(playerObj, "Score", &newPlayer.Score)
-				assignInt(playerObj, "Goals", &newPlayer.Goals)
-				assignInt(playerObj, "Shots", &newPlayer.Shots)
-				assignInt(playerObj, "Assists", &newPlayer.Assists)
-				assignInt(playerObj, "Saves", &newPlayer.Saves)
-				assignInt(playerObj, "Touches", &newPlayer.Touches)
-				assignInt(playerObj, "CarTouches", &newPlayer.CarTouches)
-				assignInt(playerObj, "Demos", &newPlayer.Demos)
-				assignStrSlice(playerObj, "Loadout", &newPlayer.Loadout)
-				assignStr(playerObj, "PickupClass", &newPlayer.PickupClass)
-				assignPtr(playerObj, "bHasCar", &newPlayer.bHasCar, assignBool)
-				assignPtr(playerObj, "Speed", &newPlayer.Speed, assignFloat)
-				assignPtr(playerObj, "Boost", &newPlayer.Boost, assignInt)
-				assignPtr(playerObj, "bBoosting", &newPlayer.bBoosting, assignBool)
-				assignPtr(playerObj, "bOnGround", &newPlayer.bOnGround, assignBool)
-				assignPtr(playerObj, "bOnWall", &newPlayer.bOnWall, assignBool)
-				assignPtr(playerObj, "bPowersliding", &newPlayer.bPowersliding, assignBool)
-				assignPtr(playerObj, "bDemolished", &newPlayer.bDemolished, assignBool)
-				assignPtr(playerObj, "bSupersonic", &newPlayer.bSupersonic, assignBool)
-				newPlayer.Attacker = extractTarget(playerObj, "Attacker")
-
-				state.Players = append(state.Players, &newPlayer)
-			}
-		}
-	}
-
-	if gameObj, ok := dynamicData["Game"].(map[string]any); ok {
-		if state.Game == nil {
-			state.Game = &UpdateStateGame{}
-		}
-
-		assignInt(gameObj, "PlaylistId", &state.Game.PlaylistId)
-		assignInt(gameObj, "TimeSeconds", &state.Game.TimeSeconds)
-		assignBool(gameObj, "bOvertime", &state.Game.bOvertime)
-		assignBool(gameObj, "bReplay", &state.Game.bReplay)
-		assignPtr(gameObj, "Frame", &state.Game.Frame, assignInt)
-		assignPtr(gameObj, "Elapsed", &state.Game.Elapsed, assignFloat)
-		assignBool(gameObj, "bHasWinner", &state.Game.bHasWinner)
-		assignStr(gameObj, "Winner", &state.Game.Winner)
-		assignStr(gameObj, "Arena", &state.Game.Arena)
-		assignBool(gameObj, "bHasTarget", &state.Game.bHasTarget)
-		state.Game.Target = extractTarget(gameObj, "Target")
-
-		if ballObj, ok := gameObj["Ball"].(map[string]any); ok {
-			ball := &UpdateStateGameBall{}
-			assignFloat(ballObj, "Speed", &ball.Speed)
-			assignInt(ballObj, "TeamNum", &ball.TeamNum)
-			state.Game.Ball = ball
-		}
-
-		if teamsArr, ok := gameObj["Teams"].([]any); ok {
-			for _, teamAny := range teamsArr {
-				if teamObj, ok := teamAny.(map[string]any); ok {
-					var newTeam UpdateStateGameTeam
-
-					assignStr(teamObj, "Name", &newTeam.Name)
-					assignStr(teamObj, "ColorPrimary", &newTeam.ColorPrimary)
-					assignStr(teamObj, "ColorSecondary", &newTeam.ColorSecondary)
-					assignInt(teamObj, "TeamNum", &newTeam.TeamNum)
-					assignInt(teamObj, "Score", &newTeam.Score)
-
-					state.Game.Teams = append(state.Game.Teams, &newTeam)
-				}
-			}
-		}
-	}
-
-	return state
+	s.isOvertime = false
 }
