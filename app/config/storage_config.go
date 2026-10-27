@@ -28,6 +28,9 @@ type StorageConfig struct {
 	PingProbeID         string                  `json:"ping_probe_id"`
 	LiveStyle           LiveStyleType           `json:"live_style"`
 	LivePath            string                  `json:"live_path"`
+	OpenReplayStyle     OpenReplayStyleType     `json:"open_replay_style"`
+	OpenReplayOrigin    string                  `json:"open_replay_origin"`
+	OpenReplayPath      string                  `json:"open_replay_path"`
 	RenameStyle         RenameStyleType         `json:"rename_style"`
 	RenamePath          string                  `json:"rename_path"`
 	PlaylistFilterStyle PlaylistFilterStyleType `json:"playlist_filter_style"`
@@ -61,29 +64,35 @@ var ROCKY_STORAGE = &StorageConfig{
 	TemplateName:        "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
 	LiveStyle:           LiveEnabled,
 	LivePath:            "/upload/live",
+	OpenReplayStyle:     OpenReplayEnabled,
+	OpenReplayOrigin:    "https://lexore.ca",
+	OpenReplayPath:      "/replays/download/" + OpenReplayIDPlaceholder,
 	RenameStyle:         RenameDisabled,
 	PlaylistFilterStyle: PlaylistFilterFollowAny,
 }
 
 var BALLCHASING_STORAGE = &StorageConfig{
-	Name:         BALLCHASING_NAME,
-	UploadStyle:  MultipartUpload,
-	ReplayPath:   "/v2/upload",
-	URL:          "https://ballchasing.com/api",
-	IsPrimary:    false,
-	IsPredefined: true,
-	IsTemporary:  false,
-	Enabled:      false,
-	URIParams:    map[string]string{"visibility": "public"},
-	TokenStyle:   RawToken,
-	Token:        "",
-	PingStyle:    PingRequiresOK,
-	PingPath:     "/",
-	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	LiveStyle:    LiveDisabled,
-	LivePath:     "",
-	RenameStyle:  RenamePatchTitle,
-	RenamePath:   "/replays/",
+	Name:             BALLCHASING_NAME,
+	UploadStyle:      MultipartUpload,
+	ReplayPath:       "/v2/upload",
+	URL:              "https://ballchasing.com/api",
+	IsPrimary:        false,
+	IsPredefined:     true,
+	IsTemporary:      false,
+	Enabled:          false,
+	URIParams:        map[string]string{"visibility": "public"},
+	TokenStyle:       RawToken,
+	Token:            "",
+	PingStyle:        PingRequiresOK,
+	PingPath:         "/",
+	TemplateName:     "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
+	LiveStyle:        LiveDisabled,
+	LivePath:         "",
+	OpenReplayStyle:  OpenReplayEnabled,
+	OpenReplayOrigin: "https://ballchasing.com",
+	OpenReplayPath:   "/replays/" + OpenReplayIDPlaceholder + "/file",
+	RenameStyle:      RenamePatchTitle,
+	RenamePath:       "/replays/",
 }
 
 var BLAST_STORAGE = &StorageConfig{
@@ -154,23 +163,26 @@ var FILE_SYSTEM_STORAGE = &StorageConfig{
 
 // Dev testing storage only
 var LOCALHOST_STORAGE = &StorageConfig{
-	Name:         LOCALHOST_NAME,
-	UploadStyle:  MultipartUpload,
-	ReplayPath:   "/upload",
-	TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	URL:          "http://localhost:3000",
-	IsPrimary:    false,
-	IsPredefined: false,
-	IsTemporary:  true,
-	Enabled:      false,
-	URIParams:    map[string]string{},
-	TokenStyle:   NoToken,
-	Token:        "",
-	PingStyle:    PingDisabled,
-	PingPath:     "/",
-	LiveStyle:    LiveDisabled,
-	LivePath:     "",
-	RenameStyle:  RenameDisabled,
+	Name:             LOCALHOST_NAME,
+	UploadStyle:      MultipartUpload,
+	ReplayPath:       "/upload",
+	TemplateName:     "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
+	URL:              "http://localhost:4200/api",
+	IsPrimary:        false,
+	IsPredefined:     false,
+	IsTemporary:      true,
+	Enabled:          false,
+	URIParams:        map[string]string{},
+	TokenStyle:       NoToken,
+	Token:            "",
+	PingStyle:        PingDisabled,
+	PingPath:         "/",
+	LiveStyle:        LiveDisabled,
+	LivePath:         "",
+	OpenReplayStyle:  OpenReplayEnabled,
+	OpenReplayOrigin: "http://localhost:4200",
+	OpenReplayPath:   "/replays/download/" + OpenReplayIDPlaceholder,
+	RenameStyle:      RenameDisabled,
 }
 
 func (sc *StorageConfig) UnmarshalJSON(data []byte) error {
