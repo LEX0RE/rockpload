@@ -126,7 +126,7 @@ github.com/chromedp/cdproto/webmcp
 github.com/chromedp/chromedp
 github.com/chromedp/chromedp/device
 github.com/chromedp/chromedp/kb
-# github.com/dank/rlapi v0.1.27
+# github.com/dank/rlapi v0.1.28
 ## explicit; go 1.24.5
 github.com/dank/rlapi
 # github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2
