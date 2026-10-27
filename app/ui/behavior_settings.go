@@ -34,6 +34,9 @@ type BehaviorSettingPopup struct {
 	rlLocator       *rlgame.Locator
 	statsAPIBox     *fyne.Container
 	statsAPIWarning *widget.Label
+
+	bridgeStatus      func() (string, bool)
+	bridgeStatusLabel *widget.Label
 }
 
 type behaviorSettingInput struct {
@@ -178,12 +181,13 @@ func newBehaviorSettingInput(visual config.BehaviorSettingVisualDependency, onCh
 	}
 }
 
-func NewBehaviorSettingPopup(p *Popup, rlLocator *rlgame.Locator) *BehaviorSettingPopup {
+func NewBehaviorSettingPopup(p *Popup, rlLocator *rlgame.Locator, bridgeStatus func() (string, bool)) *BehaviorSettingPopup {
 	logger.FuncDebug()
 
 	sp := &BehaviorSettingPopup{
 		Popup:         p,
 		rlLocator:     rlLocator,
+		bridgeStatus:  bridgeStatus,
 		settings:      p.appConfig.BehaviorConfig.GetSettingsMap(),
 		settingInputs: make(map[config.BehaviorSettingType]*behaviorSettingInput),
 	}
@@ -201,10 +205,17 @@ func NewBehaviorSettingPopup(p *Popup, rlLocator *rlgame.Locator) *BehaviorSetti
 
 		sp.settingInputs[settingType] = input
 		settingObjects = append(settingObjects, input.object)
-	}
 
-	if runtime.GOOS != "android" && runtime.GOOS != "ios" {
-		settingObjects = append(settingObjects, sp.createStatsAPIConfig())
+		if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+			continue
+		}
+
+		switch settingType {
+		case config.SendLiveStat:
+			settingObjects = append(settingObjects, sp.createStatsAPIConfig())
+		case config.WebsiteBridgePort:
+			settingObjects = append(settingObjects, sp.createBridgeStatus())
+		}
 	}
 
 	settingObjects = append(settingObjects, widget.NewSeparator(), createExportLogBtn(p), createClearCacheBtn(p))
@@ -254,6 +265,7 @@ func (sp *BehaviorSettingPopup) Show() {
 
 	sp.resetInputs()
 	sp.refreshStatsAPIWarning()
+	sp.refreshBridgeStatus(sp.appConfig.BehaviorConfig.AllowWebsiteReplay.Get())
 
 	sp.Popup.Show()
 }
@@ -339,6 +351,10 @@ func (sp *BehaviorSettingPopup) refreshChildren(settingType config.BehaviorSetti
 		}
 	}
 
+	if settingType == config.AllowWebsiteReplay {
+		sp.refreshBridgeStatus(visible)
+	}
+
 	// The StatsAPI config is not a setting, so it cannot be listed in Children
 	if settingType == config.SendLiveStat && sp.statsAPIBox != nil {
 		if visible {
@@ -411,4 +427,36 @@ func createExportLogBtn(p *Popup) *widget.Button {
 		saveDialog.SetFileName("rockpload_logs.txt")
 		saveDialog.Show()
 	})
+}
+
+func (sp *BehaviorSettingPopup) createBridgeStatus() fyne.CanvasObject {
+	logger.FuncDebug()
+
+	sp.bridgeStatusLabel = widget.NewLabel("")
+	sp.bridgeStatusLabel.Wrapping = fyne.TextWrapWord
+	sp.bridgeStatusLabel.Hide()
+
+	return sp.bridgeStatusLabel
+}
+
+func (sp *BehaviorSettingPopup) refreshBridgeStatus(visible bool) {
+	logger.FuncDebug()
+
+	if sp.bridgeStatusLabel == nil || sp.bridgeStatus == nil {
+		return
+	}
+
+	status, warning := sp.bridgeStatus()
+	if status == "" || !visible {
+		sp.bridgeStatusLabel.Hide()
+		return
+	}
+
+	sp.bridgeStatusLabel.Importance = widget.LowImportance
+	if warning {
+		sp.bridgeStatusLabel.Importance = widget.WarningImportance
+	}
+
+	sp.bridgeStatusLabel.SetText(status)
+	sp.bridgeStatusLabel.Show()
 }

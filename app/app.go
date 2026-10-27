@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/LEX0RE/rockpload/app/bridge"
 	"github.com/LEX0RE/rockpload/app/config"
 	"github.com/LEX0RE/rockpload/app/manager"
 	"github.com/LEX0RE/rockpload/app/rlgame"
@@ -41,6 +42,7 @@ type App struct {
 	accountManager *manager.AccountManager
 	rlSupervisor   *manager.RLSupervisor
 	rlLocator      *rlgame.Locator
+	bridge         *bridge.Bridge
 }
 
 func NewApp(version string, app fyne.App) *App {
@@ -94,6 +96,9 @@ func NewApp(version string, app fyne.App) *App {
 
 func (a *App) Close() {
 	logger.FuncDebug()
+	if a.bridge != nil {
+		a.bridge.Stop()
+	}
 	if a.duplicateLock != nil {
 		a.duplicateLock.Unlock()
 	}
@@ -139,7 +144,7 @@ func (a *App) initManager() {
 	}
 
 	var err error
-	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.rlSupervisor, a.rlLocator, a.app.Clipboard)
+	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.rlSupervisor, a.rlLocator, a.bridgeStatus, a.app.Clipboard)
 	if err != nil {
 		logger.Rlogger.Error("Failed to initialize GUI:", slog.Any("err", err))
 	}
@@ -157,6 +162,12 @@ func (a *App) initEvents() {
 
 	if a.supportsLocalStatsAPI() {
 		a.statsApi.StartListener()
+
+		a.bridge = bridge.New(a.version, a.statsApi, a.appConfig.BehaviorConfig.AllowWebsiteReplay.Get, a.appConfig.OpenReplayTargets)
+		a.bridge.Start(a.appConfig.BehaviorConfig.WebsiteBridgePort.Get())
+		a.appConfig.BehaviorConfig.WebsiteBridgePort.Bind(func(port int) {
+			go a.bridge.Start(port)
+		})
 	}
 
 	onUpdateState := func() {
@@ -190,6 +201,21 @@ func (a *App) initEvents() {
 		}
 
 		a.uploader.UploadLocalFile(filePath)
+	}})
+
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_LOAD_REPLAY_IN_GAME, tools.Listener{IsSync: false, Callback: func(data any) {
+		request, ok := data.(ui.LoadReplayRequest)
+		if !ok {
+			return
+		}
+
+		go func() {
+			sent, err := a.loadReplayInGame(request)
+			if err != nil {
+				logger.Rlogger.Error("Failed to load replay in game", slog.String("Mode", string(request.Mode)), slog.Any("err", err))
+			}
+			request.OnResult(sent, err)
+		}()
 	}})
 
 	a.uploader.EventManager.Subscribe(upload.EventSingleUploadCompleted, tools.Listener{IsSync: false, Callback: func(data any) {
@@ -291,6 +317,8 @@ func (a *App) initEvents() {
 		if a.appConfig.BehaviorConfig.UploadOnRLClose.Get() {
 			a.uploader.Run()
 		}
+
+		go rlgame.ClearTempReplays()
 	}})
 }
 
@@ -299,6 +327,10 @@ func (a *App) startManager() {
 
 	if a.appConfig.BehaviorConfig.AutoUpload.Get() {
 		a.uploader.Start()
+	}
+
+	if a.supportsLocalStatsAPI() {
+		go rlgame.ClearTempReplays()
 	}
 
 	a.startPlatformManagers()
@@ -352,4 +384,12 @@ func (a *App) SetUploadOnRLClose(value bool) {
 	if a.rlSupervisor != nil {
 		a.rlSupervisor.Toggle(value)
 	}
+}
+
+func (a *App) bridgeStatus() (string, bool) {
+	if a.bridge == nil {
+		return "", false
+	}
+
+	return a.bridge.StatusText()
 }

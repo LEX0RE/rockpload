@@ -87,6 +87,9 @@ type StorageInfoContainer struct {
 	templateNameEntry         *widget.Entry
 	liveStyleSelect           *widget.Select
 	livePathEntry             *widget.Entry
+	openReplayStyleSelect     *widget.Select
+	openReplayOriginEntry     *widget.Entry
+	openReplayPathEntry       *widget.Entry
 	renameStyleSelect         *widget.Select
 	renamePathEntry           *widget.Entry
 	helpLink                  *widget.Hyperlink
@@ -109,6 +112,9 @@ type StorageInfoContainer struct {
 	templateNameForm        *widget.FormItem
 	liveStyleForm           *widget.FormItem
 	livePathForm            *widget.FormItem
+	openReplayStyleForm     *widget.FormItem
+	openReplayOriginForm    *widget.FormItem
+	openReplayPathForm      *widget.FormItem
 	renameStyleForm         *widget.FormItem
 	renamePathForm          *widget.FormItem
 	playlistFilterStyleForm *widget.FormItem
@@ -304,6 +310,20 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	})
 	wsp.infoContainer.livePathEntry = widget.NewEntry()
 
+	wsp.infoContainer.openReplayStyleSelect = widget.NewSelect(config.OpenReplayStyleLabels[:], func(v string) {
+		wsp.currentWebsite.OpenReplayStyle = config.OpenReplayStyleFromLabel(v)
+		wsp.reload()
+	})
+	wsp.infoContainer.openReplayOriginEntry = widget.NewEntry()
+	wsp.infoContainer.openReplayOriginEntry.SetPlaceHolder("https://example.com")
+	wsp.infoContainer.openReplayOriginEntry.Validator = func(text string) error {
+		_, err := config.ParseWebsiteOrigin(text)
+		return err
+	}
+	wsp.infoContainer.openReplayPathEntry = widget.NewEntry()
+	wsp.infoContainer.openReplayPathEntry.SetPlaceHolder("/replays/download/" + config.OpenReplayIDPlaceholder)
+	wsp.infoContainer.openReplayPathEntry.Validator = config.ValidateOpenReplayPath
+
 	wsp.infoContainer.replayPathEntry = widget.NewEntry()
 	wsp.infoContainer.templateNameEntry = widget.NewEntry()
 
@@ -325,6 +345,9 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	wsp.infoContainer.templateNameForm = widget.NewFormItem("Name Template", wsp.infoContainer.templateNameEntry)
 	wsp.infoContainer.liveStyleForm = widget.NewFormItem("Live Style", wsp.infoContainer.liveStyleSelect)
 	wsp.infoContainer.livePathForm = widget.NewFormItem("Live Path", wsp.infoContainer.livePathEntry)
+	wsp.infoContainer.openReplayStyleForm = widget.NewFormItem("Open Replay", wsp.infoContainer.openReplayStyleSelect)
+	wsp.infoContainer.openReplayOriginForm = widget.NewFormItem("Website Origin", wsp.infoContainer.openReplayOriginEntry)
+	wsp.infoContainer.openReplayPathForm = widget.NewFormItem("Download Path", wsp.infoContainer.openReplayPathEntry)
 	wsp.infoContainer.renameStyleForm = widget.NewFormItem("Rename Style", wsp.infoContainer.renameStyleSelect)
 	wsp.infoContainer.renamePathForm = widget.NewFormItem("Rename Path", wsp.infoContainer.renamePathEntry)
 	wsp.infoContainer.playlistFilterStyleForm = widget.NewFormItem("Playlist Filter", wsp.infoContainer.playlistFilterStyleSelect)
@@ -349,6 +372,9 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 		wsp.infoContainer.uriParamsForm,
 		wsp.infoContainer.liveStyleForm,
 		wsp.infoContainer.livePathForm,
+		wsp.infoContainer.openReplayStyleForm,
+		wsp.infoContainer.openReplayOriginForm,
+		wsp.infoContainer.openReplayPathForm,
 		wsp.infoContainer.playlistFilterStyleForm,
 		wsp.infoContainer.playlistFilterForm,
 		wsp.infoContainer.bottomSpacerForm,
@@ -503,6 +529,7 @@ func (wsp *StorageSettingsPopup) reloadOptions() {
 		wsp.infoContainer.pingStyleSelect.SetOptions(config.PingStyleLabels[:])
 		wsp.infoContainer.tokenStyleSelect.SetOptions(config.TokenStyleLabels[:])
 		wsp.infoContainer.liveStyleSelect.SetOptions(config.LiveStyleLabels[:])
+		wsp.infoContainer.openReplayStyleSelect.SetOptions(config.OpenReplayStyleLabels[:])
 		wsp.infoContainer.renameStyleSelect.SetOptions(config.RenameStyleLabels[:])
 		wsp.infoContainer.playlistFilterStyleSelect.SetOptions(config.PlaylistFilterStyleLabels[:])
 		return
@@ -521,6 +548,10 @@ func (wsp *StorageSettingsPopup) reloadOptions() {
 	wsp.infoContainer.liveStyleSelect.SetOptions([]string{
 		preset.LiveStyle.Label(),
 	})
+	wsp.infoContainer.openReplayStyleSelect.SetOptions(slices.Compact([]string{
+		config.OpenReplayDisabled.Label(),
+		preset.OpenReplayStyle.Label(),
+	}))
 	wsp.infoContainer.renameStyleSelect.SetOptions([]string{
 		config.RenameDisabled.Label(),
 		preset.RenameStyle.Label(),
@@ -561,6 +592,9 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	wsp.infoContainer.templateNameEntry.SetText(wsp.currentWebsite.TemplateName)
 	wsp.infoContainer.liveStyleSelect.SetSelected(wsp.currentWebsite.LiveStyle.Label())
 	wsp.infoContainer.livePathEntry.SetText(wsp.currentWebsite.LivePath)
+	wsp.infoContainer.openReplayStyleSelect.SetSelected(wsp.currentWebsite.OpenReplayStyle.Label())
+	wsp.infoContainer.openReplayOriginEntry.SetText(wsp.currentWebsite.OpenReplayOrigin)
+	wsp.infoContainer.openReplayPathEntry.SetText(wsp.currentWebsite.OpenReplayPath)
 	wsp.infoContainer.renameStyleSelect.SetSelected(wsp.currentWebsite.RenameStyle.Label())
 	wsp.infoContainer.renamePathEntry.SetText(wsp.currentWebsite.RenamePath)
 	wsp.infoContainer.playlistFilterStyleSelect.SetSelected(wsp.currentWebsite.PlaylistFilterStyle.Label())
@@ -606,6 +640,9 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	wsp.infoContainer.templateNameForm.Widget.Show()
 	wsp.infoContainer.liveStyleForm.Widget.Show()
 	wsp.infoContainer.livePathForm.Widget.Show()
+	wsp.infoContainer.openReplayStyleForm.Widget.Show()
+	wsp.infoContainer.openReplayOriginForm.Widget.Show()
+	wsp.infoContainer.openReplayPathForm.Widget.Show()
 	wsp.infoContainer.renameStyleForm.Widget.Show()
 	wsp.infoContainer.renamePathForm.Widget.Show()
 
@@ -658,6 +695,17 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.livePathForm.Widget.Hide()
 	}
 
+	if wsp.currentWebsite.OpenReplayStyle != config.OpenReplayEnabled {
+		wsp.infoContainer.openReplayOriginForm.Widget.Hide()
+		wsp.infoContainer.openReplayPathForm.Widget.Hide()
+	}
+
+	if !wsp.appConfig.BehaviorConfig.AllowWebsiteReplay.Get() {
+		wsp.infoContainer.openReplayStyleForm.Widget.Hide()
+		wsp.infoContainer.openReplayOriginForm.Widget.Hide()
+		wsp.infoContainer.openReplayPathForm.Widget.Hide()
+	}
+
 	switch wsp.currentWebsite.RenameStyle {
 	case config.RenamePatchTitle:
 	default:
@@ -686,6 +734,9 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.testPingBtn.Hide()
 		wsp.infoContainer.liveStyleForm.Widget.Hide()
 		wsp.infoContainer.livePathForm.Widget.Hide()
+		wsp.infoContainer.openReplayStyleForm.Widget.Hide()
+		wsp.infoContainer.openReplayOriginForm.Widget.Hide()
+		wsp.infoContainer.openReplayPathForm.Widget.Hide()
 		wsp.infoContainer.renameStyleForm.Widget.Hide()
 		wsp.infoContainer.renamePathForm.Widget.Hide()
 	case wsp.currentWebsite.UploadStyle == config.PresignedSessionUpload:
@@ -733,6 +784,9 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 	wsp.infoContainer.templateNameEntry.Enable()
 	wsp.infoContainer.liveStyleSelect.Enable()
 	wsp.infoContainer.livePathEntry.Enable()
+	wsp.infoContainer.openReplayStyleSelect.Enable()
+	wsp.infoContainer.openReplayOriginEntry.Enable()
+	wsp.infoContainer.openReplayPathEntry.Enable()
 	wsp.infoContainer.renameStyleSelect.Enable()
 	wsp.infoContainer.renamePathEntry.Enable()
 	wsp.infoContainer.playlistFilterStyleSelect.Enable()
@@ -741,6 +795,12 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 	if !wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
 		wsp.infoContainer.liveStyleSelect.Disable()
 		wsp.infoContainer.livePathEntry.Disable()
+	}
+
+	if !wsp.appConfig.BehaviorConfig.AllowWebsiteReplay.Get() {
+		wsp.infoContainer.openReplayStyleSelect.Disable()
+		wsp.infoContainer.openReplayOriginEntry.Disable()
+		wsp.infoContainer.openReplayPathEntry.Disable()
 	}
 
 	switch {
@@ -762,6 +822,9 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.infoContainer.pingProbeIDEntry.Disable()
 		wsp.infoContainer.liveStyleSelect.Disable()
 		wsp.infoContainer.livePathEntry.Disable()
+		wsp.infoContainer.openReplayStyleSelect.Disable()
+		wsp.infoContainer.openReplayOriginEntry.Disable()
+		wsp.infoContainer.openReplayPathEntry.Disable()
 		wsp.infoContainer.renameStyleSelect.Disable()
 		wsp.infoContainer.renamePathEntry.Disable()
 	case wsp.currentWebsite.UploadStyle == config.PresignedSessionUpload:
@@ -780,6 +843,8 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 		wsp.infoContainer.pingProbeIDEntry.Disable()
 		wsp.infoContainer.livePathEntry.Disable()
 		wsp.infoContainer.liveStyleSelect.Disable()
+		wsp.infoContainer.openReplayOriginEntry.Disable()
+		wsp.infoContainer.openReplayPathEntry.Disable()
 		wsp.infoContainer.renamePathEntry.Disable()
 
 		if wsp.currentWebsite.IsPrimary {
@@ -787,6 +852,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 			wsp.btnExport.Disable()
 			wsp.infoContainer.enabledCheck.Disable()
 			wsp.infoContainer.pingStyleSelect.Disable()
+			wsp.infoContainer.openReplayStyleSelect.Disable()
 			wsp.infoContainer.uriParamsEntry.Disable()
 			wsp.infoContainer.tokenEntry.Disable()
 			wsp.infoContainer.templateNameEntry.Disable()
@@ -828,6 +894,9 @@ func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
 	wsp.infoContainer.uriParamsEntry.SetText("")
 	wsp.infoContainer.liveStyleSelect.ClearSelected()
 	wsp.infoContainer.livePathEntry.SetText("")
+	wsp.infoContainer.openReplayStyleSelect.ClearSelected()
+	wsp.infoContainer.openReplayOriginEntry.SetText("")
+	wsp.infoContainer.openReplayPathEntry.SetText("")
 	wsp.infoContainer.renameStyleSelect.ClearSelected()
 	wsp.infoContainer.renamePathEntry.SetText("")
 	wsp.infoContainer.playlistFilterStyleSelect.ClearSelected()
@@ -865,6 +934,12 @@ func (wsp *StorageSettingsPopup) formToConfig() config.StorageConfig {
 	if wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
 		cfg.LiveStyle = config.LiveStyleFromLabel(wsp.infoContainer.liveStyleSelect.Selected)
 		cfg.LivePath = wsp.infoContainer.livePathEntry.Text
+	}
+
+	if wsp.appConfig.BehaviorConfig.AllowWebsiteReplay.Get() {
+		cfg.OpenReplayStyle = config.OpenReplayStyleFromLabel(wsp.infoContainer.openReplayStyleSelect.Selected)
+		cfg.OpenReplayOrigin = strings.TrimSpace(wsp.infoContainer.openReplayOriginEntry.Text)
+		cfg.OpenReplayPath = strings.TrimSpace(wsp.infoContainer.openReplayPathEntry.Text)
 	}
 
 	newParams := make(map[string]string)
@@ -1050,18 +1125,19 @@ func (wsp *StorageSettingsPopup) onAddStorageBtn() {
 	dialog.ShowForm("New Storage", "Add", "Cancel", items, func(valide bool) {
 		if valide && nameEntry.Text != "" {
 			newSite := &config.StorageConfig{
-				Name:         nameEntry.Text,
-				URL:          "",
-				IsPrimary:    false,
-				IsPredefined: false,
-				Enabled:      false,
-				TemplateName: "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-				UploadStyle:  config.MultipartUpload,
-				PingStyle:    config.PingDisabled,
-				TokenStyle:   config.NoToken,
-				LiveStyle:    config.LiveDisabled,
-				RenameStyle:  config.RenameDisabled,
-				URIParams:    make(map[string]string),
+				Name:            nameEntry.Text,
+				URL:             "",
+				IsPrimary:       false,
+				IsPredefined:    false,
+				Enabled:         false,
+				TemplateName:    "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
+				UploadStyle:     config.MultipartUpload,
+				PingStyle:       config.PingDisabled,
+				TokenStyle:      config.NoToken,
+				LiveStyle:       config.LiveDisabled,
+				OpenReplayStyle: config.OpenReplayDisabled,
+				RenameStyle:     config.RenameDisabled,
+				URIParams:       make(map[string]string),
 			}
 
 			storages := wsp.appConfig.StorageSettings.Get()

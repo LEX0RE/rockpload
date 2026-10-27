@@ -72,7 +72,7 @@ type GUI struct {
 	Clipboard func() fyne.Clipboard
 }
 
-func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager, rlSupervisor *manager.RLSupervisor, rlLocator *rlgame.Locator, clipboard func() fyne.Clipboard) (g *GUI, err error) {
+func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager, rlSupervisor *manager.RLSupervisor, rlLocator *rlgame.Locator, bridgeStatus func() (string, bool), clipboard func() fyne.Clipboard) (g *GUI, err error) {
 	logger.FuncDebug()
 	g = &GUI{
 		window:         window,
@@ -93,7 +93,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 	storageSettingsBtn := widget.NewButtonWithIcon("", theme.StorageIcon(), func() { StorageSettingsPopup.Show() })
 	storageSettingsBtn.Importance = widget.LowImportance
 
-	behaviorSettingsPopup := NewBehaviorSettingPopup(NewPopup("Behavior Settings", g.window, appConfig, accountManager), rlLocator)
+	behaviorSettingsPopup := NewBehaviorSettingPopup(NewPopup("Behavior Settings", g.window, appConfig, accountManager), rlLocator, bridgeStatus)
 	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { behaviorSettingsPopup.Show() })
 	settingsBtn.Importance = widget.LowImportance
 
@@ -365,7 +365,8 @@ func (g *GUI) createPlayerUI() {
 		buttonContainer := container.New(NewCenterWrapLayout(), disconnectBtn, uploadFileBtn, uploadBtn)
 		connectionContainer = container.NewBorder(nil, buttonContainer, g.connectedLabel, nil, nil)
 	} else {
-		rightButtons := container.NewHBox(uploadFileBtn, uploadBtn)
+		loadInGameBtn := widget.NewButton("Load In Game", g.showLoadReplayInGameDialog)
+		rightButtons := container.NewHBox(loadInGameBtn, uploadFileBtn, uploadBtn)
 		buttonContainer := container.NewBorder(nil, nil, disconnectBtn, rightButtons)
 		connectionContainer = container.NewBorder(nil, nil, g.connectedLabel, buttonContainer, nil)
 	}

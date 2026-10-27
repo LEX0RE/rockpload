@@ -86,6 +86,8 @@ func reconcilePreset(sc *StorageConfig, preset *StorageConfig) {
 	sc.IsTemporary = preset.IsTemporary
 	sc.TokenStyle = preset.TokenStyle
 	sc.LiveStyle = preset.LiveStyle
+	sc.OpenReplayOrigin = preset.OpenReplayOrigin
+	sc.OpenReplayPath = preset.OpenReplayPath
 	sc.HelpText = preset.HelpText
 	sc.HelpURL = preset.HelpURL
 
@@ -97,6 +99,10 @@ func reconcilePreset(sc *StorageConfig, preset *StorageConfig) {
 
 	if sc.RenameStyle != RenameDisabled && sc.RenameStyle != preset.RenameStyle {
 		sc.RenameStyle = preset.RenameStyle
+	}
+
+	if sc.OpenReplayStyle != OpenReplayDisabled && sc.OpenReplayStyle != preset.OpenReplayStyle {
+		sc.OpenReplayStyle = preset.OpenReplayStyle
 	}
 }
 
@@ -240,6 +246,40 @@ func LiveStyleFromLabel(label string) LiveStyleType {
 	}
 
 	return LiveDisabled
+}
+
+type OpenReplayStyleType int
+
+const (
+	OpenReplayDisabled OpenReplayStyleType = iota
+	OpenReplayEnabled
+)
+
+var OpenReplayStyleLabels = [...]string{
+	OpenReplayDisabled: "Open Replay Disabled",
+	OpenReplayEnabled:  "Open Replay Enabled",
+}
+
+func (s OpenReplayStyleType) Label() string {
+	logger.FuncDebug()
+
+	if int(s) < 0 || int(s) >= len(OpenReplayStyleLabels) {
+		return OpenReplayStyleLabels[OpenReplayDisabled]
+	}
+
+	return OpenReplayStyleLabels[s]
+}
+
+func OpenReplayStyleFromLabel(label string) OpenReplayStyleType {
+	logger.FuncDebug()
+
+	for style, l := range OpenReplayStyleLabels {
+		if l == label {
+			return OpenReplayStyleType(style)
+		}
+	}
+
+	return OpenReplayDisabled
 }
 
 type RenameStyleType int

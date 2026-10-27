@@ -19,6 +19,8 @@ type BehaviorConfig struct {
 	StartInTray          Setting[bool]          `json:"start_in_tray"`
 	UploadOlderFirst     Setting[bool]          `json:"upload_older_first"`
 	SendLiveStat         Setting[bool]          `json:"send_live_stat"`
+	AllowWebsiteReplay   Setting[bool]          `json:"allow_website_replay"`
+	WebsiteBridgePort    Setting[int]           `json:"website_bridge_port"`
 
 	SelectedAccountId Setting[int] `json:"selected_account_id"`
 	SelectedStorageId Setting[int] `json:"selected_storage_id"`
@@ -40,6 +42,14 @@ const (
 	StartInTray
 	UploadOlderFirst
 	SendLiveStat
+	AllowWebsiteReplay
+	WebsiteBridgePort
+)
+
+const (
+	DefaultWebsiteBridgePort = 31320
+	minWebsiteBridgePort     = 1024
+	maxWebsiteBridgePort     = 65535
 )
 
 type BehaviorSettingVisualDependency struct {
@@ -63,6 +73,17 @@ func minimumDuration(minimum time.Duration) func(any) error {
 		}
 		return nil
 	}
+}
+
+func portRange(value any) error {
+	port, ok := value.(int)
+	if !ok {
+		return fmt.Errorf("expected a port, got %T", value)
+	}
+	if port < minWebsiteBridgePort || port > maxWebsiteBridgePort {
+		return fmt.Errorf("port must be between %d and %d", minWebsiteBridgePort, maxWebsiteBridgePort)
+	}
+	return nil
 }
 
 func (bc *BehaviorConfig) GetSettingsMap() map[BehaviorSettingType]BehaviorSettingVisualDependency {
@@ -158,6 +179,23 @@ func (bc *BehaviorConfig) GetSettingsMap() map[BehaviorSettingType]BehaviorSetti
 			Kind:     SettingKindBool,
 			IsMobile: false,
 			Setting:  &bc.SendLiveStat,
+		},
+		AllowWebsiteReplay: {
+			Name:     "Allow websites to open replays in RL",
+			Children: []BehaviorSettingType{WebsiteBridgePort},
+			Position: int(AllowWebsiteReplay),
+			Kind:     SettingKindBool,
+			IsMobile: false,
+			Setting:  &bc.AllowWebsiteReplay,
+		},
+		WebsiteBridgePort: {
+			Name:     "Website Bridge Port",
+			Children: []BehaviorSettingType{},
+			Position: int(WebsiteBridgePort),
+			Kind:     SettingKindInt,
+			IsMobile: false,
+			Setting:  &bc.WebsiteBridgePort,
+			Validate: portRange,
 		},
 	}
 }
