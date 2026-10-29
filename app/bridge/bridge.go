@@ -307,7 +307,7 @@ func (b *Bridge) readyError() *playError {
 	case "":
 		return &playError{status: http.StatusConflict, code: ErrorStatsAPIDisconnect, err: errors.New("rocket league is not running or its StatsAPI is disabled")}
 	case rocket_network.TransportTCP:
-		return &playError{status: http.StatusConflict, code: ErrorStatsAPINeedsWebPort, err: errors.New("enable the StatsAPI WebPort in Rocket League to open replays")}
+		return &playError{status: http.StatusConflict, code: ErrorStatsAPINeedsWebPort, err: errors.New("the StatsAPI WebPort is disabled in Rocket League")}
 	}
 
 	return nil
