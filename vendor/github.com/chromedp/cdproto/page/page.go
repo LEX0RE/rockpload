@@ -210,6 +210,26 @@ type GetAdScriptAncestryResult struct {
 // See: https://chromedevtools.github.io/devtools-protocol/tot/Page#method-getAdScriptAncestry
 var GetAdScriptAncestry = cdp.Command[GetAdScriptAncestryParams, GetAdScriptAncestryResult]{Method: CommandGetAdScriptAncestry}
 
+// GetSpellCheckCustomDictionaryParams are the parameters of the command
+// Page.getSpellCheckCustomDictionary.
+type GetSpellCheckCustomDictionaryParams struct {
+	FrameID cdp.FrameID `json:"frameId"`
+}
+
+// GetSpellCheckCustomDictionaryResult is the result of the command
+// Page.getSpellCheckCustomDictionary.
+type GetSpellCheckCustomDictionaryResult struct {
+	Words []string `json:"words,omitempty,omitzero"`
+}
+
+// GetSpellCheckCustomDictionary returns the words that the frame's document
+// added to its spell check custom dictionary with
+// document.spellCheckCustomDictionary.addWords(), sorted. Page script cannot
+// read the dictionary back; this lets developers inspect it.
+//
+// See: https://chromedevtools.github.io/devtools-protocol/tot/Page#method-getSpellCheckCustomDictionary
+var GetSpellCheckCustomDictionary = cdp.Command[GetSpellCheckCustomDictionaryParams, GetSpellCheckCustomDictionaryResult]{Method: CommandGetSpellCheckCustomDictionary}
+
 // GetFrameTreeResult is the result of the command Page.getFrameTree.
 type GetFrameTreeResult struct {
 	FrameTree *FrameTree `json:"frameTree,omitempty,omitzero"` // Present frame tree structure.
@@ -555,10 +575,11 @@ var StartScreencast = cdp.Command[StartScreencastParams, cdp.Empty]{Method: Comm
 // StartScreenRecordingParams are the parameters of the command
 // Page.startScreenRecording.
 type StartScreenRecordingParams struct {
-	Audio     *bool `json:"audio,omitempty,omitzero"`
-	MaxWidth  int64 `json:"maxWidth,omitempty,omitzero"`  // Maximum frame width in pixels.
-	MaxHeight int64 `json:"maxHeight,omitempty,omitzero"` // Maximum frame height in pixels.
-	FrameRate int64 `json:"frameRate,omitempty,omitzero"` // Maximum frame rate in frames per second.
+	Audio       *bool                           `json:"audio,omitempty,omitzero"`
+	MaxWidth    int64                           `json:"maxWidth,omitempty,omitzero"`    // Maximum frame width in pixels.
+	MaxHeight   int64                           `json:"maxHeight,omitempty,omitzero"`   // Maximum frame height in pixels.
+	FrameRate   int64                           `json:"frameRate,omitempty,omitzero"`   // Maximum frame rate in frames per second.
+	CaptureArea StartScreenRecordingCaptureArea `json:"captureArea,omitempty,omitzero"` // The area to record. Defaults to target.
 }
 
 // StartScreenRecordingResult is the result of the command
@@ -742,6 +763,17 @@ type GetAnnotatedPageContentResult struct {
 // See: https://chromedevtools.github.io/devtools-protocol/tot/Page#method-getAnnotatedPageContent
 var GetAnnotatedPageContent = cdp.Command[GetAnnotatedPageContentParams, GetAnnotatedPageContentResult]{Method: CommandGetAnnotatedPageContent}
 
+// SetInputVisualizationParams are the parameters of the command
+// Page.setInputVisualization.
+type SetInputVisualizationParams struct {
+	Clicks *bool `json:"clicks,omitempty,omitzero"` // Whether to enable click visualization.
+}
+
+// SetInputVisualization configures input visualization on the page.
+//
+// See: https://chromedevtools.github.io/devtools-protocol/tot/Page#method-setInputVisualization
+var SetInputVisualization = cdp.Command[SetInputVisualizationParams, cdp.Empty]{Method: CommandSetInputVisualization}
+
 // DomContentEventFired [no description].
 //
 // See: https://chromedevtools.github.io/devtools-protocol/tot/Page#event-domContentEventFired
@@ -896,6 +928,7 @@ const (
 	CommandGetSubApps                          = "Page.getSubApps"
 	CommandGetSiblingSubApps                   = "Page.getSiblingSubApps"
 	CommandGetAdScriptAncestry                 = "Page.getAdScriptAncestry"
+	CommandGetSpellCheckCustomDictionary       = "Page.getSpellCheckCustomDictionary"
 	CommandGetFrameTree                        = "Page.getFrameTree"
 	CommandGetLayoutMetrics                    = "Page.getLayoutMetrics"
 	CommandGetNavigationHistory                = "Page.getNavigationHistory"
@@ -936,4 +969,5 @@ const (
 	CommandSetInterceptFileChooserDialog       = "Page.setInterceptFileChooserDialog"
 	CommandSetPrerenderingAllowed              = "Page.setPrerenderingAllowed"
 	CommandGetAnnotatedPageContent             = "Page.getAnnotatedPageContent"
+	CommandSetInputVisualization               = "Page.setInputVisualization"
 )

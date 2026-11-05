@@ -108,8 +108,6 @@ const (
 	PermissionsPolicyFeatureRewriter                                 PermissionsPolicyFeature = "rewriter"
 	PermissionsPolicyFeatureScreenWakeLock                           PermissionsPolicyFeature = "screen-wake-lock"
 	PermissionsPolicyFeatureSerial                                   PermissionsPolicyFeature = "serial"
-	PermissionsPolicyFeatureSharedStorage                            PermissionsPolicyFeature = "shared-storage"
-	PermissionsPolicyFeatureSharedStorageSelectURL                   PermissionsPolicyFeature = "shared-storage-select-url"
 	PermissionsPolicyFeatureSmartCard                                PermissionsPolicyFeature = "smart-card"
 	PermissionsPolicyFeatureSpeakerSelection                         PermissionsPolicyFeature = "speaker-selection"
 	PermissionsPolicyFeatureStorageAccess                            PermissionsPolicyFeature = "storage-access"
@@ -118,6 +116,7 @@ const (
 	PermissionsPolicyFeatureSyncXhr                                  PermissionsPolicyFeature = "sync-xhr"
 	PermissionsPolicyFeatureTools                                    PermissionsPolicyFeature = "tools"
 	PermissionsPolicyFeatureTranslator                               PermissionsPolicyFeature = "translator"
+	PermissionsPolicyFeatureUnboundedElement                         PermissionsPolicyFeature = "unbounded-element"
 	PermissionsPolicyFeatureUnload                                   PermissionsPolicyFeature = "unload"
 	PermissionsPolicyFeatureUsb                                      PermissionsPolicyFeature = "usb"
 	PermissionsPolicyFeatureUsbUnrestricted                          PermissionsPolicyFeature = "usb-unrestricted"
@@ -935,6 +934,22 @@ func (t StartScreencastFormat) String() string {
 const (
 	StartScreencastFormatJpeg StartScreencastFormat = "jpeg"
 	StartScreencastFormatPng  StartScreencastFormat = "png"
+)
+
+// StartScreenRecordingCaptureArea the area to record. Defaults to target.
+//
+// See: https://chromedevtools.github.io/devtools-protocol/tot/Page#method-startScreenRecording
+type StartScreenRecordingCaptureArea string
+
+// String returns the StartScreenRecordingCaptureArea as string value.
+func (t StartScreenRecordingCaptureArea) String() string {
+	return string(t)
+}
+
+// StartScreenRecordingCaptureArea values.
+const (
+	StartScreenRecordingCaptureAreaTarget        StartScreenRecordingCaptureArea = "target"
+	StartScreenRecordingCaptureAreaBrowserWindow StartScreenRecordingCaptureArea = "browserWindow"
 )
 
 // SetWebLifecycleStateState target lifecycle state.
