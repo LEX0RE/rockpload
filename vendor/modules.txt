@@ -59,7 +59,7 @@ fyne.io/systray/internal/generated/notifier
 ## explicit; go 1.18
 github.com/BurntSushi/toml
 github.com/BurntSushi/toml/internal
-# github.com/chromedp/cdproto v0.157.8
+# github.com/chromedp/cdproto v0.159.0
 ## explicit; go 1.25
 github.com/chromedp/cdproto
 github.com/chromedp/cdproto/accessibility
@@ -121,7 +121,7 @@ github.com/chromedp/cdproto/tracing
 github.com/chromedp/cdproto/webaudio
 github.com/chromedp/cdproto/webauthn
 github.com/chromedp/cdproto/webmcp
-# github.com/chromedp/chromedp v0.21.0
+# github.com/chromedp/chromedp v0.21.1
 ## explicit; go 1.25
 github.com/chromedp/chromedp
 github.com/chromedp/chromedp/device
