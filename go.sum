@@ -8,8 +8,8 @@ github.com/chromedp/cdproto v0.159.0 h1:wepTaKq5AGTwIxXh6h5bESQcvcfnSb2ItnFChA62
 github.com/chromedp/cdproto v0.159.0/go.mod h1:h68JaIuFr9o3yiayxEYhBdvaxgYO3shDrPSYhNlyfu0=
 github.com/chromedp/chromedp v0.21.1 h1:5mwUk5QIyzYiyDQ6FQWJ+kCFLy4XMaxEMKPng8WTI/c=
 github.com/chromedp/chromedp v0.21.1/go.mod h1:hJcPsoPrgxu4ulIXhO1WmtKjosCD8jbZh0+TeVFsod8=
-github.com/dank/rlapi v0.1.28 h1:k4fjYNfgOl9pCNGs4rQjIZzUEzjrWRdQtAAqwBnbFfg=
-github.com/dank/rlapi v0.1.28/go.mod h1:Ni9EDtQdYIjBGYola2qbdDDqTl9+x5zI5eC3p0P+04w=
+github.com/dank/rlapi v0.1.29 h1:kli2K7BsxzXyF1BKvyQsG343jEpBD+EB3f40t2e7FJM=
+github.com/dank/rlapi v0.1.29/go.mod h1:Ni9EDtQdYIjBGYola2qbdDDqTl9+x5zI5eC3p0P+04w=
 github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2 h1:CgF8+TNFvlnxEbplSgS70ZI4IUFEzVkY+ICNqTVE/AM=
 github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2/go.mod h1:buzQsO8HHkZX2Q45fdfGH1xejPjuDQaXH8btcYMFzPM=
 github.com/felixge/fgprof v0.9.3 h1:VvyZxILNuCiUCSXtPtYmmtGvb65nqXh2QFWc0Wpf2/g=
