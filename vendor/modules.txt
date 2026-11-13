@@ -205,8 +205,8 @@ github.com/gobwas/ws/wsutil
 github.com/godbus/dbus/v5
 github.com/godbus/dbus/v5/introspect
 github.com/godbus/dbus/v5/prop
-# github.com/gofrs/flock v0.13.1
-## explicit; go 1.25.0
+# github.com/gofrs/flock v0.13.2
+## explicit; go 1.26.0
 github.com/gofrs/flock
 # github.com/gorilla/websocket v1.5.3
 ## explicit; go 1.12
