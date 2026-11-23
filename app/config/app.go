@@ -35,11 +35,11 @@ func NewAppConfig() *AppConfig {
 	cfg.BehaviorConfig.ExitInTray = NewSetting(true, saveBehavior)
 	cfg.BehaviorConfig.NoUploadOnline = NewSetting(true, saveBehavior)
 	cfg.BehaviorConfig.UploadOnRLClose = NewSetting(true, saveBehavior)
-	cfg.BehaviorConfig.SendLiveStat = NewSetting(true, saveBehavior)
 	cfg.BehaviorConfig.AllowWebsiteReplay = NewSetting(true, saveBehavior)
 	cfg.BehaviorConfig.WebsiteBridgePort = NewSetting(DefaultWebsiteBridgePort, saveBehavior)
 
 	cfg.BehaviorConfig.AutoStart = NewSetting(false, saveBehavior)
+	cfg.BehaviorConfig.SendLiveStat = NewSetting(false, saveBehavior)
 	cfg.BehaviorConfig.StartInTray = NewSetting(false, saveBehavior)
 	cfg.BehaviorConfig.UploadOnLaunch = NewSetting(false, saveBehavior)
 	cfg.BehaviorConfig.UploadOlderFirst = NewSetting(false, saveBehavior)
