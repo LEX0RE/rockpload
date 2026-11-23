@@ -16,6 +16,7 @@ const (
 	REPLAYLABS_NAME  = "ReplayLabs"
 	LOCALHOST_NAME   = "Localhost"
 	FILE_SYSTEM_NAME = "FileSystem"
+	ROCKY_NAME       = "Rocky"
 )
 
 type storageListConfig []*StorageConfig
@@ -31,40 +32,28 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	temp = append([]*StorageConfig{ROCKY_STORAGE}, temp...)
+	storages := make([]*StorageConfig, 0, len(temp)+len(STORAGE_PRESETS))
 
-	ballchasingIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == BALLCHASING_NAME })
-	if ballchasingIndex == -1 {
-		fresh := *BALLCHASING_STORAGE
-		temp = append(temp, &fresh)
-	} else {
-		reconcilePreset(temp[ballchasingIndex], BALLCHASING_STORAGE)
+	for _, preset := range STORAGE_PRESETS {
+		index := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == preset.Name })
+
+		if index == -1 {
+			fresh := *preset
+
+			if fresh.UploadStyle == LocalFileCopy {
+				fresh.ReplayPath = constant.Paths.HomeDir
+			}
+
+			storages = append(storages, &fresh)
+			continue
+		}
+
+		reconcilePreset(temp[index], preset)
+		storages = append(storages, temp[index])
+		temp = slices.Delete(temp, index, index+1)
 	}
 
-	blastIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == BLAST_NAME })
-	if blastIndex == -1 {
-		fresh := *BLAST_STORAGE
-		temp = append(temp, &fresh)
-	} else {
-		reconcilePreset(temp[blastIndex], BLAST_STORAGE)
-	}
-
-	replayLabsIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == REPLAYLABS_NAME })
-	if replayLabsIndex == -1 {
-		fresh := *REPLAYLABS_STORAGE
-		temp = append(temp, &fresh)
-	} else {
-		reconcilePreset(temp[replayLabsIndex], REPLAYLABS_STORAGE)
-	}
-
-	fileSystemIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == FILE_SYSTEM_NAME })
-	if fileSystemIndex == -1 {
-		fresh := *FILE_SYSTEM_STORAGE
-		fresh.ReplayPath = constant.Paths.HomeDir
-		temp = append(temp, &fresh)
-	} else {
-		reconcilePreset(temp[fileSystemIndex], FILE_SYSTEM_STORAGE)
-	}
+	temp = append(storages, temp...)
 
 	if os.Getenv("ADD_LOCALHOST") == "true" {
 		localhostIndex := slices.IndexFunc(temp, func(c *StorageConfig) bool { return c.Name == LOCALHOST_NAME })
@@ -81,28 +70,19 @@ func (wls *storageListConfig) UnmarshalJSON(data []byte) error {
 func reconcilePreset(sc *StorageConfig, preset *StorageConfig) {
 	logger.FuncDebug()
 
-	sc.IsPrimary = preset.IsPrimary
 	sc.IsPredefined = preset.IsPredefined
 	sc.IsTemporary = preset.IsTemporary
-	sc.TokenStyle = preset.TokenStyle
-	sc.LiveStyle = preset.LiveStyle
-	sc.OpenReplayOrigin = preset.OpenReplayOrigin
-	sc.OpenReplayPath = preset.OpenReplayPath
+	sc.PresetLockedFields = preset.PresetLockedFields
+	sc.PresetAllowedValues = preset.PresetAllowedValues
 	sc.HelpText = preset.HelpText
 	sc.HelpURL = preset.HelpURL
 
-	sc.UploadStyle = preset.UploadStyle
+	sc.copyFields(preset, preset.PresetLockedFields)
 
-	if sc.PingStyle != PingDisabled && sc.PingStyle != preset.PingStyle {
-		sc.PingStyle = preset.PingStyle
-	}
-
-	if sc.RenameStyle != RenameDisabled && sc.RenameStyle != preset.RenameStyle {
-		sc.RenameStyle = preset.RenameStyle
-	}
-
-	if sc.OpenReplayStyle != OpenReplayDisabled && sc.OpenReplayStyle != preset.OpenReplayStyle {
-		sc.OpenReplayStyle = preset.OpenReplayStyle
+	for styleKey := range STYLE_LABELS {
+		if !slices.Contains(sc.AllowedValues(styleKey), sc.styleValue(styleKey)) {
+			sc.copyFields(preset, []string{styleKey})
+		}
 	}
 }
 
