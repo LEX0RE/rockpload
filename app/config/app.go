@@ -128,7 +128,7 @@ func (a *AppConfig) savePublicSettings() (error, error, error) {
 
 	filteredWebsites := storageListConfig{}
 	for _, website := range originalWebsites {
-		if !website.IsPrimary && !website.IsTemporary {
+		if !website.IsTemporary {
 			filteredWebsites = append(filteredWebsites, website)
 		}
 	}
@@ -209,7 +209,7 @@ func (a *AppConfig) importFynePreferences(prefs fyne.Preferences) bool {
 					if configSite.Name == importedSite.Name {
 						found = true
 
-						if importedSite.IsPredefined && !importedSite.IsPrimary {
+						if importedSite.IsPredefined {
 							a.StorageSettings.value[i] = importedSite
 							modified = true
 						}

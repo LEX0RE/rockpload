@@ -120,6 +120,10 @@ type StorageInfoContainer struct {
 	playlistFilterStyleForm *widget.FormItem
 	playlistFilterForm      *widget.FormItem
 	bottomSpacerForm        *widget.FormItem
+
+	formItems    []*widget.FormItem
+	fieldWidgets map[string]fyne.Disableable
+	labelOnly    []fyne.CanvasObject
 }
 
 type StorageSettingsPopup struct {
@@ -316,13 +320,13 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	})
 	wsp.infoContainer.openReplayOriginEntry = widget.NewEntry()
 	wsp.infoContainer.openReplayOriginEntry.SetPlaceHolder("https://example.com")
-	wsp.infoContainer.openReplayOriginEntry.Validator = func(text string) error {
+	wsp.infoContainer.openReplayOriginEntry.Validator = skipWhenDisabled(wsp.infoContainer.openReplayOriginEntry, func(text string) error {
 		_, err := config.ParseWebsiteOrigin(text)
 		return err
-	}
+	})
 	wsp.infoContainer.openReplayPathEntry = widget.NewEntry()
 	wsp.infoContainer.openReplayPathEntry.SetPlaceHolder("/replays/download/" + config.OpenReplayIDPlaceholder)
-	wsp.infoContainer.openReplayPathEntry.Validator = config.ValidateOpenReplayPath
+	wsp.infoContainer.openReplayPathEntry.Validator = skipWhenDisabled(wsp.infoContainer.openReplayPathEntry, config.ValidateOpenReplayPath)
 
 	wsp.infoContainer.replayPathEntry = widget.NewEntry()
 	wsp.infoContainer.templateNameEntry = widget.NewEntry()
@@ -357,7 +361,7 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 	bottomSpacer.SetMinSize(fyne.NewSize(0, widget.NewButton("Playlist", nil).MinSize().Height))
 	wsp.infoContainer.bottomSpacerForm = widget.NewFormItem("", bottomSpacer)
 
-	return widget.NewForm(
+	wsp.infoContainer.formItems = []*widget.FormItem{
 		wsp.infoContainer.uploadStyleForm,
 		wsp.infoContainer.replayPathForm,
 		wsp.infoContainer.templateNameForm,
@@ -378,7 +382,33 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 		wsp.infoContainer.playlistFilterStyleForm,
 		wsp.infoContainer.playlistFilterForm,
 		wsp.infoContainer.bottomSpacerForm,
-	)
+	}
+
+	ic := &wsp.infoContainer
+	ic.fieldWidgets = map[string]fyne.Disableable{
+		"enabled":               ic.enabledCheck,
+		"url":                   ic.urlEntry,
+		"upload_style":          ic.uploadStyleSelect,
+		"replay_path":           ic.replayPathEntry,
+		"template_file":         ic.templateNameEntry,
+		"uri_params":            ic.uriParamsEntry,
+		"token_style":           ic.tokenStyleSelect,
+		"token":                 ic.tokenEntry,
+		"ping_style":            ic.pingStyleSelect,
+		"ping_path":             ic.pingPathEntry,
+		"ping_probe_id":         ic.pingProbeIDEntry,
+		"live_style":            ic.liveStyleSelect,
+		"live_path":             ic.livePathEntry,
+		"open_replay_style":     ic.openReplayStyleSelect,
+		"open_replay_origin":    ic.openReplayOriginEntry,
+		"open_replay_path":      ic.openReplayPathEntry,
+		"rename_style":          ic.renameStyleSelect,
+		"rename_path":           ic.renamePathEntry,
+		"playlist_filter_style": ic.playlistFilterStyleSelect,
+		"filtered_playlists":    ic.playlistFilterContainer,
+	}
+
+	return widget.NewForm(wsp.infoContainer.formItems...)
 }
 
 func (wsp *StorageSettingsPopup) currentPreset() *config.StorageConfig {
@@ -521,41 +551,18 @@ func (wsp *StorageSettingsPopup) removeSelectedPlaylist(id int) {
 func (wsp *StorageSettingsPopup) reloadOptions() {
 	logger.FuncDebug()
 
-	preset := wsp.currentPreset()
-	if preset == nil {
+	if wsp.currentPreset() == nil {
 		wsp.reloadPlaylistOptions()
-
-		wsp.infoContainer.uploadStyleSelect.SetOptions(config.UploadStyleLabels[1:])
-		wsp.infoContainer.pingStyleSelect.SetOptions(config.PingStyleLabels[:])
-		wsp.infoContainer.tokenStyleSelect.SetOptions(config.TokenStyleLabels[:])
-		wsp.infoContainer.liveStyleSelect.SetOptions(config.LiveStyleLabels[:])
-		wsp.infoContainer.openReplayStyleSelect.SetOptions(config.OpenReplayStyleLabels[:])
-		wsp.infoContainer.renameStyleSelect.SetOptions(config.RenameStyleLabels[:])
-		wsp.infoContainer.playlistFilterStyleSelect.SetOptions(config.PlaylistFilterStyleLabels[:])
-		return
 	}
 
-	wsp.infoContainer.uploadStyleSelect.SetOptions([]string{
-		preset.UploadStyle.Label(),
-	})
-	wsp.infoContainer.pingStyleSelect.SetOptions([]string{
-		config.PingDisabled.Label(),
-		preset.PingStyle.Label(),
-	})
-	wsp.infoContainer.tokenStyleSelect.SetOptions([]string{
-		preset.TokenStyle.Label(),
-	})
-	wsp.infoContainer.liveStyleSelect.SetOptions([]string{
-		preset.LiveStyle.Label(),
-	})
-	wsp.infoContainer.openReplayStyleSelect.SetOptions(slices.Compact([]string{
-		config.OpenReplayDisabled.Label(),
-		preset.OpenReplayStyle.Label(),
-	}))
-	wsp.infoContainer.renameStyleSelect.SetOptions([]string{
-		config.RenameDisabled.Label(),
-		preset.RenameStyle.Label(),
-	})
+	for styleKey, labels := range config.STYLE_LABELS {
+		options := []string{}
+		for _, value := range wsp.currentWebsite.AllowedValues(styleKey) {
+			options = append(options, labels[value])
+		}
+
+		wsp.infoContainer.fieldWidgets[styleKey].(*widget.Select).SetOptions(options)
+	}
 }
 
 func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
@@ -614,9 +621,37 @@ func (wsp *StorageSettingsPopup) reload() {
 	wsp.reloadOptions()
 	wsp.reloadShow()
 	wsp.reloadEnable()
+	wsp.reloadFormRows()
 
 	wsp.editForm.Refresh()
 	wsp.detailPanel.Refresh()
+
+	wsp.infoContainer.openReplayOriginEntry.Validate()
+	wsp.infoContainer.openReplayPathEntry.Validate()
+}
+
+func skipWhenDisabled(entry *widget.Entry, validate fyne.StringValidator) fyne.StringValidator {
+	return func(text string) error {
+		if entry.Disabled() {
+			return nil
+		}
+		return validate(text)
+	}
+}
+
+func (wsp *StorageSettingsPopup) reloadFormRows() {
+	logger.FuncDebug()
+
+	visible := slices.DeleteFunc(slices.Clone(wsp.infoContainer.formItems), func(item *widget.FormItem) bool {
+		return !item.Widget.Visible() && !slices.Contains(wsp.infoContainer.labelOnly, item.Widget)
+	})
+	if slices.Equal(visible, wsp.editForm.Items) {
+		return
+	}
+
+	wsp.editForm.Items = nil
+	wsp.editForm.Refresh()
+	wsp.editForm.Items = visible
 }
 
 func (wsp *StorageSettingsPopup) reloadShow() {
@@ -662,32 +697,8 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.descContainer.Hide()
 	}
 
-	switch wsp.currentWebsite.TokenStyle {
-	case config.RawToken, config.BearerToken:
-	default:
-		fallthrough
-	case config.NoToken:
-		wsp.infoContainer.tokenForm.Widget.Hide()
-	}
-
-	switch wsp.currentWebsite.PingStyle {
-	case config.PingNotFoundIsValid:
-	case config.PingRequiresOK:
-		wsp.infoContainer.pingProbeIDForm.Widget.Hide()
-	default:
-		fallthrough
-	case config.PingDisabled:
-		wsp.infoContainer.pingPathForm.Widget.Hide()
-		wsp.infoContainer.pingProbeIDForm.Widget.Hide()
+	if wsp.currentWebsite.PingStyle == config.PingDisabled {
 		wsp.infoContainer.testPingBtn.Hide()
-	}
-
-	switch wsp.currentWebsite.LiveStyle {
-	case config.LiveEnabled:
-	default:
-		fallthrough
-	case config.LiveDisabled:
-		wsp.infoContainer.livePathForm.Widget.Hide()
 	}
 
 	if !wsp.appConfig.BehaviorConfig.SendLiveStat.Get() {
@@ -695,23 +706,10 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		wsp.infoContainer.livePathForm.Widget.Hide()
 	}
 
-	if wsp.currentWebsite.OpenReplayStyle != config.OpenReplayEnabled {
-		wsp.infoContainer.openReplayOriginForm.Widget.Hide()
-		wsp.infoContainer.openReplayPathForm.Widget.Hide()
-	}
-
 	if !wsp.appConfig.BehaviorConfig.AllowWebsiteReplay.Get() {
 		wsp.infoContainer.openReplayStyleForm.Widget.Hide()
 		wsp.infoContainer.openReplayOriginForm.Widget.Hide()
 		wsp.infoContainer.openReplayPathForm.Widget.Hide()
-	}
-
-	switch wsp.currentWebsite.RenameStyle {
-	case config.RenamePatchTitle:
-	default:
-		fallthrough
-	case config.RenameDisabled:
-		wsp.infoContainer.renamePathForm.Widget.Hide()
 	}
 
 	switch {
@@ -750,18 +748,34 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 	default:
 		fallthrough
 	case config.PlaylistFilterDisabled, config.PlaylistFilterFollowAny:
+		wsp.infoContainer.playlistFilterForm.Widget.Hide()
 		wsp.infoContainer.playlistListBox.Hide()
 		wsp.infoContainer.playlistSearchEntry.Hide()
 		wsp.infoContainer.playlistSearchResults.Hide()
 	}
 
-	wsp.infoContainer.playlistFilterContainer.Refresh()
-
-	if wsp.currentWebsite.IsPredefined {
-		if wsp.currentWebsite.IsPrimary {
-			wsp.infoContainer.templateNameForm.Widget.Hide()
+	ic := &wsp.infoContainer
+	ic.labelOnly = nil
+	hideInput := func(jsonKey string) {
+		if w := ic.fieldWidgets[jsonKey].(fyne.CanvasObject); w.Visible() {
+			w.Hide()
+			ic.labelOnly = append(ic.labelOnly, w)
 		}
 	}
+
+	for styleKey, fields := range config.STYLE_DEPENDENT_FIELDS {
+		if wsp.currentWebsite.IsStyleOff(styleKey) {
+			for _, jsonKey := range fields {
+				hideInput(jsonKey)
+			}
+		}
+	}
+
+	if wsp.currentWebsite.PingStyle == config.PingRequiresOK {
+		hideInput("ping_probe_id")
+	}
+
+	wsp.infoContainer.playlistFilterContainer.Refresh()
 }
 
 func (wsp *StorageSettingsPopup) reloadEnable() {
@@ -835,34 +849,17 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 
 	if wsp.currentWebsite.IsPredefined {
 		wsp.btnDelete.Disable()
+	}
 
-		wsp.infoContainer.urlEntry.Disable()
-		wsp.infoContainer.uploadStyleSelect.Disable()
-		wsp.infoContainer.tokenStyleSelect.Disable()
-		wsp.infoContainer.pingPathEntry.Disable()
-		wsp.infoContainer.pingProbeIDEntry.Disable()
-		wsp.infoContainer.livePathEntry.Disable()
-		wsp.infoContainer.liveStyleSelect.Disable()
-		wsp.infoContainer.openReplayOriginEntry.Disable()
-		wsp.infoContainer.openReplayPathEntry.Disable()
-		wsp.infoContainer.renamePathEntry.Disable()
-
-		if wsp.currentWebsite.IsPrimary {
-			wsp.btnSave.Disable()
-			wsp.btnExport.Disable()
-			wsp.infoContainer.enabledCheck.Disable()
-			wsp.infoContainer.pingStyleSelect.Disable()
-			wsp.infoContainer.openReplayStyleSelect.Disable()
-			wsp.infoContainer.uriParamsEntry.Disable()
-			wsp.infoContainer.tokenEntry.Disable()
-			wsp.infoContainer.templateNameEntry.Disable()
-			wsp.infoContainer.replayPathEntry.Disable()
-			wsp.infoContainer.renameStyleSelect.Disable()
-			wsp.infoContainer.playlistFilterStyleSelect.Disable()
-			wsp.infoContainer.playlistFilterContainer.Disable()
-		} else if preset := wsp.currentPreset(); preset != nil && preset.UploadStyle != config.LocalFileCopy {
-			wsp.infoContainer.replayPathEntry.Disable()
+	ic := &wsp.infoContainer
+	for jsonKey, w := range ic.fieldWidgets {
+		if wsp.currentWebsite.IsLocked(jsonKey) {
+			w.Disable()
 		}
+	}
+
+	for _, w := range ic.labelOnly {
+		w.(fyne.Disableable).Disable()
 	}
 
 	wsp.infoContainer.testPingBtn.Enable()
@@ -1127,7 +1124,6 @@ func (wsp *StorageSettingsPopup) onAddStorageBtn() {
 			newSite := &config.StorageConfig{
 				Name:            nameEntry.Text,
 				URL:             "",
-				IsPrimary:       false,
 				IsPredefined:    false,
 				Enabled:         false,
 				TemplateName:    "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
@@ -1232,7 +1228,7 @@ func (wsp *StorageSettingsPopup) onImportStorageBtn() {
 
 		added, updated := 0, 0
 		for _, importedSite := range imported {
-			if importedSite.IsPrimary || importedSite.Name == "" {
+			if importedSite.Name == "" {
 				continue
 			}
 
