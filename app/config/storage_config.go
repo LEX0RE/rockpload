@@ -179,7 +179,7 @@ var BALLCHASING_STORAGE = &StorageConfig{
 	URL:                 "https://ballchasing.com/api",
 	IsPredefined:        true,
 	IsTemporary:         false,
-	PresetLockedFields:  slices.Concat(GLOBAL_LOCKED_FIELDS, []string{"replay_path", "live_style"}),
+	PresetLockedFields:  slices.Concat(GLOBAL_LOCKED_FIELDS, []string{"replay_path", "live_style", "open_replay_style"}),
 	PresetAllowedValues: map[string][]int{"ping_style": allowed(PingDisabled, PingRequiresOK)},
 	Enabled:             false,
 	URIParams:           map[string]string{"visibility": "public"},
