@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -143,6 +144,7 @@ type StorageSettingsPopup struct {
 	split         *container.Split
 	leftPanel     *fyne.Container
 	detailPanel   *fyne.Container
+	savedForm     config.StorageConfig
 	editForm      *widget.Form
 }
 
@@ -200,11 +202,10 @@ func NewStorageSettingsPopup(p *Popup, version string) *StorageSettingsPopup {
 		},
 	)
 
-	wsp.list.OnSelected = wsp.onSelected
-	wsp.list.OnUnselected = wsp.onUnselected
+	wsp.list.OnSelected = wsp.onListSelected
 
-	btnAdd := widget.NewButtonWithIcon("Add", theme.ContentAddIcon(), wsp.onAddStorageBtn)
-	btnImport := widget.NewButtonWithIcon("Import", theme.DownloadIcon(), wsp.onImportStorageBtn)
+	btnAdd := widget.NewButtonWithIcon("Add", theme.ContentAddIcon(), func() { wsp.confirmDiscard(wsp.onAddStorageBtn, nil) })
+	btnImport := widget.NewButtonWithIcon("Import", theme.DownloadIcon(), func() { wsp.confirmDiscard(wsp.onImportStorageBtn, nil) })
 
 	leftButtons := container.NewGridWithColumns(2, btnAdd, btnImport)
 
@@ -569,7 +570,7 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	logger.FuncDebug()
 
 	if id < 0 {
-		wsp.onUnselected(-1)
+		wsp.onUnselected()
 		return
 	}
 
@@ -613,6 +614,42 @@ func (wsp *StorageSettingsPopup) onSelected(id widget.ListItemID) {
 	wsp.infoContainer.uriParamsEntry.SetText(strings.TrimSpace(paramsStr.String()))
 
 	wsp.reload()
+	wsp.savedForm = wsp.formToConfig()
+}
+
+func (wsp *StorageSettingsPopup) onListSelected(id widget.ListItemID) {
+	logger.FuncDebug()
+
+	previous := wsp.appConfig.BehaviorConfig.SelectedStorageId.Get()
+	if id == previous {
+		return
+	}
+
+	wsp.confirmDiscard(func() { wsp.onSelected(id) }, func() { wsp.list.Select(previous) })
+}
+
+func (wsp *StorageSettingsPopup) hasUnsavedChanges() bool {
+	return wsp.appConfig.BehaviorConfig.SelectedStorageId.Get() >= 0 && !reflect.DeepEqual(wsp.formToConfig(), wsp.savedForm)
+}
+
+func (wsp *StorageSettingsPopup) confirmDiscard(onDiscard func(), onKeep func()) {
+	logger.FuncDebug()
+
+	if !wsp.hasUnsavedChanges() {
+		onDiscard()
+		return
+	}
+
+	confirm := dialog.NewConfirm("Unsaved changes", fmt.Sprintf("Discard your unsaved changes to %s?", wsp.currentWebsite.Name), func(discard bool) {
+		if discard {
+			onDiscard()
+		} else if onKeep != nil {
+			onKeep()
+		}
+	}, wsp.parentWindow)
+	confirm.SetConfirmText("Discard")
+	confirm.SetDismissText("Keep editing")
+	confirm.Show()
 }
 
 func (wsp *StorageSettingsPopup) reload() {
@@ -868,7 +905,7 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 	}
 }
 
-func (wsp *StorageSettingsPopup) onUnselected(id widget.ListItemID) {
+func (wsp *StorageSettingsPopup) onUnselected() {
 	logger.FuncDebug()
 
 	wsp.appConfig.BehaviorConfig.SelectedStorageId.Set(-1)
@@ -1106,6 +1143,7 @@ func (wsp *StorageSettingsPopup) persistSave(selectedIndex int) {
 	wsp.currentWebsite = *storages[min(selectedIndex, len(storages)-1)]
 
 	wsp.reload()
+	wsp.savedForm = wsp.formToConfig()
 	wsp.list.Refresh()
 
 	dialog.ShowInformation("Success", "Settings saved successfully!", wsp.parentWindow)

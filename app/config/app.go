@@ -24,32 +24,32 @@ func NewAppConfig() *AppConfig {
 
 	cfg := &AppConfig{}
 
-	saveHook := func() {
-		cfg.Save()
-	}
+	saveAccounts := func() { cfg.save(accountFile) }
+	saveStorages := func() { cfg.save(storageFile) }
+	saveBehavior := func() { cfg.save(behaviorFile) }
 
 	// TODO Find a way to make this in Unmarshal instead
-	cfg.BehaviorConfig.AutoUpload = NewSetting(true, saveHook)
-	cfg.BehaviorConfig.AutoUploadTime = NewSetting(45*time.Minute, saveHook)
-	cfg.BehaviorConfig.AutoUploadRandomTime = NewSetting(15*time.Minute, saveHook)
-	cfg.BehaviorConfig.ExitInTray = NewSetting(true, saveHook)
-	cfg.BehaviorConfig.NoUploadOnline = NewSetting(true, saveHook)
-	cfg.BehaviorConfig.UploadOnRLClose = NewSetting(true, saveHook)
-	cfg.BehaviorConfig.SendLiveStat = NewSetting(true, saveHook)
-	cfg.BehaviorConfig.AllowWebsiteReplay = NewSetting(true, saveHook)
-	cfg.BehaviorConfig.WebsiteBridgePort = NewSetting(DefaultWebsiteBridgePort, saveHook)
+	cfg.BehaviorConfig.AutoUpload = NewSetting(true, saveBehavior)
+	cfg.BehaviorConfig.AutoUploadTime = NewSetting(45*time.Minute, saveBehavior)
+	cfg.BehaviorConfig.AutoUploadRandomTime = NewSetting(15*time.Minute, saveBehavior)
+	cfg.BehaviorConfig.ExitInTray = NewSetting(true, saveBehavior)
+	cfg.BehaviorConfig.NoUploadOnline = NewSetting(true, saveBehavior)
+	cfg.BehaviorConfig.UploadOnRLClose = NewSetting(true, saveBehavior)
+	cfg.BehaviorConfig.SendLiveStat = NewSetting(true, saveBehavior)
+	cfg.BehaviorConfig.AllowWebsiteReplay = NewSetting(true, saveBehavior)
+	cfg.BehaviorConfig.WebsiteBridgePort = NewSetting(DefaultWebsiteBridgePort, saveBehavior)
 
-	cfg.BehaviorConfig.AutoStart = NewSetting(false, saveHook)
-	cfg.BehaviorConfig.StartInTray = NewSetting(false, saveHook)
-	cfg.BehaviorConfig.UploadOnLaunch = NewSetting(false, saveHook)
-	cfg.BehaviorConfig.UploadOlderFirst = NewSetting(false, saveHook)
+	cfg.BehaviorConfig.AutoStart = NewSetting(false, saveBehavior)
+	cfg.BehaviorConfig.StartInTray = NewSetting(false, saveBehavior)
+	cfg.BehaviorConfig.UploadOnLaunch = NewSetting(false, saveBehavior)
+	cfg.BehaviorConfig.UploadOlderFirst = NewSetting(false, saveBehavior)
 
-	cfg.BehaviorConfig.SelectedAccountId = NewSetting(0, saveHook)
-	cfg.BehaviorConfig.SelectedStorageId = NewSetting(0, saveHook)
-	cfg.BehaviorConfig.KnownPlaylists = NewSetting([]PlaylistFilterEntry{}, saveHook)
+	cfg.BehaviorConfig.SelectedAccountId = NewSetting(0, saveBehavior)
+	cfg.BehaviorConfig.SelectedStorageId = NewSetting(0, saveBehavior)
+	cfg.BehaviorConfig.KnownPlaylists = NewSetting([]PlaylistFilterEntry{}, saveBehavior)
 
-	cfg.StorageSettings = NewSetting(storageListConfig{}, saveHook)
-	cfg.AccountSettings = NewSetting(make(AccountMapConfig), saveHook)
+	cfg.StorageSettings = NewSetting(storageListConfig{}, saveStorages)
+	cfg.AccountSettings = NewSetting(make(AccountMapConfig), saveAccounts)
 
 	return cfg
 }
@@ -108,13 +108,26 @@ func (a *AppConfig) loggableConfig() string {
 	return string(data)
 }
 
+type settingsFile int
+
+const (
+	accountFile settingsFile = 1 << iota
+	storageFile
+	behaviorFile
+	allFiles = accountFile | storageFile | behaviorFile
+)
+
 func (a *AppConfig) Save() error {
+	return a.save(allFiles)
+}
+
+func (a *AppConfig) save(files settingsFile) error {
 	logger.FuncDebug()
 
-	restoreSecretSettings, secretErr := a.saveSecretSettings()
+	restoreSecretSettings, secretErr := a.saveSecretSettings(files&(accountFile|storageFile) != 0)
 	defer restoreSecretSettings()
 
-	accountErr, storageErr, behaviorErr := a.savePublicSettings()
+	accountErr, storageErr, behaviorErr := a.savePublicSettings(files)
 
 	if accountErr == nil && storageErr == nil && behaviorErr == nil && secretErr == nil {
 		return nil
@@ -123,23 +136,25 @@ func (a *AppConfig) Save() error {
 	return errors.New("Failed to save settings: " + errors.Join(accountErr, storageErr, behaviorErr, secretErr).Error())
 }
 
-func (a *AppConfig) savePublicSettings() (error, error, error) {
-	originalWebsites := a.StorageSettings.value
-
-	filteredWebsites := storageListConfig{}
-	for _, website := range originalWebsites {
-		if !website.IsTemporary {
-			filteredWebsites = append(filteredWebsites, website)
-		}
+func (a *AppConfig) savePublicSettings(files settingsFile) (accountErr error, storageErr error, behaviorErr error) {
+	if files&accountFile != 0 {
+		accountErr = tools.SaveJSONFilePath(constant.Paths.AccountSettingsFile, a.AccountSettings.Get())
 	}
 
-	a.StorageSettings.value = filteredWebsites
+	if files&storageFile != 0 {
+		filteredWebsites := storageListConfig{}
+		for _, website := range a.StorageSettings.value {
+			if !website.IsTemporary {
+				filteredWebsites = append(filteredWebsites, website)
+			}
+		}
 
-	accountErr := tools.SaveJSONFilePath(constant.Paths.AccountSettingsFile, a.AccountSettings.Get())
-	storageErr := tools.SaveJSONFilePath(constant.Paths.StorageSettingsFile, a.StorageSettings.Get())
-	behaviorErr := tools.SaveJSONFilePath(constant.Paths.BehaviorSettingsFile, a.BehaviorConfig)
+		storageErr = tools.SaveJSONFilePath(constant.Paths.StorageSettingsFile, filteredWebsites)
+	}
 
-	a.StorageSettings.value = originalWebsites
+	if files&behaviorFile != 0 {
+		behaviorErr = tools.SaveJSONFilePath(constant.Paths.BehaviorSettingsFile, a.BehaviorConfig)
+	}
 
 	return accountErr, storageErr, behaviorErr
 }

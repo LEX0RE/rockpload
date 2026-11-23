@@ -18,12 +18,12 @@ type secretSettingValue interface {
 	secretValue() reflect.Value
 }
 
-func (a *AppConfig) saveSecretSettings() (func(), error) {
+func (a *AppConfig) saveSecretSettings(write bool) (func(), error) {
 	logger.FuncDebug()
 
 	settings := secretSettings{}
 	restoreSecretFields, err := extractSecretSettings(reflect.ValueOf(a), nil, settings)
-	if err != nil {
+	if err != nil || !write {
 		return restoreSecretFields, err
 	}
 
@@ -82,7 +82,7 @@ func (a *AppConfig) migrateSecretSettings() error {
 	}
 
 	if cleanPublicSettings {
-		accountErr, storageErr, behaviorErr := a.savePublicSettings()
+		accountErr, storageErr, behaviorErr := a.savePublicSettings(allFiles)
 		if accountErr != nil || storageErr != nil || behaviorErr != nil {
 			restoreSecretFields()
 			return fmt.Errorf("failed to clean secret settings from public config: %w", errors.Join(accountErr, storageErr, behaviorErr))
