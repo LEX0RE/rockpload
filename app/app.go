@@ -144,7 +144,7 @@ func (a *App) initManager() {
 	}
 
 	var err error
-	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.rlSupervisor, a.rlLocator, a.bridgeStatus, a.app.Clipboard)
+	a.gui, err = ui.NewGUI(a.window, a.version, a.appConfig, a.accountManager, a.rlSupervisor, a.rlLocator, a.bridgeStatus, a.bridgePort, a.app.Clipboard)
 	if err != nil {
 		logger.Rlogger.Error("Failed to initialize GUI:", slog.Any("err", err))
 	}
@@ -384,6 +384,16 @@ func (a *App) SetUploadOnRLClose(value bool) {
 	if a.rlSupervisor != nil {
 		a.rlSupervisor.Toggle(value)
 	}
+}
+
+func (a *App) bridgePort() int {
+	if a.bridge != nil {
+		if port := a.bridge.Port(); port != 0 {
+			return port
+		}
+	}
+
+	return a.appConfig.BehaviorConfig.WebsiteBridgePort.Get()
 }
 
 func (a *App) bridgeStatus() (string, bool) {

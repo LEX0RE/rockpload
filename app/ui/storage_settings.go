@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -124,6 +125,7 @@ type StorageInfoContainer struct {
 
 	formItems    []*widget.FormItem
 	fieldWidgets map[string]fyne.Disableable
+	fieldLinks   map[string]*widget.Hyperlink
 	labelOnly    []fyne.CanvasObject
 }
 
@@ -131,6 +133,7 @@ type StorageSettingsPopup struct {
 	*Popup
 
 	version           string
+	bridgePort        func() int
 	currentWebsite    config.StorageConfig
 	testPingGen       int
 	playlistAvailable []config.PlaylistFilterEntry
@@ -141,6 +144,7 @@ type StorageSettingsPopup struct {
 	btnSave       *widget.Button
 	btnExport     *widget.Button
 	list          *widget.List
+	tooltip       *hoverTooltip
 	split         *container.Split
 	leftPanel     *fyne.Container
 	detailPanel   *fyne.Container
@@ -148,10 +152,10 @@ type StorageSettingsPopup struct {
 	editForm      *widget.Form
 }
 
-func NewStorageSettingsPopup(p *Popup, version string) *StorageSettingsPopup {
+func NewStorageSettingsPopup(p *Popup, version string, bridgePort func() int) *StorageSettingsPopup {
 	logger.FuncDebug()
 
-	wsp := &StorageSettingsPopup{Popup: p, version: version, infoContainer: StorageInfoContainer{}}
+	wsp := &StorageSettingsPopup{Popup: p, version: version, bridgePort: bridgePort, infoContainer: StorageInfoContainer{}, tooltip: newHoverTooltip()}
 
 	wsp.btnSave = widget.NewButtonWithIcon("Save", theme.DocumentSaveIcon(), wsp.onSaveBtn)
 	wsp.btnSave.Importance = widget.HighImportance
@@ -179,11 +183,22 @@ func NewStorageSettingsPopup(p *Popup, version string) *StorageSettingsPopup {
 	wsp.list = widget.NewList(
 		func() int { return len(wsp.appConfig.StorageSettings.Get()) },
 		func() fyne.CanvasObject {
-			return widget.NewRichTextWithText("")
+			openReplayIcon := container.New(layout.NewCustomPaddedLayout(0, 0, 0, 2*theme.Padding()), newHoverIcon(controllerIcon, wsp.tooltip))
+
+			return container.NewBorder(nil, nil, nil, openReplayIcon, widget.NewRichTextWithText(""))
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
-			rt := o.(*widget.RichText)
+			row := o.(*fyne.Container)
+			rt := row.Objects[0].(*widget.RichText)
+			openReplayIcon := row.Objects[1].(*fyne.Container)
 			site := wsp.appConfig.StorageSettings.Get()[i]
+
+			openReplayIcon.Objects[0].(*hoverIcon).Text = wsp.openReplayTooltip(site)
+			if wsp.appConfig.IsOpenReplayStorage(site) {
+				openReplayIcon.Show()
+			} else {
+				openReplayIcon.Hide()
+			}
 
 			style := widget.RichTextStyleInline
 			if !site.Enabled {
@@ -213,7 +228,7 @@ func NewStorageSettingsPopup(p *Popup, version string) *StorageSettingsPopup {
 	wsp.split = container.NewHSplit(wsp.leftPanel, wsp.detailPanel)
 	wsp.split.Offset = 0.3
 
-	wsp.SetContent(wsp.split)
+	wsp.SetContent(wsp.tooltip.Over(wsp.split))
 
 	wsp.popup.Resize(fyne.NewSize(650, 350))
 
@@ -225,10 +240,31 @@ func NewStorageSettingsPopup(p *Popup, version string) *StorageSettingsPopup {
 func (wsp *StorageSettingsPopup) Show() {
 	logger.FuncDebug()
 
-	wsp.list.Refresh()
+	wsp.refreshList()
 	wsp.reload()
 
 	wsp.Popup.Show()
+}
+
+func (wsp *StorageSettingsPopup) refreshList() {
+	logger.FuncDebug()
+
+	wsp.tooltip.Hide()
+	wsp.list.Refresh()
+}
+
+func (wsp *StorageSettingsPopup) openReplayTooltip(site *config.StorageConfig) string {
+	website := "Websites"
+	if parsed, err := url.Parse(site.OpenReplayOrigin); err == nil && parsed.Host != "" {
+		website = parsed.Host
+	}
+
+	text := fmt.Sprintf("Open Replay: %s can open replays in Rocket League through this storage.", website)
+	if !site.Enabled {
+		text += " Its uploads are off, but this still works. Turn off Open Replay to stop it."
+	}
+
+	return text
 }
 
 func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
@@ -409,7 +445,44 @@ func (wsp *StorageSettingsPopup) createInfoContainer() *widget.Form {
 		"filtered_playlists":    ic.playlistFilterContainer,
 	}
 
+	wsp.createFieldLinks()
+
 	return widget.NewForm(wsp.infoContainer.formItems...)
+}
+
+func (wsp *StorageSettingsPopup) createFieldLinks() {
+	logger.FuncDebug()
+
+	ic := &wsp.infoContainer
+	ic.fieldLinks = map[string]*widget.Hyperlink{}
+
+	for _, jsonKey := range config.FIELD_LINK_KEYS {
+		field, ok := ic.fieldWidgets[jsonKey].(fyne.CanvasObject)
+		if !ok {
+			logger.Rlogger.Warn("Unknown field for a storage link", slog.String("field", jsonKey))
+			continue
+		}
+
+		for _, item := range ic.formItems {
+			if item.Widget != field {
+				continue
+			}
+
+			link := widget.NewHyperlink("", nil)
+			link.SizeName = theme.SizeNameCaptionText
+			link.OnTapped = func() { wsp.onFieldLink(jsonKey) }
+			link.Hide()
+
+			item.Widget = container.NewVBox(field, link)
+			ic.fieldLinks[jsonKey] = link
+
+			break
+		}
+	}
+}
+
+func (wsp *StorageSettingsPopup) fieldLinkValues() map[string]string {
+	return map[string]string{config.WebsiteBridgePortPlaceholder: strconv.Itoa(wsp.bridgePort())}
 }
 
 func (wsp *StorageSettingsPopup) currentPreset() *config.StorageConfig {
@@ -658,6 +731,7 @@ func (wsp *StorageSettingsPopup) reload() {
 	wsp.reloadOptions()
 	wsp.reloadShow()
 	wsp.reloadEnable()
+	wsp.reloadFieldLinks()
 	wsp.reloadFormRows()
 
 	wsp.editForm.Refresh()
@@ -691,8 +765,29 @@ func (wsp *StorageSettingsPopup) reloadFormRows() {
 	wsp.editForm.Items = visible
 }
 
+func (wsp *StorageSettingsPopup) reloadFieldLinks() {
+	logger.FuncDebug()
+
+	for jsonKey, link := range wsp.infoContainer.fieldLinks {
+		fieldLink, ok := wsp.currentWebsite.FieldLink(jsonKey)
+		_, valid := fieldLink.Resolve(wsp.fieldLinkValues())
+
+		if !ok || !valid {
+			link.Hide()
+			continue
+		}
+
+		link.SetText(fieldLink.Text)
+		link.Show()
+	}
+}
+
 func (wsp *StorageSettingsPopup) reloadShow() {
 	logger.FuncDebug()
+
+	for jsonKey := range wsp.infoContainer.fieldLinks {
+		wsp.infoContainer.fieldWidgets[jsonKey].(fyne.CanvasObject).Show()
+	}
 
 	wsp.infoContainer.urlForm.Widget.Show()
 	wsp.infoContainer.uploadStyleForm.Widget.Show()
@@ -812,6 +907,10 @@ func (wsp *StorageSettingsPopup) reloadShow() {
 		hideInput("ping_probe_id")
 	}
 
+	if wsp.currentWebsite.RenameStyle == config.RenameTitleField {
+		hideInput("rename_path")
+	}
+
 	wsp.infoContainer.playlistFilterContainer.Refresh()
 }
 
@@ -905,6 +1004,27 @@ func (wsp *StorageSettingsPopup) reloadEnable() {
 	}
 }
 
+func (wsp *StorageSettingsPopup) onFieldLink(jsonKey string) {
+	logger.FuncDebug()
+
+	fieldLink, ok := wsp.currentWebsite.FieldLink(jsonKey)
+	if !ok {
+		return
+	}
+
+	link, ok := fieldLink.Resolve(wsp.fieldLinkValues())
+	if !ok {
+		return
+	}
+
+	dialog.ShowConfirm("Open external link?", "This will open the following link in your browser:\n\n"+link.String(),
+		func(confirmed bool) {
+			if confirmed {
+				fyne.CurrentApp().OpenURL(link)
+			}
+		}, wsp.parentWindow)
+}
+
 func (wsp *StorageSettingsPopup) onUnselected() {
 	logger.FuncDebug()
 
@@ -943,6 +1063,9 @@ func (wsp *StorageSettingsPopup) onUnselected() {
 	wsp.btnSave.Disable()
 	wsp.btnExport.Disable()
 	wsp.infoContainer.testPingBtn.Disable()
+	for _, link := range wsp.infoContainer.fieldLinks {
+		link.Hide()
+	}
 	wsp.infoContainer.enabledCheck.Disable()
 }
 
@@ -1144,7 +1267,7 @@ func (wsp *StorageSettingsPopup) persistSave(selectedIndex int) {
 
 	wsp.reload()
 	wsp.savedForm = wsp.formToConfig()
-	wsp.list.Refresh()
+	wsp.refreshList()
 
 	dialog.ShowInformation("Success", "Settings saved successfully!", wsp.parentWindow)
 }

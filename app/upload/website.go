@@ -22,6 +22,7 @@ type presignedStatusType string
 
 const (
 	presignedStatusAttempts = 3
+	maxTitleLength          = 1024
 	presignedStatusDelay    = 500 * time.Millisecond
 
 	presignedStatusRejected  presignedStatusType = "rejected"
@@ -108,6 +109,13 @@ func (w *Website) uploadMultipart(filePath string, replayUpload ReplayUpload) er
 	}
 
 	fileName := replayUploadFileName(filePath, w.config.TemplateName, replayUpload, w.knownPlaylists)
+
+	if w.config.RenameStyle == config.RenameTitleField {
+		if err := writer.WriteField("title", uploadTitle(fileName)); err != nil {
+			return fmt.Errorf("Failed to add title field to multipart: %w", err)
+		}
+	}
+
 	part, err := writer.CreateFormFile("file", fileName)
 	if err != nil {
 		return err
@@ -456,7 +464,7 @@ func (w *Website) patchTitle(fileName string, respBody []byte) {
 		return
 	}
 
-	title := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+	title := uploadTitle(fileName)
 	patchPath := w.config.URL + w.config.RenamePath + data.ID
 
 	patchBody, _ := json.Marshal(map[string]string{"title": title})
@@ -486,6 +494,15 @@ func (w *Website) patchTitle(fileName string, respBody []byte) {
 
 	b, _ := io.ReadAll(patchResp.Body)
 	logger.Rlogger.Debug("Upload successful but patch failed", "status", patchResp.Status, "body", string(b))
+}
+
+func uploadTitle(fileName string) string {
+	title := []rune(strings.TrimSuffix(fileName, filepath.Ext(fileName)))
+	if len(title) > maxTitleLength {
+		title = title[:maxTitleLength]
+	}
+
+	return string(title)
 }
 
 func (w *Website) pingNotFoundIsValid() error {
