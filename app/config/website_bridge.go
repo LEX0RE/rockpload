@@ -7,7 +7,10 @@ import (
 	"strings"
 )
 
-const OpenReplayIDPlaceholder = "{REPLAY_ID}"
+const (
+	OpenReplayIDPlaceholder      = "{REPLAY_ID}"
+	WebsiteBridgePortPlaceholder = "{PORT}"
+)
 
 var (
 	ErrWebsiteOriginInvalid  = errors.New("use the website address, like https://example.com")
@@ -67,43 +70,85 @@ type OpenReplayTarget struct {
 
 func (sc *StorageConfig) AuthorizationHeader() string {
 	if sc.TokenStyle == BearerToken {
-		token := strings.TrimSpace(sc.Token)
-		token = strings.TrimSpace(strings.TrimPrefix(token, "Bearer"))
-
-		return "Bearer " + token
+		return "Bearer " + sc.bearerToken()
 	}
 
 	return sc.Token
 }
 
+func (sc *StorageConfig) bearerToken() string {
+	token := strings.TrimSpace(sc.Token)
+
+	return strings.TrimSpace(strings.TrimPrefix(token, "Bearer"))
+}
+
+func (sc *StorageConfig) HasBlankToken() bool {
+	switch sc.TokenStyle {
+	case NoToken:
+		return false
+	case BearerToken:
+		return sc.bearerToken() == ""
+	default:
+		return strings.TrimSpace(sc.Token) == ""
+	}
+}
+
+func (sc *StorageConfig) OpenReplayTarget() (string, OpenReplayTarget, bool) {
+	if sc.OpenReplayStyle != OpenReplayEnabled || sc.UploadStyle == LocalFileCopy || sc.HasBlankToken() {
+		return "", OpenReplayTarget{}, false
+	}
+
+	origin, err := ParseWebsiteOrigin(sc.OpenReplayOrigin)
+	if err != nil || ValidateOpenReplayPath(sc.OpenReplayPath) != nil {
+		return "", OpenReplayTarget{}, false
+	}
+
+	if _, err := parseSecureURL(sc.URL); err != nil {
+		return "", OpenReplayTarget{}, false
+	}
+
+	target := OpenReplayTarget{DownloadURL: strings.TrimSuffix(strings.TrimSpace(sc.URL), "/") + sc.OpenReplayPath}
+	if sc.TokenStyle != NoToken {
+		target.Authorization = sc.AuthorizationHeader()
+	}
+
+	return origin, target, true
+}
+
+func (a *AppConfig) openReplayStorages() map[string]*StorageConfig {
+	storages := map[string]*StorageConfig{}
+
+	for _, storage := range a.StorageSettings.Get() {
+		origin, _, ok := storage.OpenReplayTarget()
+		if !ok {
+			continue
+		}
+
+		if _, exists := storages[origin]; !exists {
+			storages[origin] = storage
+		}
+	}
+
+	return storages
+}
+
 func (a *AppConfig) OpenReplayTargets() map[string]OpenReplayTarget {
 	targets := map[string]OpenReplayTarget{}
 
-	for _, storage := range a.StorageSettings.Get() {
-		if storage.OpenReplayStyle != OpenReplayEnabled || storage.UploadStyle == LocalFileCopy {
-			continue
-		}
-
-		origin, err := ParseWebsiteOrigin(storage.OpenReplayOrigin)
-		if err != nil || ValidateOpenReplayPath(storage.OpenReplayPath) != nil {
-			continue
-		}
-
-		if _, err := parseSecureURL(storage.URL); err != nil {
-			continue
-		}
-
-		if _, exists := targets[origin]; exists {
-			continue
-		}
-
-		target := OpenReplayTarget{DownloadURL: strings.TrimSuffix(strings.TrimSpace(storage.URL), "/") + storage.OpenReplayPath}
-		if storage.TokenStyle != NoToken {
-			target.Authorization = storage.AuthorizationHeader()
-		}
-
+	for origin, storage := range a.openReplayStorages() {
+		_, target, _ := storage.OpenReplayTarget()
 		targets[origin] = target
 	}
 
 	return targets
+}
+
+func (a *AppConfig) IsOpenReplayStorage(storage *StorageConfig) bool {
+	if !a.BehaviorConfig.AllowWebsiteReplay.Get() {
+		return false
+	}
+
+	origin, _, ok := storage.OpenReplayTarget()
+
+	return ok && a.openReplayStorages()[origin] == storage
 }

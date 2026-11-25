@@ -3,8 +3,10 @@ package config
 import (
 	"encoding/json"
 	"log/slog"
+	"net/url"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
@@ -33,6 +35,7 @@ type StorageConfig struct {
 	IsTemporary         bool                    `json:"-"`
 	PresetLockedFields  []string                `json:"-"`
 	PresetAllowedValues map[string][]int        `json:"-"`
+	PresetFieldLinks    map[string]FieldLink    `json:"-"`
 	LockedFields        []string                `json:"locked_fields,omitempty"`
 	Enabled             bool                    `json:"enabled"`
 	URIParams           map[string]string       `json:"uri_params"`
@@ -97,6 +100,47 @@ func (sc *StorageConfig) AllowedValues(styleKey string) []int {
 
 	return values
 }
+
+type FieldLink struct {
+	Text string
+	URL  string
+}
+
+func (l FieldLink) Resolve(values map[string]string) (*url.URL, bool) {
+	raw := l.URL
+	for placeholder, value := range values {
+		raw = strings.ReplaceAll(raw, placeholder, url.QueryEscape(value))
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" || !strings.EqualFold(parsed.Scheme, "https") {
+		return nil, false
+	}
+
+	return parsed, true
+}
+
+func (sc *StorageConfig) FieldLink(jsonKey string) (FieldLink, bool) {
+	link, ok := sc.PresetFieldLinks[jsonKey]
+
+	return link, ok && link.Text != "" && link.URL != ""
+}
+
+var FIELD_LINK_KEYS = func() []string {
+	keys := []string{}
+
+	for _, preset := range STORAGE_PRESETS {
+		for key := range preset.PresetFieldLinks {
+			if !slices.Contains(keys, key) {
+				keys = append(keys, key)
+			}
+		}
+	}
+
+	slices.Sort(keys)
+
+	return keys
+}()
 
 func (sc *StorageConfig) styleValue(styleKey string) int {
 	return int(reflect.ValueOf(sc).Elem().Field(storageFieldByJSON[styleKey]).Int())
@@ -173,27 +217,34 @@ var ROCKY_STORAGE = &StorageConfig{
 }
 
 var BALLCHASING_STORAGE = &StorageConfig{
-	Name:                BALLCHASING_NAME,
-	UploadStyle:         MultipartUpload,
-	ReplayPath:          "/v2/upload",
-	URL:                 "https://ballchasing.com/api",
-	IsPredefined:        true,
-	IsTemporary:         false,
-	PresetLockedFields:  slices.Concat(GLOBAL_LOCKED_FIELDS, []string{"replay_path", "live_style", "open_replay_style"}),
-	PresetAllowedValues: map[string][]int{"ping_style": allowed(PingDisabled, PingRequiresOK)},
-	Enabled:             false,
-	URIParams:           map[string]string{"visibility": "public"},
-	TokenStyle:          RawToken,
-	Token:               "",
-	PingStyle:           PingRequiresOK,
-	PingPath:            "/",
-	TemplateName:        "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
-	LiveStyle:           LiveDisabled,
-	LivePath:            "",
-	OpenReplayOrigin:    "https://ballchasing.com",
-	OpenReplayPath:      "/replays/" + OpenReplayIDPlaceholder + "/file",
-	RenameStyle:         RenamePatchTitle,
-	RenamePath:          "/replays/",
+	Name:               BALLCHASING_NAME,
+	UploadStyle:        MultipartUpload,
+	ReplayPath:         "/v2/upload",
+	URL:                "https://ballchasing.com/api",
+	IsPredefined:       true,
+	IsTemporary:        false,
+	PresetLockedFields: slices.Concat(GLOBAL_LOCKED_FIELDS, []string{"replay_path", "live_style"}),
+	PresetAllowedValues: map[string][]int{
+		"ping_style":   allowed(PingDisabled, PingRequiresOK),
+		"rename_style": allowed(RenameDisabled, RenameTitleField),
+	},
+	PresetFieldLinks: map[string]FieldLink{
+		"open_replay_style": {Text: "Turn on in ballchasing.com", URL: "https://ballchasing.com/play-in-rocket-league?port=" + WebsiteBridgePortPlaceholder},
+	},
+	Enabled:          false,
+	URIParams:        map[string]string{"visibility": "public"},
+	TokenStyle:       RawToken,
+	Token:            "",
+	PingStyle:        PingRequiresOK,
+	PingPath:         "/",
+	TemplateName:     "{YEAR}-{MONTH}-{DAY}.{HOUR}.{MIN} {PLAYER} {MODE} {WINLOSS}",
+	LiveStyle:        LiveDisabled,
+	LivePath:         "",
+	OpenReplayStyle:  OpenReplayEnabled,
+	OpenReplayOrigin: "https://ballchasing.com",
+	OpenReplayPath:   "/replays/" + OpenReplayIDPlaceholder + "/file",
+	RenameStyle:      RenameTitleField,
+	RenamePath:       "",
 }
 
 var BLAST_STORAGE = &StorageConfig{

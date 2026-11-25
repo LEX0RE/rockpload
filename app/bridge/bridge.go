@@ -45,6 +45,7 @@ const (
 	ErrorStatsAPINeedsWebPort ErrorCode = "statsapi_needs_websocket"
 	ErrorBusy                 ErrorCode = "busy"
 	ErrorReplayNotFound       ErrorCode = "replay_not_found"
+	ErrorUnauthorized         ErrorCode = "unauthorized"
 	ErrorRateLimited          ErrorCode = "rate_limited"
 	ErrorDownloadFailed       ErrorCode = "download_failed"
 	ErrorSaveFailed           ErrorCode = "save_failed"
@@ -180,6 +181,13 @@ func (b *Bridge) Stop() {
 	defer cancel()
 
 	server.Shutdown(ctx)
+}
+
+func (b *Bridge) Port() int {
+	b.serverMu.Lock()
+	defer b.serverMu.Unlock()
+
+	return b.port
 }
 
 func (b *Bridge) StatusText() (string, bool) {
@@ -355,6 +363,8 @@ func (b *Bridge) downloadReplay(request *http.Request, replayID string) (string,
 	switch {
 	case response.StatusCode == http.StatusNotFound:
 		return "", &playError{status: http.StatusNotFound, code: ErrorReplayNotFound, err: errors.New("replay file not found")}
+	case response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden:
+		return "", &playError{status: http.StatusUnauthorized, code: ErrorUnauthorized, err: fmt.Errorf("the storage refused the download, check its API key: %s", response.Status)}
 	case response.StatusCode == http.StatusTooManyRequests:
 		return "", &playError{status: http.StatusTooManyRequests, code: ErrorRateLimited, err: errors.New("too many downloads"), retryAfter: response.Header.Get("Retry-After")}
 	case response.StatusCode != http.StatusOK:

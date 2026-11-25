@@ -72,7 +72,7 @@ type GUI struct {
 	Clipboard func() fyne.Clipboard
 }
 
-func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager, rlSupervisor *manager.RLSupervisor, rlLocator *rlgame.Locator, bridgeStatus func() (string, bool), clipboard func() fyne.Clipboard) (g *GUI, err error) {
+func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, accountManager *manager.AccountManager, rlSupervisor *manager.RLSupervisor, rlLocator *rlgame.Locator, bridgeStatus func() (string, bool), bridgePort func() int, clipboard func() fyne.Clipboard) (g *GUI, err error) {
 	logger.FuncDebug()
 	g = &GUI{
 		window:         window,
@@ -89,7 +89,7 @@ func NewGUI(window fyne.Window, version string, appConfig *config.AppConfig, acc
 	accountBtn := widget.NewButtonWithIcon("", theme.AccountIcon(), func() { accountPopup.Show() })
 	accountBtn.Importance = widget.LowImportance
 
-	StorageSettingsPopup := NewStorageSettingsPopup(NewPopup("Storage Settings", g.window, appConfig, accountManager), version)
+	StorageSettingsPopup := NewStorageSettingsPopup(NewPopup("Storage Settings", g.window, appConfig, accountManager), version, bridgePort)
 	storageSettingsBtn := widget.NewButtonWithIcon("", theme.StorageIcon(), func() { StorageSettingsPopup.Show() })
 	storageSettingsBtn.Importance = widget.LowImportance
 

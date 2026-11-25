@@ -76,6 +76,7 @@ func reconcilePreset(sc *StorageConfig, preset *StorageConfig) {
 	sc.PresetAllowedValues = preset.PresetAllowedValues
 	sc.HelpText = preset.HelpText
 	sc.HelpURL = preset.HelpURL
+	sc.PresetFieldLinks = preset.PresetFieldLinks
 
 	sc.copyFields(preset, preset.PresetLockedFields)
 
@@ -267,11 +268,13 @@ type RenameStyleType int
 const (
 	RenameDisabled RenameStyleType = iota
 	RenamePatchTitle
+	RenameTitleField
 )
 
 var RenameStyleLabels = [...]string{
 	RenameDisabled:   "Rename Disabled",
 	RenamePatchTitle: "Patch Title After Upload",
+	RenameTitleField: "Title Form Field",
 }
 
 func (s RenameStyleType) Label() string {
