@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	EventUploadPreparing       tools.EventType = "upload_preparing"
 	EventUploadStarted         tools.EventType = "upload_started"
 	EventUploadCompleted       tools.EventType = "upload_completed"
 	EventUploadPlayerCompleted tools.EventType = "upload_player_completed"
@@ -88,14 +89,16 @@ func (u *Uploader) Run() {
 		logger.Rlogger.Debug("Duplicate Run at the same time, skipping")
 		return
 	}
-	defer u.lockInRunRLAPI.Unlock()
-
-	logger.Rlogger.Info("Start Upload Replays Process")
-
-	u.EventManager.Notify(EventUploadStarted, nil)
-	u.EventManager.Notify(EventUploadProgress, 0)
 
 	go func() {
+		defer u.lockInRunRLAPI.Unlock()
+
+		logger.Rlogger.Info("Start Upload Replays Process")
+
+		u.EventManager.Notify(EventUploadPreparing, nil)
+		u.EventManager.Notify(EventUploadStarted, nil)
+		u.EventManager.Notify(EventUploadProgress, 0)
+
 		accountList := u.accountManager.GetAll()
 
 		allReplaysLength := 0

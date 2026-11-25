@@ -12,16 +12,20 @@ import (
 	"github.com/inconshreveable/go-update"
 )
 
-func (u *Updater) ApplyUpdate() error {
+func (u *Updater) ApplyUpdate(onProgress UpdateProgress) error {
 	logger.FuncDebug()
 
-	resp, err := http.Get(u.UpdateInfo.URL)
+	resp, err := updateDownloadClient.Get(u.UpdateInfo.URL)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	data, err := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed with status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(&progressReader{reader: resp.Body, total: resp.ContentLength, onProgress: onProgress})
 	if err != nil {
 		return err
 	}

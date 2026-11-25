@@ -10,9 +10,17 @@ import (
 
 type EventType string
 
+type ListenerMode uint8
+
+const (
+	ListenerUI ListenerMode = iota
+	ListenerSync
+	ListenerBackground
+)
+
 type Listener struct {
 	Callback func(data any)
-	IsSync   bool
+	Mode     ListenerMode
 }
 
 type EventManager struct {
@@ -52,20 +60,21 @@ func (n *EventManager) Notify(event EventType, data any) {
 	logger.FuncDebug()
 
 	n.lock.Lock()
-	listeners, ok := n.listeners[event]
+	listeners := append([]Listener(nil), n.listeners[event]...)
 	n.lock.Unlock()
 
-	if ok {
-		for _, listener := range listeners {
-			callback := listener.Callback
+	for _, listener := range listeners {
+		callback := listener.Callback
 
-			if listener.IsSync {
+		switch listener.Mode {
+		case ListenerSync:
+			callback(data)
+		case ListenerBackground:
+			go callback(data)
+		default:
+			fyne.Do(func() {
 				callback(data)
-			} else {
-				fyne.Do(func() {
-					callback(data)
-				})
-			}
+			})
 		}
 	}
 }

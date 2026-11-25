@@ -5,10 +5,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"runtime"
 	"strings"
+	"time"
 
 	"golang.org/x/mod/semver"
 
@@ -36,7 +38,35 @@ type Updater struct {
 const (
 	githubReleasesURL = "https://api.github.com/repos/LEX0RE/rockpload/releases/latest"
 	websiteUpdateURL  = "https://lexore.ca/rocky/api/rockpload"
+
+	updateCheckTimeout    = 15 * time.Second
+	updateDownloadTimeout = 10 * time.Minute
 )
+
+var (
+	updateCheckClient    = &http.Client{Timeout: updateCheckTimeout}
+	updateDownloadClient = &http.Client{Timeout: updateDownloadTimeout}
+)
+
+type UpdateProgress = func(downloaded int64, total int64)
+
+type progressReader struct {
+	reader     io.Reader
+	downloaded int64
+	total      int64
+	onProgress UpdateProgress
+}
+
+func (r *progressReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	r.downloaded += int64(n)
+
+	if r.onProgress != nil && n > 0 {
+		r.onProgress(r.downloaded, r.total)
+	}
+
+	return n, err
+}
 
 func NewUpdater() *Updater {
 	logger.FuncDebug()
@@ -94,7 +124,7 @@ func checkGitHubUpdate(currentVersion string) (*UpdateInfo, bool, error) {
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := updateCheckClient.Do(req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -143,7 +173,7 @@ func checkWebsiteUpdate(currentVersion string) (*UpdateInfo, bool, error) {
 
 	url := fmt.Sprintf(websiteUpdateURL+"?os=%s", runtime.GOOS)
 
-	resp, err := http.Get(url)
+	resp, err := updateCheckClient.Get(url)
 	if err != nil {
 		return nil, false, err
 	}

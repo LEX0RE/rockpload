@@ -54,6 +54,27 @@ func NewAppConfig() *AppConfig {
 	return cfg
 }
 
+func PeekStartInTray() (startInTray bool) {
+	logger.FuncDebug()
+
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Rlogger.Error("Failed to read the tray settings", slog.Any("panic", r))
+			startInTray = false
+		}
+	}()
+
+	tools.WaitFileBoot([]string{constant.Paths.BehaviorSettingsFile, constant.Paths.AppLog})
+
+	cfg := NewAppConfig()
+	if err := tools.LoadJSONFilePath(constant.Paths.BehaviorSettingsFile, &cfg.BehaviorConfig, false); err != nil {
+		logger.Rlogger.Warn("Failed to read the tray settings", slog.Any("err", err))
+		return false
+	}
+
+	return cfg.BehaviorConfig.ExitInTray.Get() && cfg.BehaviorConfig.StartInTray.Get()
+}
+
 // TODO prefs parameters is deprecated, will be removed in future version
 func (a *AppConfig) Load(prefs fyne.Preferences) error {
 	logger.FuncDebug()

@@ -22,6 +22,7 @@ func (a *App) configureSystemTray() {
 	if desk, ok := a.app.(desktop.App); ok {
 		menu := fyne.NewMenu("Rockpload",
 			fyne.NewMenuItem("Open", func() {
+				a.windowHidden = false
 				a.window.Show()
 			}),
 		)

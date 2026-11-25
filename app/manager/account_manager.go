@@ -55,7 +55,6 @@ func NewAccountManager(appConfig *config.AppConfig) *AccountManager {
 	am.setBuildSecret(lastWorkingVersion.BuildSecret)
 
 	am.seedKnownPlaylists()
-	am.RefreshProfile()
 
 	return am
 }

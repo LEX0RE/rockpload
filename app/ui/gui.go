@@ -259,9 +259,32 @@ func (g *GUI) createLoginUI() {
 		}
 	}
 
-	LoginBtn := widget.NewButton("Authenticate", func() {
+	authStatus := widget.NewLabel("Log in with the browser window that opened. Close it to cancel.")
+	authStatus.Wrapping = fyne.TextWrapWord
+	authStatus.Hide()
+
+	var LoginBtn *widget.Button
+	LoginBtn = widget.NewButton("Authenticate", func() {
 		selectedAccount := g.accountManager.GetSelected()
-		selectedAccount.Player.Auth.OpenAuth()
+
+		if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+			selectedAccount.Player.Auth.OpenAuth()
+			return
+		}
+
+		LoginBtn.Disable()
+		LoginBtn.SetText("Waiting for login...")
+		authStatus.Show()
+
+		go func() {
+			selectedAccount.Player.Auth.OpenAuth()
+
+			fyne.Do(func() {
+				LoginBtn.SetText("Authenticate")
+				LoginBtn.Enable()
+				authStatus.Hide()
+			})
+		}()
 	})
 
 	var actionButtonBorder *fyne.Container
@@ -282,7 +305,7 @@ func (g *GUI) createLoginUI() {
 		}
 	})
 
-	g.loginBox = container.NewVBox(deviceAuthBorder, authContainer, ConnectBtn, g.retryConnectionBtn)
+	g.loginBox = container.NewVBox(deviceAuthBorder, authContainer, authStatus, ConnectBtn, g.retryConnectionBtn)
 }
 
 func (g *GUI) createPlayerUI() {
@@ -440,6 +463,18 @@ func (g *GUI) UpdateUploadProgress(progress float64) {
 	g.uploadProgress.SetValue(value)
 	g.uploadProgress.Show()
 	g.uploadStatus.SetText("Uploading replays...")
+}
+
+func (g *GUI) SetUploadPreparing() {
+	logger.FuncDebug()
+
+	if g.uploadStatus == nil || g.uploadProgress == nil {
+		return
+	}
+
+	g.uploadProgress.SetValue(0)
+	g.uploadProgress.Show()
+	g.uploadStatus.SetText("Refreshing match history...")
 }
 
 func (g *GUI) SetFetchHistoryBusy() int {

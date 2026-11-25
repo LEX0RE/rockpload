@@ -10,7 +10,7 @@ import (
 	"github.com/LEX0RE/rockpload/app/tools/logger"
 )
 
-func (u *Updater) ApplyUpdate() error {
+func (u *Updater) ApplyUpdate(onProgress UpdateProgress) error {
 	logger.FuncDebug()
 
 	apkURL, err := url.Parse(u.UpdateInfo.URL)
@@ -18,7 +18,9 @@ func (u *Updater) ApplyUpdate() error {
 		return fmt.Errorf("invalid update URL: %v", err)
 	}
 
-	err = fyne.CurrentApp().OpenURL(apkURL)
+	fyne.DoAndWait(func() {
+		err = fyne.CurrentApp().OpenURL(apkURL)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to open browser for update: %v", err)
 	}

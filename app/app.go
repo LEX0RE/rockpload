@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"log/slog"
 	"os"
+	"sync"
 
 	"github.com/LEX0RE/rockpload/app/bridge"
 	"github.com/LEX0RE/rockpload/app/config"
@@ -37,6 +38,11 @@ type App struct {
 	version       string
 	updateInfo    *UpdateInfo
 
+	profileRefreshMu sync.Mutex
+	startOnce        sync.Once
+	updateOffered    bool
+	windowHidden     bool
+
 	uploader       *upload.Uploader
 	statsApi       *rocket_network.StatsAPI
 	accountManager *manager.AccountManager
@@ -62,20 +68,6 @@ func NewApp(version string, app fyne.App) *App {
 
 	a.configureApp()
 
-	// TODO Check for update before load config to be sure that if the config crash, we can still update it
-	a.appConfig = config.NewAppConfig()
-	err := a.appConfig.Load(a.app.Preferences())
-	if err != nil {
-		logger.Rlogger.Error("Failed to load settings:", slog.Any("err", err))
-	}
-
-	a.appConfig.BehaviorConfig.AutoStart.Bind(a.SetAutoStart)
-	a.appConfig.BehaviorConfig.AutoUpload.Bind(a.SetAutoUpload)
-	a.appConfig.BehaviorConfig.UploadOnRLClose.Bind(a.SetUploadOnRLClose)
-
-	// Needed in Popup (so update popup will take it), so we need to init before all
-	a.accountManager = manager.NewAccountManager(a.appConfig)
-
 	icon := fyne.NewStaticResource("logo.png", logoBytes)
 	a.app.SetIcon(icon)
 
@@ -84,8 +76,8 @@ func NewApp(version string, app fyne.App) *App {
 	a.configureSystemTray()
 
 	a.window.SetCloseIntercept(func() {
-		if a.canRunInTray() && a.appConfig.BehaviorConfig.ExitInTray.Get() {
-			a.window.Hide()
+		if a.canRunInTray() && a.appConfig != nil && a.appConfig.BehaviorConfig.ExitInTray.Get() {
+			a.hideWindow()
 		} else {
 			a.app.Quit()
 		}
@@ -114,19 +106,65 @@ func (a *App) Run() {
 	}
 	defer a.duplicateLock.Unlock()
 
-	updateAvailable := a.setupAppUpdate()
+	go func() {
+		updater := a.findUpdate()
 
-	a.initManager()
-	a.initEvents()
-	a.startManager()
+		fyne.Do(func() {
+			if updater == nil {
+				a.start()
+				return
+			}
 
+			a.offerUpdate(updater)
+		})
+	}()
+
+	a.window.SetContent(ui.NewStartupScreen("Checking for updates..."))
 	a.window.Resize(fyne.NewSize(700, 450))
 
-	if !updateAvailable && a.canRunInTray() && a.appConfig.BehaviorConfig.ExitInTray.Get() && a.appConfig.BehaviorConfig.StartInTray.Get() {
+	if a.canRunInTray() && config.PeekStartInTray() {
+		a.windowHidden = true
 		a.app.Run()
 	} else {
 		a.window.ShowAndRun()
 	}
+}
+
+func (a *App) start() {
+	logger.FuncDebug()
+
+	a.startOnce.Do(func() {
+		a.window.SetContent(ui.NewStartupScreen("Loading..."))
+
+		go func() {
+			appConfig := config.NewAppConfig()
+			if err := appConfig.Load(a.app.Preferences()); err != nil {
+				logger.Rlogger.Error("Failed to load settings:", slog.Any("err", err))
+			}
+
+			appConfig.BehaviorConfig.AutoStart.Bind(a.SetAutoStart)
+			appConfig.BehaviorConfig.AutoUpload.Bind(a.SetAutoUpload)
+			appConfig.BehaviorConfig.UploadOnRLClose.Bind(a.SetUploadOnRLClose)
+
+			accountManager := manager.NewAccountManager(appConfig)
+
+			fyne.Do(func() {
+				a.appConfig = appConfig
+				a.accountManager = accountManager
+
+				a.initManager()
+				a.initEvents()
+				a.startManager()
+
+				startInTray := a.canRunInTray() && a.appConfig.BehaviorConfig.ExitInTray.Get() && a.appConfig.BehaviorConfig.StartInTray.Get()
+				if startInTray && !a.updateOffered {
+					a.hideWindow()
+				} else {
+					a.showWindow()
+				}
+			})
+		}()
+	})
 }
 
 func (a *App) initManager() {
@@ -156,7 +194,7 @@ func (a *App) initEvents() {
 	a.statsApi = rocket_network.NewStatsAPI()
 	a.statsApi.PortsProvider = a.rlLocator.StatsAPIPorts
 	uploadLiveStatsEvent := []tools.EventType{"CountdownBegin", "PodiumStart", rocket_network.EventOvertimeStarted}
-	a.statsApi.EventManager.MultiSubscribe(uploadLiveStatsEvent, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.statsApi.EventManager.MultiSubscribe(uploadLiveStatsEvent, tools.Listener{Mode: tools.ListenerBackground, Callback: func(data any) {
 		a.uploader.UploadLiveStats(a.statsApi.LastInfo)
 	}})
 
@@ -174,27 +212,31 @@ func (a *App) initEvents() {
 		fyne.Do(a.gui.UpdateState)
 	}
 
-	a.uploader.EventManager.Subscribe(upload.EventUploadProgress, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.uploader.EventManager.Subscribe(upload.EventUploadPreparing, tools.Listener{Mode: tools.ListenerUI, Callback: func(data any) {
+		a.gui.SetUploadPreparing()
+	}})
+
+	a.uploader.EventManager.Subscribe(upload.EventUploadProgress, tools.Listener{Mode: tools.ListenerUI, Callback: func(data any) {
 		if progress, ok := data.(float64); ok && a.gui != nil {
 			a.gui.UpdateUploadProgress(progress)
 		}
 	}})
 
 	guiUploaderEventList := []tools.EventType{upload.EventReplayUploaded, upload.EventUploadCompleted, upload.EventReplayUploaded}
-	a.uploader.EventManager.MultiSubscribe(guiUploaderEventList, tools.Listener{IsSync: false, Callback: func(data any) {
-		onUpdateState()
+	a.uploader.EventManager.MultiSubscribe(guiUploaderEventList, tools.Listener{Mode: tools.ListenerUI, Callback: func(data any) {
+		a.gui.UpdateState()
 	}})
 
-	a.uploader.EventManager.Subscribe(upload.EventUploadStarted, tools.Listener{IsSync: true, Callback: func(data any) {
+	a.uploader.EventManager.Subscribe(upload.EventUploadStarted, tools.Listener{Mode: tools.ListenerSync, Callback: func(data any) {
 		a.accountManager.RefreshInfo()
 		a.appConfig.Save()
 	}})
 
-	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD, tools.Listener{Mode: tools.ListenerBackground, Callback: func(data any) {
 		a.uploader.Run()
 	}})
 
-	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD_FILE, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD_FILE, tools.Listener{Mode: tools.ListenerBackground, Callback: func(data any) {
 		filePath, ok := data.(string)
 		if !ok {
 			return
@@ -203,22 +245,20 @@ func (a *App) initEvents() {
 		a.uploader.UploadLocalFile(filePath)
 	}})
 
-	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_LOAD_REPLAY_IN_GAME, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_LOAD_REPLAY_IN_GAME, tools.Listener{Mode: tools.ListenerBackground, Callback: func(data any) {
 		request, ok := data.(ui.LoadReplayRequest)
 		if !ok {
 			return
 		}
 
-		go func() {
-			sent, err := a.loadReplayInGame(request)
-			if err != nil {
-				logger.Rlogger.Error("Failed to load replay in game", slog.String("Mode", string(request.Mode)), slog.Any("err", err))
-			}
-			request.OnResult(sent, err)
-		}()
+		sent, err := a.loadReplayInGame(request)
+		if err != nil {
+			logger.Rlogger.Error("Failed to load replay in game", slog.String("Mode", string(request.Mode)), slog.Any("err", err))
+		}
+		request.OnResult(sent, err)
 	}})
 
-	a.uploader.EventManager.Subscribe(upload.EventSingleUploadCompleted, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.uploader.EventManager.Subscribe(upload.EventSingleUploadCompleted, tools.Listener{Mode: tools.ListenerUI, Callback: func(data any) {
 		if data == nil {
 			dialog.ShowInformation("Upload Complete", "The replay was uploaded successfully.", a.window)
 			return
@@ -229,7 +269,7 @@ func (a *App) initEvents() {
 		}
 	}})
 
-	a.uploader.EventManager.Subscribe(upload.EventMatchUploadCompleted, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.uploader.EventManager.Subscribe(upload.EventMatchUploadCompleted, tools.Listener{Mode: tools.ListenerUI, Callback: func(data any) {
 		if err, ok := data.(error); ok && err != nil {
 			dialog.ShowError(err, a.window)
 			return
@@ -238,7 +278,7 @@ func (a *App) initEvents() {
 		a.gui.UpdateState()
 	}})
 
-	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_FETCH_HISTORY, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_FETCH_HISTORY, tools.Listener{Mode: tools.ListenerUI, Callback: func(data any) {
 		gen := a.gui.SetFetchHistoryBusy()
 
 		go func() {
@@ -262,7 +302,7 @@ func (a *App) initEvents() {
 		}()
 	}})
 
-	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD_MATCH, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.gui.EventManager.Subscribe(ui.EVENT_CLICK_UPLOAD_MATCH, tools.Listener{Mode: tools.ListenerUI, Callback: func(data any) {
 		matchGUID, ok := data.(string)
 		if !ok {
 			return
@@ -283,7 +323,7 @@ func (a *App) initEvents() {
 	}})
 
 	guiAccountManagerEventList := []tools.EventType{manager.EVENT_SELECT_ACCOUNT, manager.EVENT_ADD_ACCOUNT, manager.EVENT_DELETE_ACCOUNT}
-	a.accountManager.EventManager.MultiSubscribe(guiAccountManagerEventList, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.accountManager.EventManager.MultiSubscribe(guiAccountManagerEventList, tools.Listener{Mode: tools.ListenerUI, Callback: func(data any) {
 		a.gui.UpdateState()
 	}})
 
@@ -291,7 +331,10 @@ func (a *App) initEvents() {
 		rocket_network.AuthEventManager = tools.NewEventManager()
 	}
 
-	rocket_network.AuthEventManager.Subscribe(rocket_network.EventUserAuthenticated, tools.Listener{IsSync: false, Callback: func(data any) {
+	rocket_network.AuthEventManager.Subscribe(rocket_network.EventUserAuthenticated, tools.Listener{Mode: tools.ListenerBackground, Callback: func(data any) {
+		a.profileRefreshMu.Lock()
+		defer a.profileRefreshMu.Unlock()
+
 		a.accountManager.RefreshProfile()
 
 		if a.appConfig.BehaviorConfig.AutoUpload.Get() {
@@ -304,21 +347,21 @@ func (a *App) initEvents() {
 	}})
 
 	updateGUIFromSupervisorEvent := []tools.EventType{manager.EVENT_ON_RL_DETECTED, manager.EVENT_ON_RL_PLAYER_DETECTED, manager.EVENT_ON_RL_CLOSED}
-	a.rlSupervisor.EventManager.MultiSubscribe(updateGUIFromSupervisorEvent, tools.Listener{IsSync: false, Callback: func(data any) {
-		onUpdateState()
+	a.rlSupervisor.EventManager.MultiSubscribe(updateGUIFromSupervisorEvent, tools.Listener{Mode: tools.ListenerUI, Callback: func(data any) {
+		a.gui.UpdateState()
 	}})
 
 	// A new Launch.log is written on each launch, the game could have been moved or installed elsewhere
-	a.rlSupervisor.EventManager.Subscribe(manager.EVENT_ON_RL_DETECTED, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.rlSupervisor.EventManager.Subscribe(manager.EVENT_ON_RL_DETECTED, tools.Listener{Mode: tools.ListenerBackground, Callback: func(data any) {
 		a.rlLocator.Refresh()
 	}})
 
-	a.rlSupervisor.EventManager.Subscribe(manager.EVENT_ON_RL_CLOSED, tools.Listener{IsSync: false, Callback: func(data any) {
+	a.rlSupervisor.EventManager.Subscribe(manager.EVENT_ON_RL_CLOSED, tools.Listener{Mode: tools.ListenerBackground, Callback: func(data any) {
 		if a.appConfig.BehaviorConfig.UploadOnRLClose.Get() {
 			a.uploader.Run()
 		}
 
-		go rlgame.ClearTempReplays()
+		rlgame.ClearTempReplays()
 	}})
 }
 
@@ -333,41 +376,74 @@ func (a *App) startManager() {
 		go rlgame.ClearTempReplays()
 	}
 
+	go func() {
+		a.profileRefreshMu.Lock()
+		a.accountManager.RefreshProfile()
+		a.profileRefreshMu.Unlock()
+
+		fyne.Do(a.gui.UpdateState)
+	}()
+
 	a.startPlatformManagers()
 }
 
-func (a *App) setupAppUpdate() bool {
+func (a *App) findUpdate() (updater *Updater) {
 	logger.FuncDebug()
 
-	updater := NewUpdater()
-	skipUpdate := os.Getenv("SKIP_UPDATE")
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Rlogger.Error("Update check crashed", slog.Any("panic", r))
+			updater = nil
+		}
+	}()
+
+	if os.Getenv("SKIP_UPDATE") == "true" {
+		return nil
+	}
+
+	updater = NewUpdater()
 
 	needUpdate, err := updater.CheckForUpdate(a.version)
 	if err != nil {
 		logger.Rlogger.Error("Failed to check for update:", slog.Any("err", err))
-		a.updateInfo = nil
-		return false
+		return nil
 	}
+
+	if !needUpdate {
+		return nil
+	}
+
+	return updater
+}
+
+func (a *App) offerUpdate(updater *Updater) {
+	logger.FuncDebug()
 
 	a.updateInfo = updater.UpdateInfo
+	a.updateOffered = true
 
-	if !needUpdate || skipUpdate == "true" {
-		return false
+	updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, nil, nil), a.updateInfo.Version, string(a.updateInfo.Source), updater.ApplyUpdate, a.restart, a.start)
+
+	a.showWindow()
+	updatePopup.Show()
+}
+
+func (a *App) showWindow() {
+	logger.FuncDebug()
+
+	if !a.windowHidden {
+		return
 	}
 
-	updatePopup := ui.NewUpdatePopup(ui.NewPopup("New Update!", a.window, a.appConfig, a.accountManager), a.updateInfo.Version, string(a.updateInfo.Source), func() {
-		err := updater.ApplyUpdate()
-		if err != nil {
-			logger.Rlogger.Error("Update failed", slog.Any("err", err))
-			return
-		}
+	a.windowHidden = false
+	a.window.Show()
+}
 
-		a.restart()
-	})
+func (a *App) hideWindow() {
+	logger.FuncDebug()
 
-	updatePopup.Show()
-
-	return true
+	a.windowHidden = true
+	a.window.Hide()
 }
 
 func (a *App) SetAutoUpload(value bool) {
